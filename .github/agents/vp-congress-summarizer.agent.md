@@ -46,8 +46,12 @@ python .github/skills/forum-post-getter/get_forum_posts.py "<thread_url>"
 
 - The script outputs a JSON object representing the first post. Use `post["content"]` — the **first post's content** — as the source for future steps.
 - Save the original post content in the content field of the json file under the "Content" key for reference.
-- Write a **1 sentence summary** of the proposed changes based on that content. Focus on *what* is being changed and *why* (if stated). Be specific (mention numbers, mechanics, or units when relevant). Save the summary in the "Summary" key of the json file.
-- If the script fails or returns no posts, write `[Could not fetch post]` in the Summary column.
+- Write a **1 sentence summary** of the proposed changes based on that content. Focus on *what* is being changed and *why* (if stated). Be specific (mention numbers, mechanics, or units when relevant). Save the summary in the "Summary" key of the json file. 
+- This summary will be a single line, so always use spaces and commas instead of newlines and bullet points. If the content is very long, focus on summarizing the most important details and ignore minor points or tangential discussion.
+- If the script fails or returns no posts, write `[Could not fetch post]` in the Summary column temporarily and add a todo list item to try again later.
+- Do not include timestamps or post counts in the summary. Remove prefixes such as "Monday at 7:16 PM#1" from the content before summarizing.
+
+Summarize each thread one at a time, saving the corresponding json file before moving on to the next thread. Only summarize threads together when they are counterproposals indicated by having the same number. Ex. for "(10-058) Remove Watermill, Improve Well at Masonry", "(10-085a) Allow Wells in All Cities and Nerf Water Mill", "(10-085b) Nerf Water Mill", these 3 posts may be considered simultaneously.
 
 ### Step 3: Format and Output
 

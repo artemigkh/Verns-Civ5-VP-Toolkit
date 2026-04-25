@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Civ5 VP Autoplay — Hypervisor</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Civ5 VP Autoplay Hypervisor</h1>
+    <div id="last-updated" class="muted"></div>
+  </header>
+
+  <section class="controls">
+    <button id="btn-start" class="btn btn-start">Start All</button>
+    <button id="btn-stop" class="btn btn-stop">Stop All</button>
+    <button id="btn-install" class="btn btn-install">Mass Install Modpack…</button>
+    <input id="modpack-file" type="file" accept=".zip" hidden />
+    <span id="control-status" class="muted"></span>
+  </section>
+
+  <section>
+    <h2>Runners</h2>
+    <table id="runners-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort-key="uuid">Runner UUID</th>
+          <th class="sortable" data-sort-key="url">Address</th>
+          <th class="sortable" data-sort-key="modpack">Modpack</th>
+          <th class="sortable" data-sort-key="state">State</th>
+          <th class="sortable" data-sort-key="turn">Turn</th>
+          <th class="sortable" data-sort-key="timeElapsedSec">Game Time</th>
+          <th class="sortable" data-sort-key="gameId">Game ID</th>
+          <th>Actions</th>
+          <th class="sortable" data-sort-key="successCount">Successes</th>
+          <th class="sortable" data-sort-key="failureCount">Failures</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="10" class="muted">No runners registered.</td></tr>
+      </tbody>
+    </table>
+    <input id="row-modpack-file" type="file" accept=".zip" hidden />
+  </section>
+
+  <section>
+    <h2>Games by Modpack</h2>
+    <table id="files-table">
+      <thead>
+        <tr>
+          <th>Modpack</th>
+          <th>Completed</th>
+          <th>Failed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="3" class="muted">No data yet.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <script src="/app.js"></script>
+</body>
+</html>
