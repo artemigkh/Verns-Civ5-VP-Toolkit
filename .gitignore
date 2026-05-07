@@ -1,6 +1,43 @@
 cache/
 data/
 .venv/
+
+# Project-specific intermediate / output artifacts
+logs/
+*.log
+hv.err.log
+hv.out.log
+runner.log
+
+# logs_processing (Spark/Maven Scala project) build outputs and parquet outputs
+logs_processing/target/
+logs_processing/spark-warehouse/
+logs_processing/*.parquet/
+logs_processing/parsed_cache/
+logs_processing/perf_metrics.csv
+
+# promotion_tree generated outputs
+promotion_tree/*.png
+promotion_tree/*.svg
+promotion_tree/*.pdf
+promotion_tree/*.gv
+promotion_tree/*.csv
+promotion_tree/*.zip
+promotion_tree/UNITCOMBAT_*
+promotion_tree/output/
+
+# db_util generated CSV outputs
+db_util/out/*
+!db_util/out/.gitkeep
+
+# analysis (R / notebook) generated outputs
+analysis/output/
+analysis/_run_report.R
+analysis/_patch_*.py
+.Rhistory
+.RData
+.Ruserdata
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

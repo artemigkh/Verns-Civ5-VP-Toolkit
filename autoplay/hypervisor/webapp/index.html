@@ -3,12 +3,233 @@
 <head>
   <meta charset="UTF-8" />
   <title>Civ5 VP Autoplay — Hypervisor</title>
-  <link rel="stylesheet" href="/style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 1.5rem 2rem;
+      background: #fafafa;
+      color: #222;
+    }
+    body[data-layout="compact"] { padding: 0.75rem 1rem; }
+    body[data-layout="compact"] th,
+    body[data-layout="compact"] td { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+    body[data-layout="compact"] h1 { font-size: 1.05rem; }
+    body[data-layout="compact"] h2 { font-size: 0.9rem; }
+    body[data-layout="compact"] .btn { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
+    body[data-layout="compact"] .btn-sm { padding: 0.15rem 0.4rem; font-size: 0.7rem; }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header .meta { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    header label { font-size: 0.8rem; color: #555; display: inline-flex; align-items: center; gap: 0.3rem; }
+    header select { font-size: 0.8rem; padding: 0.15rem 0.3rem; }
+
+    h1 { font-size: 1.25rem; margin: 0; }
+    h2 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 1.5rem 0 0.5rem;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .section-header h2 { margin: 0; }
+    .section-header .right { display: inline-flex; align-items: center; gap: 0.75rem; }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: #444;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle input { cursor: pointer; }
+
+    .runner-group {
+      margin-bottom: 1.5rem;
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+      padding: 0.75rem 1rem 1rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .runner-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .runner-group-header h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-family: Consolas, "Courier New", monospace;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .runner-group-header h3 .name {
+      cursor: text;
+      padding: 0.05rem 0.3rem;
+      border-radius: 3px;
+      border: 1px dashed transparent;
+    }
+    .runner-group-header h3 .name:hover {
+      border-color: #cbd5e1;
+      background: #f1f5f9;
+    }
+    .runner-group-header h3 .name[contenteditable="true"] {
+      background: #fff;
+      border-color: #6366f1;
+      outline: none;
+      cursor: text;
+    }
+    .runner-group-header h3 .ip-suffix {
+      color: #888;
+      font-size: 0.8rem;
+      font-weight: normal;
+    }
+    .runner-group-header h3 .clear-name {
+      cursor: pointer;
+      color: #ef4444;
+      font-size: 0.7rem;
+      text-decoration: underline;
+    }
+    .runner-group-header .count { color: #888; font-size: 0.85rem; }
+    .runner-group-header .turn-stats { color: #555; font-size: 0.8rem; cursor: help; }
+    .runner-group-controls { display: flex; gap: 0.4rem; }
+    .runner-group table { box-shadow: none; }
+
+    .muted { color: #888; font-size: 0.85rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      font-size: 0.9rem;
+    }
+    th {
+      background: #f3f3f3;
+      font-weight: 600;
+    }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { background: #e8e8e8; }
+    th.sortable::after {
+      content: "";
+      display: inline-block;
+      width: 0.75em;
+      margin-left: 0.25em;
+      color: #999;
+    }
+    th.sortable.sort-asc::after  { content: "\25B2"; color: #222; }
+    th.sortable.sort-desc::after { content: "\25BC"; color: #222; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .uuid { font-family: Consolas, "Courier New", monospace; font-size: 0.8rem; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge.idle              { background: #3b82f6; }
+    .badge.starting          { background: #eab308; }
+    .badge.running           { background: #22c55e; }
+    .badge.stopping          { background: #f59e0b; }
+    .badge.failed            { background: #ef4444; }
+    .badge.harvesting_logs,
+    .badge.uploading_logs    { background: #a855f7; }
+    .badge.updating_modpack  { background: #f97316; }
+    .badge.attempting_recovery { background: #fbbf24; color: #000; }
+    .badge.recovered           { background: #14b8a6; }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      appearance: none;
+      border: none;
+      padding: 0.45rem 1rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+      transition: filter 0.1s;
+    }
+    .btn:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn:disabled             { opacity: 0.5; cursor: default; }
+    .btn-start   { background: #22c55e; }
+    .btn-stop    { background: #ef4444; }
+    .btn-install { background: #6366f1; }
+    .btn-sm {
+      padding: 0.2rem 0.55rem;
+      font-size: 0.75rem;
+      margin-right: 0.25rem;
+    }
+    td.actions { white-space: nowrap; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    #control-status { margin-left: 0.75rem; }
+  </style>
 </head>
 <body>
   <header>
     <h1>Civ5 VP Autoplay Hypervisor</h1>
-    <div id="last-updated" class="muted"></div>
+    <div class="meta">
+      <label>Layout
+        <select id="opt-layout">
+          <option value="comfortable">Comfortable</option>
+          <option value="compact">Compact</option>
+        </select>
+      </label>
+      <label>Refresh
+        <select id="opt-poll">
+          <option value="1">1s</option>
+          <option value="5">5s</option>
+          <option value="10">10s</option>
+          <option value="30">30s</option>
+        </select>
+      </label>
+      <span id="last-updated" class="muted"></span>
+    </div>
   </header>
 
   <section class="controls">
@@ -20,27 +241,40 @@
   </section>
 
   <section>
-    <h2>Runners</h2>
-    <table id="runners-table">
-      <thead>
-        <tr>
-          <th class="sortable" data-sort-key="uuid">Runner UUID</th>
-          <th class="sortable" data-sort-key="url">Address</th>
-          <th class="sortable" data-sort-key="modpack">Modpack</th>
-          <th class="sortable" data-sort-key="state">State</th>
-          <th class="sortable" data-sort-key="turn">Turn</th>
-          <th class="sortable" data-sort-key="timeElapsedSec">Game Time</th>
-          <th class="sortable" data-sort-key="gameId">Game ID</th>
-          <th>Actions</th>
-          <th class="sortable" data-sort-key="successCount">Successes</th>
-          <th class="sortable" data-sort-key="failureCount">Failures</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td colspan="10" class="muted">No runners registered.</td></tr>
-      </tbody>
-    </table>
+    <div class="section-header">
+      <h2>Runners</h2>
+      <div class="right">
+        <label class="toggle">
+          <input id="group-by-runner" type="checkbox" />
+          <span>Group By Runner</span>
+        </label>
+      </div>
+    </div>
+    <div id="runners-flat">
+      <table id="runners-table">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="uuid">Runner UUID</th>
+            <th class="sortable" data-sort-key="url">Address</th>
+            <th class="sortable" data-sort-key="modpack">Modpack</th>
+            <th class="sortable" data-sort-key="state">State</th>
+            <th class="sortable" data-sort-key="turn">Turn</th>
+            <th class="sortable" data-sort-key="timeElapsedSec">Game Time</th>
+            <th class="sortable" data-sort-key="gameId">Game ID</th>
+            <th>Actions</th>
+            <th class="sortable" data-sort-key="successCount">Successes</th>
+            <th class="sortable" data-sort-key="failureCount">Failures</th>
+            <th class="sortable" data-sort-key="recoveryCount">Recoveries</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="11" class="muted">No runners registered.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="runners-grouped" hidden></div>
     <input id="row-modpack-file" type="file" accept=".zip" hidden />
+    <input id="group-modpack-file" type="file" accept=".zip" hidden />
   </section>
 
   <section>
@@ -59,6 +293,677 @@
     </table>
   </section>
 
-  <script src="/app.js"></script>
+  <script>
+"use strict";
+
+// =====================================================================
+// Persistent UI state — bookmarkable via URL, mirrored to cookies as a
+// fallback for direct visits with no query string.
+// =====================================================================
+
+const STATE_KEYS = ["group", "sort", "dir", "groupSort", "groupSortDir", "layout", "pollSec"];
+const STATE_DEFAULTS = {
+  group: "0",
+  sort: "uuid",
+  dir: "asc",
+  groupSort: "uuid",
+  groupSortDir: "asc",
+  layout: "comfortable",
+  pollSec: "1",
+};
+
+function readCookie(name) {
+  const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function writeCookie(name, value) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/; SameSite=Lax`;
+}
+
+function loadState() {
+  const params = new URLSearchParams(window.location.search);
+  const out = {};
+  for (const key of STATE_KEYS) {
+    let val = params.get(key);
+    if (val === null) val = readCookie(`hv_${key}`);
+    if (val === null || val === "") val = STATE_DEFAULTS[key];
+    out[key] = val;
+  }
+  return out;
+}
+
+function saveState(state) {
+  const params = new URLSearchParams();
+  for (const key of STATE_KEYS) {
+    if (state[key] !== STATE_DEFAULTS[key]) params.set(key, state[key]);
+  }
+  const qs = params.toString();
+  const newUrl = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+  window.history.replaceState(null, "", newUrl);
+  for (const key of STATE_KEYS) writeCookie(`hv_${key}`, state[key]);
+}
+
+const state = loadState();
+function updateState(patch) {
+  Object.assign(state, patch);
+  saveState(state);
+}
+
+document.body.dataset.layout = state.layout;
+
+// =====================================================================
+// Data fetching + polling
+// =====================================================================
+
+const FILE_POLL_MS = 60000;
+const TURN_TIMES_POLL_MS = 15000;
+
+let runnerPollHandle = null;
+function applyPollInterval() {
+  if (runnerPollHandle) clearInterval(runnerPollHandle);
+  const sec = Math.max(1, parseInt(state.pollSec, 10) || 1);
+  runnerPollHandle = setInterval(refreshRunners, sec * 1000);
+}
+
+let latestRunnerRows = [];
+let latestTurnTimes = {};
+let latestRunnerNames = {};
+const runnerSort = { key: state.sort, dir: state.dir === "desc" ? -1 : 1 };
+const groupSort = { key: state.groupSort, dir: state.groupSortDir === "desc" ? -1 : 1 };
+let groupByRunner = state.group === "1";
+
+function formatDuration(totalSec) {
+  if (totalSec === null || totalSec === undefined) return "–";
+  const s = Math.max(0, Math.floor(totalSec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function shortUuid(u) {
+  return u && u.length > 12 ? `${u.slice(0, 8)}…${u.slice(-4)}` : u;
+}
+
+function ipFromUrl(url) {
+  if (!url) return "(unknown)";
+  const m = String(url).match(/^https?:\/\/([^:/]+)/i);
+  return m ? m[1] : url;
+}
+
+function compareRunners(a, b, key) {
+  const va = a?.[key];
+  const vb = b?.[key];
+  const aNil = va === null || va === undefined;
+  const bNil = vb === null || vb === undefined;
+  if (aNil && bNil) return 0;
+  if (aNil) return 1;
+  if (bNil) return -1;
+  if (typeof va === "number" && typeof vb === "number") return va - vb;
+  return String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+}
+
+async function refreshRunners() {
+  try {
+    const resp = await fetch("/runner-status");
+    if (!resp.ok) throw new Error(`status ${resp.status}`);
+    const rows = await resp.json();
+    latestRunnerRows = Array.isArray(rows) ? rows : [];
+    renderRunnersAuto();
+    document.getElementById("last-updated").textContent =
+      `Updated ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    document.getElementById("last-updated").textContent =
+      `Fetch error: ${err.message}`;
+  }
+}
+
+async function refreshFiles() {
+  try {
+    const resp = await fetch("/file-status");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    renderFiles(data);
+  } catch (_e) { /* ignore */ }
+}
+
+async function refreshTurnTimes() {
+  try {
+    const resp = await fetch("/turn-times/by-runner");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    latestTurnTimes = data && typeof data === "object" ? data : {};
+    if (groupByRunner) renderRunnersAuto();
+  } catch (_e) { /* ignore */ }
+}
+
+async function refreshRunnerNames() {
+  try {
+    const resp = await fetch("/runner-names");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    latestRunnerNames = data && typeof data === "object" ? data : {};
+    if (groupByRunner) renderRunnersAuto();
+  } catch (_e) { /* ignore */ }
+}
+
+// =====================================================================
+// Rendering
+// =====================================================================
+
+function isEditingName() {
+  const active = document.activeElement;
+  return !!(active && active.isContentEditable && active.closest("#runners-grouped"));
+}
+
+function renderRunnersAuto() {
+  // Don't blow away an in-progress inline rename when a poll fires.
+  if (isEditingName()) return;
+  const flat = document.getElementById("runners-flat");
+  const grouped = document.getElementById("runners-grouped");
+  if (groupByRunner) {
+    flat.hidden = true;
+    grouped.hidden = false;
+    renderRunnersGrouped(latestRunnerRows);
+  } else {
+    flat.hidden = false;
+    grouped.hidden = true;
+    renderRunners(latestRunnerRows);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function renderRowHtml(r) {
+  const turn = r.turn ?? "–";
+  const time = formatDuration(r.timeElapsedSec);
+  const badge = `<span class="badge ${r.state}">${r.state}</span>`;
+  const addr = (r.url || "").replace(/^https?:\/\//, "");
+  const gameId = r.gameId ?? "–";
+  const u = r.uuid;
+  const successes = r.successCount ?? 0;
+  const failures = r.failureCount ?? 0;
+  const recoveries = r.recoveryCount ?? 0;
+  const actions = `
+    <button class="btn btn-start btn-sm"   data-action="start"   data-uuid="${u}">Start</button>
+    <button class="btn btn-stop  btn-sm"   data-action="stop"    data-uuid="${u}">Stop</button>
+    <button class="btn btn-install btn-sm" data-action="install" data-uuid="${u}">Install Modpack</button>
+  `;
+  return `<tr>
+    <td class="uuid" title="${u}">${shortUuid(u)}</td>
+    <td class="addr">${escapeHtml(addr)}</td>
+    <td>${escapeHtml(r.modpack ?? "–")}</td>
+    <td>${badge}</td>
+    <td>${turn}</td>
+    <td>${time}</td>
+    <td class="gameid" title="${escapeHtml(String(gameId))}">${escapeHtml(String(gameId))}</td>
+    <td class="actions">${actions}</td>
+    <td class="num">${successes}</td>
+    <td class="num">${failures}</td>
+    <td class="num">${recoveries}</td>
+  </tr>`;
+}
+
+function renderRunners(rows) {
+  const tbody = document.querySelector("#runners-table tbody");
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" class="muted">No runners registered.</td></tr>`;
+    updateSortIndicators("#runners-table", runnerSort, "sortKey");
+    return;
+  }
+  const sorted = [...rows].sort((a, b) => runnerSort.dir * compareRunners(a, b, runnerSort.key));
+  tbody.innerHTML = sorted.map(renderRowHtml).join("");
+  updateSortIndicators("#runners-table", runnerSort, "sortKey");
+}
+
+function renderRunnersGrouped(rows) {
+  const container = document.getElementById("runners-grouped");
+  if (!rows || rows.length === 0) {
+    container.innerHTML = `<p class="muted">No runners registered.</p>`;
+    return;
+  }
+  const groups = new Map();
+  for (const r of rows) {
+    const ip = ipFromUrl(r.url);
+    if (!groups.has(ip)) groups.set(ip, []);
+    groups.get(ip).push(r);
+  }
+  // Sort groups alphabetically by their effective display key: the raw tag
+  // (including any leading spaces, which act as a manual sort-override) when
+  // one is set, otherwise the IP itself.
+  const ips = [...groups.keys()].sort((a, b) => {
+    const ka = latestRunnerNames[a] ?? a;
+    const kb = latestRunnerNames[b] ?? b;
+    return ka.localeCompare(kb, undefined, { numeric: true, sensitivity: "base" });
+  });
+  container.innerHTML = ips.map(ip => {
+    const list = [...groups.get(ip)].sort((a, b) => groupSort.dir * compareRunners(a, b, groupSort.key));
+    const uuids = list.map(r => r.uuid).join(",");
+    const body = list.map(renderRowHtml).join("");
+    const stats = turnStatsForUuids(list.map(r => r.uuid));
+    let turnLabel = "";
+    if (stats.games > 0 && stats.avgSec != null) {
+      const tip =
+        `${stats.games} game${stats.games === 1 ? "" : "s"} — ` +
+        `${stats.totalTurns} turns over ${formatDuration(stats.totalTimeSec)}`;
+      turnLabel = ` <span class="turn-stats" title="${escapeHtml(tip)}">— avg turn: ${formatTurnSec(stats.avgSec)} (n=${stats.games} game${stats.games === 1 ? "" : "s"})</span>`;
+    }
+    const tag = latestRunnerNames[ip];
+    const ipEsc = escapeHtml(ip);
+    // Display the trimmed tag in normal view; the raw (possibly
+    // leading-space-padded) value is exposed only in edit mode via
+    // ``data-raw-name`` so users can author/edit sort-override prefixes.
+    const heading = tag
+      ? `<span class="name" data-host="${ipEsc}" data-raw-name="${escapeHtml(tag)}" title="Double-click to rename">${escapeHtml(tag.trim())}</span>`
+        + ` <span class="ip-suffix">(${ipEsc})</span>`
+        + ` <span class="clear-name" data-host="${ipEsc}" title="Clear tag">clear</span>`
+      : `<span class="name" data-host="${ipEsc}" title="Double-click to rename">${ipEsc}</span>`;
+    const groupHeaders = `
+      <tr>
+        <th class="sortable" data-group-sort-key="uuid">Runner UUID</th>
+        <th class="sortable" data-group-sort-key="url">Address</th>
+        <th class="sortable" data-group-sort-key="modpack">Modpack</th>
+        <th class="sortable" data-group-sort-key="state">State</th>
+        <th class="sortable" data-group-sort-key="turn">Turn</th>
+        <th class="sortable" data-group-sort-key="timeElapsedSec">Game Time</th>
+        <th class="sortable" data-group-sort-key="gameId">Game ID</th>
+        <th>Actions</th>
+        <th class="sortable" data-group-sort-key="successCount">Successes</th>
+        <th class="sortable" data-group-sort-key="failureCount">Failures</th>
+        <th class="sortable" data-group-sort-key="recoveryCount">Recoveries</th>
+      </tr>`;
+    return `<div class="runner-group" data-ip="${ipEsc}">
+      <div class="runner-group-header">
+        <h3>${heading} <span class="count">(${list.length} runner${list.length === 1 ? "" : "s"})</span>${turnLabel}</h3>
+        <div class="runner-group-controls">
+          <button class="btn btn-start btn-sm"   data-group-action="start"   data-uuids="${uuids}">Start All</button>
+          <button class="btn btn-stop  btn-sm"   data-group-action="stop"    data-uuids="${uuids}">Stop All</button>
+          <button class="btn btn-install btn-sm" data-group-action="install" data-uuids="${uuids}">Mass Install Modpack…</button>
+        </div>
+      </div>
+      <table class="runners-table-grouped">
+        <thead>${groupHeaders}</thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+  document.querySelectorAll("#runners-grouped th.sortable").forEach(th => {
+    th.classList.remove("sort-asc", "sort-desc");
+    if (th.dataset.groupSortKey === groupSort.key) {
+      th.classList.add(groupSort.dir === 1 ? "sort-asc" : "sort-desc");
+    }
+  });
+}
+
+function updateSortIndicators(rootSel, srt, dataAttr) {
+  document.querySelectorAll(`${rootSel} th.sortable`).forEach(th => {
+    th.classList.remove("sort-asc", "sort-desc");
+    if (th.dataset[dataAttr] === srt.key) {
+      th.classList.add(srt.dir === 1 ? "sort-asc" : "sort-desc");
+    }
+  });
+}
+
+function formatTurnSec(sec) {
+  if (sec === null || sec === undefined || !isFinite(sec)) return "–";
+  if (sec < 1) return `${(sec * 1000).toFixed(0)}ms`;
+  if (sec < 60) return `${sec.toFixed(1)}s`;
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec - m * 60);
+  return `${m}m${String(s).padStart(2, "0")}s`;
+}
+
+function turnStatsForUuids(uuids) {
+  // Aggregate per-runner stats across the requested UUIDs. The group's
+  // ``avgSec`` is a game-weighted mean of each runner's per-runner avgSec,
+  // matching the per-runner semantics (mean across games of time/turns).
+  let games = 0;
+  let finished = 0;
+  let totalTurns = 0;
+  let totalTimeSec = 0;
+  let weightedSecSum = 0;
+  let weightedSecGames = 0;
+  for (const u of uuids) {
+    const s = latestTurnTimes[u];
+    if (!s) continue;
+    games += s.games || 0;
+    finished += s.finished || 0;
+    totalTurns += s.totalTurns || 0;
+    totalTimeSec += s.totalTimeSec || 0;
+    if (s.games && s.avgSec != null) {
+      weightedSecSum += s.avgSec * s.games;
+      weightedSecGames += s.games;
+    }
+  }
+  const avgSec = weightedSecGames > 0 ? weightedSecSum / weightedSecGames : null;
+  return { games, finished, totalTurns, totalTimeSec, avgSec };
+}
+
+function renderFiles(data) {
+  const tbody = document.querySelector("#files-table tbody");
+  const modpacks = new Set([
+    ...Object.keys(data.complete || {}),
+    ...Object.keys(data.failed || {}),
+  ]);
+  if (modpacks.size === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" class="muted">No data yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = Array.from(modpacks).sort().map(mp => `
+    <tr>
+      <td>${escapeHtml(mp)}</td>
+      <td>${(data.complete || {})[mp] ?? 0}</td>
+      <td>${(data.failed || {})[mp] ?? 0}</td>
+    </tr>
+  `).join("");
+}
+
+// =====================================================================
+// Sorting handlers
+// =====================================================================
+
+document.querySelectorAll("#runners-table th.sortable").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sortKey;
+    if (!key) return;
+    if (runnerSort.key === key) {
+      runnerSort.dir = -runnerSort.dir;
+    } else {
+      runnerSort.key = key;
+      runnerSort.dir = 1;
+    }
+    updateState({ sort: runnerSort.key, dir: runnerSort.dir === 1 ? "asc" : "desc" });
+    renderRunners(latestRunnerRows);
+  });
+});
+
+document.getElementById("runners-grouped").addEventListener("click", (ev) => {
+  const th = ev.target.closest("th.sortable[data-group-sort-key]");
+  if (!th) return;
+  const key = th.dataset.groupSortKey;
+  if (groupSort.key === key) {
+    groupSort.dir = -groupSort.dir;
+  } else {
+    groupSort.key = key;
+    groupSort.dir = 1;
+  }
+  updateState({ groupSort: groupSort.key, groupSortDir: groupSort.dir === 1 ? "asc" : "desc" });
+  renderRunnersGrouped(latestRunnerRows);
+});
+
+updateSortIndicators("#runners-table", runnerSort, "sortKey");
+
+// =====================================================================
+// Inline runner-name editing (group-by-runner mode only)
+// =====================================================================
+
+async function submitName(host, name) {
+  if (!name) return;
+  try {
+    const resp = await fetch(`/runner-names/${encodeURIComponent(host)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!resp.ok) throw new Error(`status ${resp.status}`);
+    latestRunnerNames[host] = name;
+    renderRunnersAuto();
+  } catch (err) {
+    alert(`Failed to save name: ${err.message}`);
+  }
+}
+
+async function clearName(host) {
+  try {
+    const resp = await fetch(`/runner-names/${encodeURIComponent(host)}`, { method: "DELETE" });
+    if (!resp.ok) throw new Error(`status ${resp.status}`);
+    delete latestRunnerNames[host];
+    renderRunnersAuto();
+  } catch (err) {
+    alert(`Failed to clear name: ${err.message}`);
+  }
+}
+
+document.getElementById("runners-grouped").addEventListener("dblclick", (ev) => {
+  const span = ev.target.closest(".runner-group-header h3 .name");
+  if (!span) return;
+  const host = span.dataset.host;
+  if (!host) return;
+  // Swap in the raw stored name (with any leading spaces) for editing so
+  // operators can author/adjust sort-override prefixes.
+  const rawBefore = span.dataset.rawName ?? span.textContent;
+  span.textContent = rawBefore;
+  span.contentEditable = "true";
+  // Preserve leading/internal whitespace visually while editing so
+  // sort-override spaces are visible and editable.
+  span.style.whiteSpace = "pre";
+  span.focus();
+  const range = document.createRange();
+  range.selectNodeContents(span);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    span.contentEditable = "false";
+    span.removeEventListener("keydown", onKey);
+    span.removeEventListener("blur", onBlur);
+    if (commit) {
+      // Preserve leading spaces; only trim trailing whitespace. An empty
+      // (whitespace-only) result is treated as a no-op.
+      const newName = span.textContent.replace(/\s+$/, "");
+      const prev = latestRunnerNames[host] ?? host;
+      if (newName.trim() && newName !== prev) {
+        submitName(host, newName);
+      } else {
+        renderRunnersAuto();
+      }
+    } else {
+      renderRunnersAuto();
+    }
+  };
+  const onKey = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+  };
+  const onBlur = () => finish(true);
+  span.addEventListener("keydown", onKey);
+  span.addEventListener("blur", onBlur);
+});
+
+document.getElementById("runners-grouped").addEventListener("click", (ev) => {
+  const clr = ev.target.closest(".clear-name");
+  if (!clr) return;
+  ev.stopPropagation();
+  const host = clr.dataset.host;
+  if (host) clearName(host);
+});
+
+// =====================================================================
+// Header layout/poll/group toggle wiring (URL-persisted)
+// =====================================================================
+
+const layoutSel = document.getElementById("opt-layout");
+layoutSel.value = state.layout;
+layoutSel.addEventListener("change", () => {
+  document.body.dataset.layout = layoutSel.value;
+  updateState({ layout: layoutSel.value });
+});
+
+const pollSel = document.getElementById("opt-poll");
+pollSel.value = state.pollSec;
+pollSel.addEventListener("change", () => {
+  updateState({ pollSec: pollSel.value });
+  applyPollInterval();
+});
+
+const groupToggle = document.getElementById("group-by-runner");
+groupToggle.checked = groupByRunner;
+groupToggle.addEventListener("change", () => {
+  groupByRunner = groupToggle.checked;
+  updateState({ group: groupByRunner ? "1" : "0" });
+  if (groupByRunner) { refreshTurnTimes(); refreshRunnerNames(); }
+  renderRunnersAuto();
+});
+
+// =====================================================================
+// Control buttons + per-row + group fan-out
+// =====================================================================
+
+const statusEl = document.getElementById("control-status");
+const btnStart = document.getElementById("btn-start");
+const btnStop = document.getElementById("btn-stop");
+const btnInstall = document.getElementById("btn-install");
+const fileInput = document.getElementById("modpack-file");
+
+function setBusy(busy, msg) {
+  [btnStart, btnStop, btnInstall].forEach(b => b.disabled = busy);
+  if (msg !== undefined) statusEl.textContent = msg;
+}
+
+function summarize(results) {
+  if (!results || typeof results !== "object") return "done";
+  const entries = Object.entries(results);
+  if (entries.length === 0) return "no runners registered";
+  const ok = entries.filter(([, v]) => v.status >= 200 && v.status < 300).length;
+  const skipped = entries.filter(([, v]) => v.status === 304).length;
+  const failed = entries.length - ok - skipped;
+  const parts = [`${ok} ok`];
+  if (skipped) parts.push(`${skipped} skipped`);
+  if (failed) parts.push(`${failed} failed`);
+  return parts.join(", ");
+}
+
+async function broadcast(path, init) {
+  setBusy(true, `POST ${path}…`);
+  try {
+    const resp = await fetch(path, init ?? { method: "POST" });
+    const body = await resp.json().catch(() => ({}));
+    const results = body.results ?? body;
+    statusEl.textContent = `${path}: ${summarize(results)}`;
+  } catch (err) {
+    statusEl.textContent = `${path}: ${err.message}`;
+  } finally {
+    setBusy(false);
+    refreshRunners();
+  }
+}
+
+btnStart.addEventListener("click", () => broadcast("/control/start-all"));
+btnStop.addEventListener("click", () => broadcast("/control/stop-all"));
+btnInstall.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", async () => {
+  const f = fileInput.files && fileInput.files[0];
+  if (!f) return;
+  const form = new FormData();
+  form.append("file", f, f.name);
+  await broadcast("/control/install-modpack", { method: "POST", body: form });
+  fileInput.value = "";
+});
+
+const rowFileInput = document.getElementById("row-modpack-file");
+let pendingInstallUuid = null;
+
+async function perRunner(path, uuid, init) {
+  setBusy(true, `POST ${path}…`);
+  try {
+    const resp = await fetch(path, init ?? { method: "POST" });
+    const body = await resp.json().catch(() => ({}));
+    const short = uuid.slice(0, 8);
+    statusEl.textContent = `${path} [${short}]: ${resp.status} ${JSON.stringify(body)}`;
+  } catch (err) {
+    statusEl.textContent = `${path}: ${err.message}`;
+  } finally {
+    setBusy(false);
+    refreshRunners();
+  }
+}
+
+document.querySelector("#runners-table tbody").addEventListener("click", handleRowAction);
+document.getElementById("runners-grouped").addEventListener("click", handleRowAction);
+
+function handleRowAction(ev) {
+  const btn = ev.target.closest("button[data-action]");
+  if (!btn) return;
+  const uuid = btn.dataset.uuid;
+  const action = btn.dataset.action;
+  if (action === "start") perRunner(`/control/start/${uuid}`, uuid);
+  else if (action === "stop") perRunner(`/control/stop/${uuid}`, uuid);
+  else if (action === "install") { pendingInstallUuid = uuid; rowFileInput.click(); }
+}
+
+const groupFileInput = document.getElementById("group-modpack-file");
+let pendingGroupUuids = null;
+
+async function fanOutGroup(label, uuids, makeInit) {
+  setBusy(true, `${label} (${uuids.length})…`);
+  let ok = 0, failed = 0;
+  await Promise.all(uuids.map(async (u) => {
+    try {
+      const init = makeInit ? makeInit() : { method: "POST" };
+      const path = label === "start"   ? `/control/start/${u}`
+                 : label === "stop"    ? `/control/stop/${u}`
+                 :                       `/control/install-modpack/${u}`;
+      const resp = await fetch(path, init);
+      if (resp.status >= 200 && resp.status < 300) ok++; else failed++;
+    } catch { failed++; }
+  }));
+  setBusy(false, `${label}: ${ok} ok${failed ? `, ${failed} failed` : ""}`);
+  refreshRunners();
+}
+
+document.getElementById("runners-grouped").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-group-action]");
+  if (!btn) return;
+  const uuids = (btn.dataset.uuids || "").split(",").filter(Boolean);
+  const action = btn.dataset.groupAction;
+  if (action === "start") fanOutGroup("start", uuids);
+  else if (action === "stop") fanOutGroup("stop", uuids);
+  else if (action === "install") { pendingGroupUuids = uuids; groupFileInput.click(); }
+});
+
+groupFileInput.addEventListener("change", async () => {
+  const f = groupFileInput.files && groupFileInput.files[0];
+  const uuids = pendingGroupUuids;
+  pendingGroupUuids = null;
+  groupFileInput.value = "";
+  if (!f || !uuids || uuids.length === 0) return;
+  await fanOutGroup("install", uuids, () => {
+    const form = new FormData();
+    form.append("file", f, f.name);
+    return { method: "POST", body: form };
+  });
+});
+
+rowFileInput.addEventListener("change", async () => {
+  const f = rowFileInput.files && rowFileInput.files[0];
+  const uuid = pendingInstallUuid;
+  pendingInstallUuid = null;
+  rowFileInput.value = "";
+  if (!f || !uuid) return;
+  const form = new FormData();
+  form.append("file", f, f.name);
+  await perRunner(`/control/install-modpack/${uuid}`, uuid, { method: "POST", body: form });
+});
+
+// =====================================================================
+// Boot
+// =====================================================================
+
+saveState(state);
+refreshRunners();
+refreshFiles();
+refreshTurnTimes();
+refreshRunnerNames();
+applyPollInterval();
+setInterval(refreshFiles, FILE_POLL_MS);
+setInterval(refreshTurnTimes, TURN_TIMES_POLL_MS);
+setInterval(refreshRunnerNames, FILE_POLL_MS);
+  </script>
 </body>
 </html>

@@ -13,10 +13,16 @@ class RunnerState(str, Enum):
     idle = "idle"
     starting = "starting"
     running = "running"
+    stopping = "stopping"
     failed = "failed"
     harvesting_logs = "harvesting_logs"
     uploading_logs = "uploading_logs"
     updating_modpack = "updating_modpack"
+    attempting_recovery = "attempting_recovery"
+    # Pulse-only state: emitted in a single heartbeat after a recovery succeeds,
+    # immediately before transitioning back to ``running``. Used by the
+    # hypervisor to bump a per-runner ``recovery_count``.
+    recovered = "recovered"
 
 
 class _CamelModel(BaseModel):
@@ -39,13 +45,20 @@ class RunnerRegistration(_CamelModel):
 
 
 class HeartbeatPayload(_CamelModel):
-    """Periodic heartbeat payload from a runner."""
+    """Periodic heartbeat payload from a runner.
+
+    ``url`` and ``modpack`` are included so the hypervisor can transparently
+    re-register a runner whose entry was lost (e.g. hypervisor restart) without
+    requiring the runner to detect the loss and re-POST /runner-registration.
+    """
 
     uuid: str
     state: RunnerState
     game_id: str | None = None
     turn: int | None = None
     time_elapsed_sec: int | None = None
+    url: str | None = None
+    modpack: str | None = None
 
 
 class RunnerStatusRow(_CamelModel):
@@ -63,6 +76,10 @@ class RunnerStatusRow(_CamelModel):
     )
     success_count: int = Field(default=0, description="Completed games for this runner.")
     failure_count: int = Field(default=0, description="Failed/crashed games for this runner.")
+    recovery_count: int = Field(
+        default=0,
+        description="Times this runner successfully recovered a crashed game by reloading the autosave.",
+    )
 
 
 class FileStatus(BaseModel):

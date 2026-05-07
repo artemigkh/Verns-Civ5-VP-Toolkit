@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 from autoplay.common.constants import MODPACK_FOLDER_PREFIX, MODPACK_FOLDER_REGEX
+from autoplay.runner.fatal import fatal_permission_error
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,8 @@ def read_current_turn(logs_dir: Path) -> int | None:
                 except ValueError:
                     continue
             return last_turn
+    except PermissionError as exc:
+        fatal_permission_error(exc, where=f"reading {path}")
     except OSError as exc:
         logger.warning("Could not read %s: %s", path, exc)
         return None

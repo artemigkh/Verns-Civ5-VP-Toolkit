@@ -28,6 +28,13 @@ class RunnerGlobalState:
     # one finishes (success or crash) and all artifacts have been uploaded.
     # /start-game sets this True; /stop-game sets it False.
     is_scheduling_games: bool = False
+    # Unix timestamp of the last successful heartbeat round-trip, or None if
+    # no heartbeat has succeeded yet. Used to detect "hypervisor down".
+    last_successful_heartbeat_ts: float | None = None
+    # If True, a finished game wanted to auto-reschedule but the hypervisor
+    # was unreachable, so the runner stayed idle. The heartbeat loop will
+    # trigger a deferred relaunch the next time it sees a successful POST.
+    pending_reschedule: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def snapshot(self) -> "RunnerGlobalState":
@@ -41,6 +48,8 @@ class RunnerGlobalState:
                 current_game_start_time=self.current_game_start_time,
                 current_game_turn=self.current_game_turn,
                 is_scheduling_games=self.is_scheduling_games,
+                last_successful_heartbeat_ts=self.last_successful_heartbeat_ts,
+                pending_reschedule=self.pending_reschedule,
             )
 
 

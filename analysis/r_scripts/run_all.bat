@@ -1,0 +1,65 @@
+@echo off
+REM run_all.bat -- regenerate every R visualization for the Civ5 VP report.
+REM
+REM Double-click this file from anywhere, or run:
+REM   analysis\r_scripts\run_all.bat
+REM Outputs are written to analysis\output\r_plots\.
+
+setlocal EnableDelayedExpansion
+
+REM Resolve repo paths relative to this script.
+set "SCRIPT_DIR=%~dp0"
+REM Strip trailing backslash.
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+for %%I in ("%SCRIPT_DIR%\..") do set "ANALYSIS_DIR=%%~fI"
+
+REM Locate Rscript: prefer PATH, then fall back to standard install locations.
+set "RSCRIPT="
+for %%R in (Rscript.exe) do set "RSCRIPT=%%~$PATH:R"
+
+if not defined RSCRIPT (
+    if exist "C:\Program Files\R" (
+        for /f "delims=" %%D in ('dir /b /ad /o-n "C:\Program Files\R\R-*" 2^>nul') do (
+            if not defined RSCRIPT (
+                if exist "C:\Program Files\R\%%D\bin\Rscript.exe" (
+                    set "RSCRIPT=C:\Program Files\R\%%D\bin\Rscript.exe"
+                )
+            )
+        )
+    )
+)
+
+if not defined RSCRIPT (
+    echo ERROR: Rscript not found. Install R or add it to PATH.
+    pause
+    exit /b 1
+)
+
+echo Using: %RSCRIPT%
+
+REM All scripts assume CWD == analysis\ (so "r_scripts/common.R" and
+REM "../data/..." resolve correctly).
+pushd "%ANALYSIS_DIR%" || (
+    echo ERROR: Could not cd to %ANALYSIS_DIR%
+    pause
+    exit /b 1
+)
+
+set SCRIPTS=01_victory_mix.R 02_winrate_by_civ.R 03_religion_attainment.R 04_pantheon.R 05_founder.R 06_enhancer.R 07_reformation.R 08_tech_era_ridgeline.R 09_era_progression.R 10_wonder_ridgeline.R 11_wonders_per_civ_lollipop.R 12_policy_branch_table.R 13_policy_flow_sankey.R 14_pseudo_dom_victory_mix.R 15_pseudo_dom_winrate_by_civ.R 16_winner_religion_actions.R 17_winner_religion_actions_exclusive.R 18_religion_sankey.R
+
+for %%S in (%SCRIPTS%) do (
+    echo ==^> Rscript r_scripts\%%S
+    "%RSCRIPT%" --vanilla "r_scripts\%%S"
+    if errorlevel 1 (
+        echo Rscript failed for r_scripts\%%S
+        popd
+        pause
+        exit /b 1
+    )
+)
+
+echo.
+echo All R visualizations generated in output\r_plots\
+popd
+pause
+endlocal

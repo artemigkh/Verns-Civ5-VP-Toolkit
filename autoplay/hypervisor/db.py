@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS runners (
     time_elapsed_sec  INTEGER,
     last_heartbeat_ts REAL NOT NULL,
     success_count     INTEGER NOT NULL DEFAULT 0,
-    failure_count     INTEGER NOT NULL DEFAULT 0
+    failure_count     INTEGER NOT NULL DEFAULT 0,
+    recovery_count    INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -69,10 +70,20 @@ class RunnerDB:
         game_id: str | None,
         turn: int | None,
         time_elapsed_sec: int | None,
-    ) -> bool:
-        """Update heartbeat fields for a runner. Returns False if runner is unknown."""
+    ) -> tuple[bool, dict | None]:
+        """Update heartbeat fields for a runner.
+
+        Returns ``(ok, prev)`` where ``ok`` is False if the runner is unknown.
+        ``prev`` is a snapshot of the row's ``(game_id, turn, time_elapsed_sec,
+        modpack)`` *before* the update, or ``None`` if the runner was unknown.
+        Used by callers to detect turn advances for turn-time logging.
+        """
         now = time.time()
         with self._connect() as conn:
+            row = conn.execute(
+                "SELECT game_id, turn, time_elapsed_sec, modpack FROM runners WHERE uuid = ?",
+                (uuid,),
+            ).fetchone()
             cur = conn.execute(
                 """
                 UPDATE runners
@@ -85,7 +96,15 @@ class RunnerDB:
                 """,
                 (state.value, game_id, turn, time_elapsed_sec, now, uuid),
             )
-            return cur.rowcount > 0
+            if cur.rowcount == 0:
+                return False, None
+            prev = {
+                "game_id": row["game_id"] if row else None,
+                "turn": row["turn"] if row else None,
+                "time_elapsed_sec": row["time_elapsed_sec"] if row else None,
+                "modpack": row["modpack"] if row else None,
+            }
+            return True, prev
 
     def list_live_runners(self, timeout_sec: int) -> list[RunnerStatusRow]:
         cutoff = time.time() - timeout_sec
@@ -107,6 +126,7 @@ class RunnerDB:
                 last_heartbeat_ts=r["last_heartbeat_ts"],
                 success_count=r["success_count"],
                 failure_count=r["failure_count"],
+                recovery_count=r["recovery_count"],
             )
             for r in rows
         ]
@@ -138,4 +158,18 @@ class RunnerDB:
                 "UPDATE runners SET failure_count = failure_count + 1 WHERE uuid = ?",
                 (uuid,),
             )
+            return cur.rowcount > 0
+
+    def increment_recovery(self, uuid: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE runners SET recovery_count = recovery_count + 1 WHERE uuid = ?",
+                (uuid,),
+            )
+            return cur.rowcount > 0
+
+    def delete_runner(self, uuid: str) -> bool:
+        """Delete the row for ``uuid``. Returns True if a row was removed."""
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM runners WHERE uuid = ?", (uuid,))
             return cur.rowcount > 0

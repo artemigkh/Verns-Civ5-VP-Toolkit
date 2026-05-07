@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 
 from autoplay.common.constants import MODPACK_FOLDER_PREFIX, MODPACK_FOLDER_REGEX
+from autoplay.runner.fatal import fatal_permission_error
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +50,18 @@ def install_modpack_zip(zip_path: Path, install_dir: Path) -> str:
 
     target = peek_modpack_version(zip_path)
 
-    # Purge existing autoplay modpack folders (including the target, for clean overwrite).
-    for child in dlc_dir.iterdir():
-        if child.is_dir() and child.name.startswith(MODPACK_FOLDER_PREFIX):
-            logger.info("Removing existing modpack folder: %s", child.name)
-            shutil.rmtree(child, ignore_errors=True)
+    try:
+        # Purge existing autoplay modpack folders (including the target, for clean overwrite).
+        for child in dlc_dir.iterdir():
+            if child.is_dir() and child.name.startswith(MODPACK_FOLDER_PREFIX):
+                logger.info("Removing existing modpack folder: %s", child.name)
+                shutil.rmtree(child, ignore_errors=True)
 
-    logger.info("Extracting %s into %s", target, dlc_dir)
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(dlc_dir)
+        logger.info("Extracting %s into %s", target, dlc_dir)
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(dlc_dir)
+    except PermissionError as exc:
+        fatal_permission_error(exc, where=f"installing modpack into {dlc_dir}")
 
     if not (dlc_dir / target).is_dir():
         raise ModpackZipError(

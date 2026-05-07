@@ -60,20 +60,48 @@ def _find_runner(request: Request, uuid: str) -> RunnerStatusRow:
     )
 
 
-@router.post("/start/{uuid}")
+# How long to wait between successive ``/start-game`` POSTs in start-all.
+# The Civ game engine seeds its RNG from the epoch timestamp at start, so
+# games launched in the same wall-clock second can deterministically end up
+# with identical maps. A one-second stagger keeps each runner's seed
+# distinct.
+_START_FANOUT_GAP_SEC = 1.0
+
+
+def _spawn_bg(coro, name: str) -> None:
+    """Schedule a fire-and-forget background task and log any exceptions."""
+
+    async def _wrapped() -> None:
+        try:
+            await coro
+        except Exception:  # noqa: BLE001
+            logger.exception("Background control task %s failed", name)
+
+    asyncio.create_task(_wrapped(), name=name)
+
+
+@router.post("/start/{uuid}", status_code=status.HTTP_202_ACCEPTED)
 async def start_one(request: Request, uuid: str) -> dict[str, object]:
     runner = _find_runner(request, uuid)
-    async with httpx.AsyncClient() as client:
-        _, result = await _post_to_runner(client, runner, "/start-game")
-    return result
+
+    async def _do() -> None:
+        async with httpx.AsyncClient() as client:
+            await _post_to_runner(client, runner, "/start-game")
+
+    _spawn_bg(_do(), name=f"start-{uuid}")
+    return {"status": "scheduled", "uuid": uuid}
 
 
-@router.post("/stop/{uuid}")
+@router.post("/stop/{uuid}", status_code=status.HTTP_202_ACCEPTED)
 async def stop_one(request: Request, uuid: str) -> dict[str, object]:
     runner = _find_runner(request, uuid)
-    async with httpx.AsyncClient() as client:
-        _, result = await _post_to_runner(client, runner, "/stop-game")
-    return result
+
+    async def _do() -> None:
+        async with httpx.AsyncClient() as client:
+            await _post_to_runner(client, runner, "/stop-game")
+
+    _spawn_bg(_do(), name=f"stop-{uuid}")
+    return {"status": "scheduled", "uuid": uuid}
 
 
 @router.post("/install-modpack/{uuid}")
@@ -108,24 +136,38 @@ async def install_modpack_one(
         tmp.unlink(missing_ok=True)
 
 
-@router.post("/start-all")
-async def start_all(request: Request) -> dict[str, dict[str, object]]:
+@router.post("/start-all", status_code=status.HTTP_202_ACCEPTED)
+async def start_all(request: Request) -> dict[str, object]:
     runners = _db(request).list_live_runners(_timeout(request))
-    async with httpx.AsyncClient() as client:
-        results = await asyncio.gather(
-            *(_post_to_runner(client, r, "/start-game") for r in runners)
-        )
-    return dict(results)
+
+    async def _do() -> None:
+        # Stagger /start-game POSTs by one second so each runner seeds its
+        # game RNG from a distinct wall-clock timestamp.
+        async with httpx.AsyncClient() as client:
+            for i, r in enumerate(runners):
+                if i > 0:
+                    await asyncio.sleep(_START_FANOUT_GAP_SEC)
+                uuid, result = await _post_to_runner(client, r, "/start-game")
+                logger.info("start-all -> %s: %s", uuid, result)
+
+    _spawn_bg(_do(), name="start-all")
+    return {"status": "scheduled", "count": len(runners)}
 
 
-@router.post("/stop-all")
-async def stop_all(request: Request) -> dict[str, dict[str, object]]:
+@router.post("/stop-all", status_code=status.HTTP_202_ACCEPTED)
+async def stop_all(request: Request) -> dict[str, object]:
     runners = _db(request).list_live_runners(_timeout(request))
-    async with httpx.AsyncClient() as client:
-        results = await asyncio.gather(
-            *(_post_to_runner(client, r, "/stop-game") for r in runners)
-        )
-    return dict(results)
+
+    async def _do() -> None:
+        async with httpx.AsyncClient() as client:
+            results = await asyncio.gather(
+                *(_post_to_runner(client, r, "/stop-game") for r in runners)
+            )
+        for uuid, result in results:
+            logger.info("stop-all -> %s: %s", uuid, result)
+
+    _spawn_bg(_do(), name="stop-all")
+    return {"status": "scheduled", "count": len(runners)}
 
 
 @router.post("/install-modpack")

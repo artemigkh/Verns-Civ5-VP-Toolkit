@@ -15,6 +15,8 @@ REM  with `autoplay\scripts\run_runner.bat`.
 REM =====================================================================
 setlocal enabledelayedexpansion
 
+set "RC=0"
+
 REM --- cd to repo root (two levels up from this script) ----------------
 pushd "%~dp0..\.."
 
@@ -28,8 +30,8 @@ if errorlevel 1 (
         "irm https://astral.sh/uv/install.ps1 | iex"
     if errorlevel 1 (
         echo [setup_runner] uv install script failed.
-        popd
-        exit /b 1
+        set "RC=1"
+        goto :end
     )
 
     REM uv installs into %USERPROFILE%\.local\bin or similar — make it visible
@@ -40,8 +42,8 @@ if errorlevel 1 (
     if errorlevel 1 (
         echo [setup_runner] uv still not found after install. You may need to
         echo                 open a new shell so PATH updates take effect.
-        popd
-        exit /b 1
+        set "RC=1"
+        goto :end
     )
 ) else (
     echo [setup_runner] uv already installed.
@@ -53,16 +55,16 @@ REM --- 2) Install the pinned Python interpreter -----------------------
 echo [setup_runner] Installing CPython 3.12 via uv...
 uv python install 3.12 || (
     echo [setup_runner] uv python install failed.
-    popd
-    exit /b 1
+    set "RC=1"
+    goto :end
 )
 
 REM --- 3) Sync project dependencies into a venv -----------------------
 echo [setup_runner] Installing project dependencies (uv sync)...
 uv sync || (
     echo [setup_runner] uv sync failed.
-    popd
-    exit /b 1
+    set "RC=1"
+    goto :end
 )
 
 echo.
@@ -74,5 +76,14 @@ echo     to the LAN address of your hypervisor.
 echo   * Launch the runner with: autoplay\scripts\run_runner.bat
 echo.
 
+:end
 popd
-endlocal & exit /b 0
+echo.
+if not "%RC%"=="0" (
+    echo === setup_runner failed with exit code %RC% ===
+)
+if /i not "%~1"=="--no-pause" (
+    echo Press any key to close...
+    pause >nul
+)
+endlocal & exit /b %RC%
