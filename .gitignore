@@ -1,5 +1,6 @@
 cache/
 data/
+misc/
 .venv/
 
 # Project-specific intermediate / output artifacts

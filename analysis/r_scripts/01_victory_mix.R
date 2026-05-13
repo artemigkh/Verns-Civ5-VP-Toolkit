@@ -112,8 +112,7 @@ build_violin_bees <- function(lut, bg, theme_fn, bee_outline) {
         theme(legend.position = "none")
 }
 
-caption_text <- sprintf(
-    "%d completed Civ5 VP autoplay games  -  Emperor difficulty", n_games)
+caption_text <- default_caption()
 
 compose <- function(left, right, theme_fn, caption_color) {
     annotation_theme <- theme_fn(base_size = 13) +
@@ -136,6 +135,8 @@ save_plot(plot_a, "01a_donut_violin_bees", width = 14, height = 7)
 plot_b <- compose(
     build_donut(vtc_lut_b, IPSUM_VP_DARK_BG, IPSUM_VP_DARK_FG),
     build_violin_bees(vtc_lut_b, IPSUM_VP_DARK_BG, theme_report_dark, "black"),
-    theme_report_dark, IPSUM_VP_DARK_FG
+    theme_report_dark, "grey60"
 )
 save_plot_dark(plot_b, "01b_donut_violin_bees", width = 14, height = 7)
+save_plot_dark_nocap(plot_b, "01b_donut_violin_bees_nocap",
+                     width = 14, height = 7)

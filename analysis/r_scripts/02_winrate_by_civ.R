@@ -34,6 +34,21 @@ winrate_long <- power_ranking_df %>%
         share_winrate = ifelse(count_games > 0, wins / count_games, 0)
     )
 
+# Drop victory types that never occur in the dataset so they don't appear
+# in the legend.  Also drop rows whose victory_type couldn't be resolved
+# (NA): otherwise scale_fill_manual would emit an "NA" swatch.
+winrate_long <- winrate_long %>% filter(!is.na(victory_type))
+
+present_vtypes <- winrate_long %>%
+    group_by(victory_type) %>%
+    summarise(total = sum(wins), .groups = "drop") %>%
+    filter(total > 0) %>%
+    pull(victory_type) %>%
+    as.character()
+winrate_long <- winrate_long %>%
+    mutate(victory_type = factor(as.character(victory_type),
+                                 levels = intersect(VICTORY_LEVELS, present_vtypes)))
+
 civ_order <- winrate_long %>%
     group_by(civ) %>%
     summarise(total_winrate = sum(share_winrate), .groups = "drop") %>%
@@ -49,13 +64,11 @@ totals_df <- winrate_long %>%
               total_wins    = sum(wins),
               .groups = "drop")
 
-caption_text <- sprintf(
-    "%d completed Civ5 VP autoplay games  -  Emperor difficulty",
-    n_games)
+caption_text <- default_caption()
 
 build_winrate <- function(lut, bg, theme_fn, text_color, ref_text_color,
-                          caption_color) {
-    ggplot(winrate_long,
+                          caption_color, with_caption = TRUE) {
+    p <- ggplot(winrate_long,
            aes(x = civ, y = share_winrate, fill = victory_type)) +
         geom_col(width = 0.78, color = bg, linewidth = 0.25) +
         geom_hline(yintercept = 0.125, linetype = "dashed",
@@ -69,12 +82,13 @@ build_winrate <- function(lut, bg, theme_fn, text_color, ref_text_color,
                       label = percent(total_winrate, accuracy = 1)),
                   inherit.aes = FALSE,
                   vjust = -0.4, size = 3, color = text_color) +
-        scale_fill_manual(values = lut, name = "Victory type", drop = FALSE) +
+        scale_fill_manual(values = lut, name = "Victory type",
+                          drop = FALSE, na.translate = FALSE) +
         scale_y_continuous(labels = percent_format(accuracy = 1),
                            expand = expansion(mult = c(0, 0.10))) +
         labs(title = "Win Rate By Civilization",
-             caption = caption_text,
-             x = "Civilization", y = "Win rate") +
+             caption = if (with_caption) caption_text else NULL,
+             x = "Civilization", y = "Winrate") +
         theme_fn(base_size = 12) +
         theme(
             axis.text.x        = element_text(angle = 45, hjust = 1, vjust = 1, size = 9),
@@ -82,6 +96,7 @@ build_winrate <- function(lut, bg, theme_fn, text_color, ref_text_color,
             plot.caption       = element_text(color = caption_color, size = 11,
                                               hjust = 1, face = "italic")
         )
+    p
 }
 
 save_plot(
@@ -93,5 +108,13 @@ save_plot(
 save_plot_dark(
     build_winrate(vtc_lut_b, IPSUM_VP_DARK_BG, theme_report_dark,
                   text_color = IPSUM_VP_DARK_FG, ref_text_color = "grey75",
-                  caption_color = IPSUM_VP_DARK_FG),
+                  caption_color = "grey60"),
     "02b_winrate_by_civ_stacked_bars", width = 14, height = 7)
+
+# Caption-less twin used by the victory-overview composite (script 20).
+save_plot_dark(
+    build_winrate(vtc_lut_b, IPSUM_VP_DARK_BG, theme_report_dark,
+                  text_color = IPSUM_VP_DARK_FG, ref_text_color = "grey75",
+                  caption_color = "grey60",
+                  with_caption = FALSE),
+    "02b_winrate_by_civ_stacked_bars_nocap", width = 14, height = 7)

@@ -1,7 +1,9 @@
 # 08: Technology research-time per era, ridgeline plot.
 # Produces:
-#   08a_tech_research_time_by_era_ridgeline.png  light viridis on warm-gray bg
-#   08b_tech_research_time_by_era_ridgeline.png  inferno on dark bg
+#   08a_tech_research_time_by_era_ridgeline.png            light viridis on warm-gray bg
+#   08b_tech_research_time_by_era_ridgeline.png            inferno on dark bg
+#   08c_tech_research_time_by_era_ridgeline_annotated.png  light + mean-turn labels
+#   08d_tech_research_time_by_era_ridgeline_annotated.png  dark  + mean-turn labels
 source("r_scripts/common.R")
 
 tech_completion_df <- load_spark_csv("technology_completion_records") %>%
@@ -68,4 +70,43 @@ save_plot_dark(
                 viridis_opt = "inferno", begin = 0.05, end = 0.95,
                 vline_color = "black"),
     "08b_tech_research_time_by_era_ridgeline",
+    width = 12, height = 11)
+
+# --- Annotated variants: same ridgelines, plus a per-row text label
+#     showing the mean turn-to-research at each KDE's mean line. -----------
+mean_by_tier <- tech_era_df %>%
+    group_by(era_tier) %>%
+    summarise(mean_turn = mean(duration), .groups = "drop")
+
+build_ridge_annotated <- function(theme_fn, bg, viridis_opt = "viridis",
+                                  begin = 0, end = 1, vline_color = "white",
+                                  label_color, label_bg) {
+    p <- build_ridge(theme_fn, bg, viridis_opt = viridis_opt,
+                     begin = begin, end = end, vline_color = vline_color)
+    p +
+        geom_label(data = mean_by_tier,
+                   aes(x = mean_turn, y = era_tier,
+                       label = sprintf("mean = %.1f", mean_turn)),
+                   inherit.aes = FALSE,
+                   hjust = -0.08, vjust = -0.4,
+                   size = 3.4, fontface = "italic",
+                   color = label_color, fill = label_bg,
+                   label.size = 0,
+                   label.padding = unit(0.15, "lines"))
+}
+
+save_plot(build_ridge_annotated(theme_report, IPSUM_VP_BG, "viridis",
+                                vline_color = "white",
+                                label_color = "grey15",
+                                label_bg = scales::alpha(IPSUM_VP_BG, 0.75)),
+          "08c_tech_research_time_by_era_ridgeline_annotated",
+          width = 12, height = 11)
+
+save_plot_dark(
+    build_ridge_annotated(theme_report_dark, IPSUM_VP_DARK_BG,
+                          viridis_opt = "inferno", begin = 0.05, end = 0.95,
+                          vline_color = "black",
+                          label_color = IPSUM_VP_DARK_FG,
+                          label_bg = scales::alpha(IPSUM_VP_DARK_BG, 0.75)),
+    "08d_tech_research_time_by_era_ridgeline_annotated",
     width = 12, height = 11)

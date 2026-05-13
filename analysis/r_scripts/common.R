@@ -32,12 +32,14 @@ suppressPackageStartupMessages({
 # least SYNTH_TARGET_N rows of game-level data.  Set to FALSE for production.
 # To remove later, search for "SYNTHETIC:" and delete every marked block.
 # -----------------------------------------------------------------------------
-use_synthetic_data <- TRUE
+use_synthetic_data <- FALSE
 SYNTH_TARGET_N     <- 521
 SYNTH_SEED         <- 421
 
-OUTPUT_DIR_LIGHT <- file.path("output", "r_plots", "light")
-OUTPUT_DIR_DARK  <- file.path("output", "r_plots", "dark")
+OUTPUT_DIR_LIGHT <- Sys.getenv("CIV5_OUTPUT_DIR_LIGHT",
+                              unset = file.path("output", "r_plots", "light"))
+OUTPUT_DIR_DARK  <- Sys.getenv("CIV5_OUTPUT_DIR_DARK",
+                              unset = file.path("output", "r_plots", "dark"))
 dir.create(OUTPUT_DIR_LIGHT, recursive = TRUE, showWarnings = FALSE)
 dir.create(OUTPUT_DIR_DARK,  recursive = TRUE, showWarnings = FALSE)
 
@@ -213,6 +215,21 @@ save_plot_dark <- function(p, name, width = 10, height = 7, dpi = 150) {
     invisible(p)
 }
 
+# Caption-less twin: strip the bottom-right info caption so the resulting
+# PNG can be stacked into a composite without doubling up captions.
+# Handles both plain ggplot captions and patchwork plot_annotation captions.
+save_plot_dark_nocap <- function(p, name, width = 10, height = 7, dpi = 150) {
+    p <- p + labs(caption = NULL) +
+        theme(plot.caption = element_blank())
+    if (inherits(p, "patchwork")) {
+        p <- p + patchwork::plot_annotation(
+            caption = NULL,
+            theme   = theme(plot.caption = element_blank())
+        )
+    }
+    save_plot_dark(p, name, width = width, height = height, dpi = dpi)
+}
+
 # Convenience: pick the right save fn given a variant code ("a" or "b").
 save_plot_variant <- function(p, name, variant = c("a", "b"),
                               width = 10, height = 7, dpi = 150) {
@@ -225,14 +242,50 @@ save_plot_variant <- function(p, name, variant = c("a", "b"),
 }
 
 # -----------------------------------------------------------------------------
-# Spark intermediate CSV loader.
+# Standard bottom-right caption for every report graph.
+# Format: "N Autoplay Games | VP 5.2.3 | Standard Size Communitu 3.2.0 | Emperor Difficulty"
+# `n` defaults to the package-loaded n_games but isn't bound at definition
+# time -- callers pass their own count for filtered/derived datasets.
 # -----------------------------------------------------------------------------
-INTERMEDIATE_CSVS <- file.path("..", "data", "MP_AUTOPLAY_VP_5_2_3",
-                               "intermediate_csvs")
+default_caption <- function(n = NULL) {
+    if (is.null(n)) n <- get0("n_games", inherits = TRUE)
+    vp_version  <- Sys.getenv("CIV5_VP_VERSION",       unset = "5.2.3")
+    com_version <- Sys.getenv("CIV5_COMMUNITU_VERSION", unset = "3.2.0")
+    sprintf(
+        "%d Autoplay Games \u2022 VP %s \u2022 Communitu %s \u2022 Standard Size \u2022 Emperor Difficulty",
+        as.integer(n), vp_version, com_version
+    )
+}
+
+# Returns a `theme()` fragment styling plot.caption for the bottom-right
+# corner.  `variant` picks the caption color appropriate to the panel bg.
+# Dark variant uses the same grey60 as theme_report_dark's default so the
+# composite caption matches the per-plot ones (e.g. "Religion Attainment
+# Times").
+caption_theme <- function(variant = c("a", "b")) {
+    variant <- match.arg(variant)
+    color <- if (variant == "b") "grey60" else "grey25"
+    theme(plot.caption = element_text(color = color, size = 11,
+                                      hjust = 1, face = "italic",
+                                      margin = margin(t = 1, unit = "cm")))
+}
+
+# -----------------------------------------------------------------------------
+# Spark intermediate CSV loader. Reads every *.csv file in the named
+# subdirectory of INTERMEDIATE_CSVS (or in `name` if it's an absolute /
+# relative path that already exists) and row-binds them into a single
+# data frame.
+# -----------------------------------------------------------------------------
+INTERMEDIATE_CSVS <- Sys.getenv(
+    "CIV5_INTERMEDIATE_CSVS",
+    unset = file.path("..", "data", "MP_AUTOPLAY_VP_5_2_3",
+                      "intermediate_csvs")
+)
 
 load_spark_csv <- function(name) {
-    dir <- file.path(INTERMEDIATE_CSVS, name)
-    files <- list.files(dir, pattern = "^part-.*\\.csv$", full.names = TRUE)
+    dir <- if (dir.exists(name)) name else file.path(INTERMEDIATE_CSVS, name)
+    files <- list.files(dir, pattern = "\\.csv$", full.names = TRUE,
+                        ignore.case = TRUE)
     stopifnot(length(files) >= 1)
     read_csv(files, show_col_types = FALSE, progress = FALSE)
 }
@@ -329,14 +382,15 @@ build_augmented_game_result <- function(authority_victories_df = NULL) {
     game_result_df %>%
         left_join(first_hit, by = "game_id") %>%
         mutate(
-            # Apply the pseudo-dom override only when:
-            #   (a) some civ actually crossed 66%,
-            #   (b) it happened on/before the recorded game-ending turn, and
-            #   (c) the game was not already a real Domination win.
+            # Apply the pseudo-dom override whenever:
+            #   (a) some civ actually crossed 66%, and
+            #   (b) it happened on/before the recorded game-ending turn.
+            # Domination wins are NOT exempt: if an authority-threshold
+            # crossing predates the dom victory (even by the same civ),
+            # the game is reclassified as an Authority/pseudo-dom win.
             apply_pd = !is.na(pd_civ) &
                        !is.na(pd_turn) &
-                       pd_turn <= turn &
-                       as.character(victory_type) != "Domination",
+                       pd_turn <= turn,
             victory_type_aug = factor(
                 ifelse(apply_pd, "Authority",
                        as.character(victory_type)),

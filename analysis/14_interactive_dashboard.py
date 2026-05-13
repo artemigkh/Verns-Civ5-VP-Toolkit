@@ -57,9 +57,16 @@ USER_COLOR_KEYS = ["background", "Cultural", "Science", "Domination", "Diplomati
 # ---------------------------------------------------------------------------
 
 def _load_csv(name: str) -> pd.DataFrame:
-    files = sorted(glob.glob(str(DATA_DIR / name / "part-*.csv")))
+    """Concatenate every ``*.csv`` file in ``DATA_DIR / name``.
+
+    Accepts either a subdirectory name under ``DATA_DIR`` or a full path
+    to a directory that already exists.
+    """
+    base = Path(name)
+    csv_dir = base if base.is_dir() else DATA_DIR / name
+    files = sorted(glob.glob(str(csv_dir / "*.csv")))
     if not files:
-        raise FileNotFoundError(f"No CSV parts under {DATA_DIR / name}")
+        raise FileNotFoundError(f"No CSV files under {csv_dir}")
     return pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 
 

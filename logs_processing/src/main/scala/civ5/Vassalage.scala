@@ -44,38 +44,46 @@ object Vassalage extends SparkJob {
   }
 
   /**
-   * Computes a map of latest (closest to game end) masters to list of vassals by game
+   * Computes a map of latest (closest to game end) masters to list of vassals by game.
    *
-   * Requires that the spark context contains view vassalage_deal
-   * @return
+   * Requires that the spark context contains view vassalage_deal.
+   *
+   * @return a tuple of:
+   *         - a DataFrame of the latest vassal/master relationships per game
+   *           with schema (game_id, turn, vassal, master), one row per vassal
+   *         - a Map keyed by game_id whose values are stripe maps of
+   *           master -> List(vassals)
    */
-  def ComputeVassalageMapFromDeals(): collection.Map[String, Map[String, List[String]]] = {
-      spark.sql(
-          """
-            | WITH last_vassalage AS
-            | (SELECT
-            |   game_id,
-            |   MAX(turn) AS turn,
-            |   vassal
-            | FROM vassalage_deal
-            | GROUP BY game_id, vassal)
-            | SELECT
-            |   vassalage_deal.game_id,
-            |   vassalage_deal.turn,
-            |   vassalage_deal.vassal,
-            |   vassalage_deal.master
-            | FROM vassalage_deal INNER JOIN last_vassalage ON
-            |   vassalage_deal.game_id = last_vassalage.game_id AND
-            |   vassalage_deal.turn = last_vassalage.turn AND
-            |   vassalage_deal.vassal = last_vassalage.vassal
-            |""".stripMargin)
-        .rdd
-        // Set up a stripes based aggregation using master nation as the key
-        .map(row => ( row(0).asInstanceOf[String], Map(row(3).asInstanceOf[String] -> List(row(2).asInstanceOf[String])) ))
-        // Reduce by concatenating all vassals of a master
-        .reduceByKey(
-          (map1, map2) => map1 ++ map2.map { case (k, v) => k -> (v ++ map1.getOrElse(k, List())) }
-        )
-        .collectAsMap()
-    }
+  def ComputeVassalageMapFromDeals(): (DataFrame, collection.Map[String, Map[String, List[String]]]) = {
+    val latestVassalageDF = spark.sql(
+        """
+          | WITH last_vassalage AS
+          | (SELECT
+          |   game_id,
+          |   MAX(turn) AS turn,
+          |   vassal
+          | FROM vassalage_deal
+          | GROUP BY game_id, vassal)
+          | SELECT
+          |   vassalage_deal.game_id,
+          |   vassalage_deal.turn,
+          |   vassalage_deal.vassal,
+          |   vassalage_deal.master
+          | FROM vassalage_deal INNER JOIN last_vassalage ON
+          |   vassalage_deal.game_id = last_vassalage.game_id AND
+          |   vassalage_deal.turn = last_vassalage.turn AND
+          |   vassalage_deal.vassal = last_vassalage.vassal
+          |""".stripMargin)
+    latestVassalageDF.createOrReplaceTempView("vassalage_map")
+    val vassalageMap = latestVassalageDF
+      .rdd
+      // Set up a stripes based aggregation using master nation as the key
+      .map(row => ( row(0).asInstanceOf[String], Map(row(3).asInstanceOf[String] -> List(row(2).asInstanceOf[String])) ))
+      // Reduce by concatenating all vassals of a master
+      .reduceByKey(
+        (map1, map2) => map1 ++ map2.map { case (k, v) => k -> (v ++ map1.getOrElse(k, List())) }
+      )
+      .collectAsMap()
+    (latestVassalageDF, vassalageMap)
+  }
 }

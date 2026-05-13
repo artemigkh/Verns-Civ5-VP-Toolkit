@@ -29,6 +29,11 @@ object Economy extends SparkJob {
               // newer ones may include a header that we must skip before
               // index-based parsing).
               .filterNot(s => s.contains("Turn,"))
+              // Drop blank lines. "".split(',') returns Array("") of length
+              // 1, which would crash the index-based extraction below for
+              // gameIds whose civ never recorded any economy data (the bundle
+              // still ships an empty EconomicCityMonitorLog_<civ>.csv.gz).
+              .filter(_.trim.nonEmpty)
               // Extract columns of interest
               .map(line => {
                 val lineArr = line.split(',').map(s => s.trim)
@@ -102,6 +107,8 @@ object Economy extends SparkJob {
             logFile.split('\n')
               // Drop header rows
               .filterNot(s => s.contains("Turn,"))
+              // Drop blank lines (see ProcessEconomicCityMonitorLogs).
+              .filter(_.trim.nonEmpty)
               // Extract columns of interest
               .map(line => {
                 val lineArr = line.split(',').map(s => s.trim)
@@ -190,6 +197,8 @@ object Economy extends SparkJob {
             logFile.split('\n')
               // Drop header rows
               .filterNot(s => s.contains("Turn,"))
+              // Drop blank lines (see ProcessEconomicCityMonitorLogs).
+              .filter(_.trim.nonEmpty)
               // Extract columns of interest
               .map(line => {
                 val lineArr = line.split(',').map(s => s.trim)

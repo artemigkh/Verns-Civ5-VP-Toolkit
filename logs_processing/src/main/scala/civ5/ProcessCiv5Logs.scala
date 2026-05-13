@@ -309,11 +309,15 @@ object ProcessCiv5Logs {
       }
     }
     vassalageDF.createOrReplaceTempView("vassalage_deal")
-    materialize(vassalageDF, "vassalage")
+    val vassalageN = materialize(vassalageDF, "vassalage")
+    dfToCSV(vassalageDF, "vassalage", vassalageN)
 
     // vassalage_map: registers a (game_id, turn, civ -> master) lookup view
-    // used by power_ranking later. No DataFrame returned.
-    PerfTracker.time("derive:vassalage_map") { ComputeVassalageMapFromDeals() }
+    // and returns a DataFrame of the latest vassal/master relationships per
+    // game alongside the in-memory stripes map used by power_ranking later.
+    val (vassalageMapDF, _) = PerfTracker.time("derive:vassalage_map") { ComputeVassalageMapFromDeals() }
+    val vassalageMapN = materialize(vassalageMapDF, "vassalage_map")
+    dfToCSV(vassalageMapDF, "vassalage_map", vassalageMapN)
 
     // map_state: one row per tile per turn snapshot. This is the largest
     // intermediate by far (~10M rows on a 6-game sample).

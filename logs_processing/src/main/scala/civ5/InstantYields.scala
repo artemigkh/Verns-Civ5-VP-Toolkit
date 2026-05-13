@@ -221,7 +221,7 @@ object InstantYields extends SparkJob {
         |""".stripMargin)
 
     handicapYieldDF.createOrReplaceTempView("handicap_yields")
-    handicapYieldDF
+    handicapYieldDF 
   }
 
   /**
@@ -341,7 +341,7 @@ object InstantYields extends SparkJob {
           |   era,
           |   reason AS trigger,
           |   AVG(iy_$yieldType) AS avg_iy_$yieldType,
-          |   COUNT(*) times_triggered
+          |   COUNT(*) AS times_triggered
           | FROM instant_yields
           | WHERE
           |   iy_$yieldType > 0

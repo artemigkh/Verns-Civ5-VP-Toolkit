@@ -534,6 +534,7 @@ build_plot <- function(bg, fg, theme_fn, ribbon_color = "grey45",
         coord_cartesian(xlim = c(0.4, 4.6), ylim = c(y_min, y_max),
                         clip = "off") +
         labs(title = "Religious Attainment Game Results",
+             caption = default_caption(),
              x = NULL, y = NULL) +
         theme_fn(base_size = 13) +
         theme(
@@ -541,6 +542,8 @@ build_plot <- function(bg, fg, theme_fn, ribbon_color = "grey45",
                                             color = fg),
             plot.subtitle    = element_text(size = 12, color = fg,
                                             margin = margin(b = 8)),
+            plot.caption     = element_text(color = fg, size = 11,
+                                            hjust = 1, face = "italic"),
             plot.background  = element_rect(fill = bg, color = bg),
             panel.background = element_rect(fill = bg, color = bg),
             panel.grid       = element_blank(),
