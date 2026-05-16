@@ -8,7 +8,7 @@ import civ5.Economy.{AggregateCityPurchasesByEra, AggregateCivEconomyByEra, Aggr
 import civ5.Eras.{AggregateEraTransitionDeltas, ComputeErasFromResearch}
 import civ5.GameResult.{AggregateAuthorityVictories, AggregateGameResultVictories, AugmentGameResultWithMapMetrics, ProcessCivGameResults, ProcessGameResultLogs}
 import civ5.InstantYields.{AggregateHandicapYieldSources, AggregateInstantYieldSources, CalculateInstantYieldCumulativeSums, ProcessHandicapYieldLogs, ProcessInstantYieldLogs}
-import civ5.MapState.{AggregateMapStateByEra, AggregateMapStateRecords, ProcessMapStateLogs}
+import civ5.MapState.{AggregateMapStateByEra, AggregateMapStateRecords, AggregateUnitCompositionsByEra, AggregateUnitCompositionsByTurn, ProcessMapStateLogs}
 import civ5.Policies.{AugmentPolicyBranchChoicesWithGameResult, ProcessPolicyChoices, ProcessPolicyLogs}
 import civ5.Religion.{AggregateReligionLogs, ProcessReligionLogs}
 import civ5.Technologies.ProcessTechnologyLogs
@@ -331,6 +331,26 @@ object ProcessCiv5Logs {
     }
     mapStateDF.createOrReplaceTempView("map_state")
     materialize(mapStateDF, "map_state", StorageLevel.MEMORY_AND_DISK_SER)
+
+    // unit_compositions_turns: per-(game, civ, turn, unit) unit counts in
+    // long format, derived from map_state unit occupants.
+    //   schema: (game_id, civ, turn: Int, unit, count: Long)
+    val unitCompositionsTurnsDF = PerfTracker.timeDF("agg:unit_compositions_turns") {
+      AggregateUnitCompositionsByTurn()
+    }
+    val uctN = materialize(unitCompositionsTurnsDF, "unit_compositions_turns")
+    dfToCSV(unitCompositionsTurnsDF, "unit_compositions_turns", uctN)
+
+    // unit_compositions_eras: per-(game, civ, era, unit) average unit count
+    // per turn, including zero-count turns in the era denominator.
+    //   schema: (game_id, civ, era: Int, unit, avg_count: Double)
+    val unitCompositionsErasDF = PerfTracker.timeDF("agg:unit_compositions_eras") {
+      AggregateUnitCompositionsByEra()
+    }
+    val uceN = materialize(unitCompositionsErasDF, "unit_compositions_eras")
+    dfToCSV(unitCompositionsErasDF, "unit_compositions_eras", uceN)
+
+    return
 
     // map_state_records: registers aggregated per-(game,civ,turn) tile/city
     // counts as a temp view; no DataFrame returned.

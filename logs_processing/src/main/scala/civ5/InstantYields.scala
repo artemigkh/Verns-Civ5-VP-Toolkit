@@ -8,6 +8,20 @@ import org.apache.spark.sql.{DataFrame, Row}
 import scala.collection.mutable
 
 object InstantYields extends SparkJob {
+  private val instantYieldTypes = Seq(
+    "Food",
+    "Production",
+    "Science",
+    "Gold",
+    "Culture",
+    "Faith",
+    "Tourism",
+    "Golden Age Points",
+    "Border Growth Points",
+    "Great General Points",
+    "Great Admiral Points"
+  )
+
   private val type1Regex =
     "VP AI DIFFICULTY BONUS FROM (.*) - Received Handicap Bonus: GOLD \\(([0-9]+(?:\\.[0-9]+)?)\\)(?:, )?CULTURE \\(([0-9]+(?:\\.[0-9]+)?)\\)(?:, )?SCIENCE \\(([0-9]+(?:\\.[0-9]+)?)\\)\\.".r
   private val type2Regex =
@@ -65,7 +79,7 @@ object InstantYields extends SparkJob {
       }
       .toDF("game_id", "turn", "civ", "reason", "yield", "amount")
       .groupBy("game_id", "turn", "civ", "reason")
-      .pivot("yield")
+      .pivot("yield", instantYieldTypes)
       .sum("amount")
       .withColumnRenamed("Food", "iy_food")
       .withColumnRenamed("Production", "iy_production")

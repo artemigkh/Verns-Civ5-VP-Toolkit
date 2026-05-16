@@ -1,17 +1,18 @@
 # 21: "Policies Overview" composite (dark theme only).
 #
 # Layout (single PNG, vertical stack):
-#   1. 15b-style policy-branch picks-per-civ table (green gradient,
-#      matching script 15's palette).
+#   1. 15b-style policy-branch picks-per-civ table (orange gradient,
+#      matching the vassalage heatmap accent).
 #   2. Upside-down marginal bar chart: total times each branch was
 #      opened across all (game, civ) pairs.
 #   3. 16b-style "Wins by Policy Branch" stacked bars.
 #   4. 16d-style "Win Rate by Policy Branch" stacked bars.
+#   5. The all-civs policy-flow sankey, appended via {magick}.
 #
 # Panels 1-4 are built inline as a single patchwork column so the 12
 # branch columns line up across the table, marginal, and both bar charts.
-# The all-civs policy-flow sankey is no longer stacked underneath -- it
-# remains available as its own standalone figure.
+# Panel 5 is read from the already-rendered _all_civs.png and stacked
+# below via image_append.
 #
 # Output:
 #   output/r_plots/dark/composites/policies_overview.png
@@ -22,11 +23,10 @@ DARK_DIR <- file.path("output", "r_plots", "dark")
 COMP_DIR <- file.path(DARK_DIR, "composites")
 dir.create(COMP_DIR, recursive = TRUE, showWarnings = FALSE)
 
-BG       <- IPSUM_VP_DARK_BG
-FG       <- IPSUM_VP_DARK_FG
-GREEN_HI <- "#1a9850"   # matches the 15b policy-branch-table palette
-GREEN_LO <- "#0f1f15"
-LUT      <- vtc_lut_b
+BG      <- IPSUM_VP_DARK_BG
+FG      <- IPSUM_VP_DARK_FG
+ORANGE  <- "#ff9900"   # same accent the vassalage heatmap uses
+LUT     <- vtc_lut_b
 
 BRANCH_NAMES <- c(
     "Tradition", "Progress", "Authority",
@@ -42,18 +42,17 @@ sep_x <- c(3.5, 6.5, 9.5)  # tier separators
 policy_df <- load_spark_csv("policy_choices")
 policy_df <- synth_clone_per_game(policy_df, "policy_df")
 
-# Count distinct (game_id, civ) pairs that opened each branch, so each
-# cell reads as "games in which this civ opened this branch".
 policy_df <- policy_df %>%
     mutate(pick_order = as.integer(pick_order),
            item       = as.character(item),
            branch_marker = suppressWarnings(
                as.integer(stringr::str_match(item, "^Branch (\\d+)$")[, 2])
            )) %>%
-    filter(!is.na(branch_marker),
-           branch_marker >= 0, branch_marker <= 11) %>%
-    rename(branch = branch_marker) %>%
-    distinct(game_id, civ, branch)
+    arrange(game_id, civ, pick_order) %>%
+    group_by(game_id, civ) %>%
+    mutate(branch = zoo::na.locf(branch_marker, na.rm = FALSE)) %>%
+    ungroup() %>%
+    filter(!is.na(branch), branch >= 0, branch <= 11)
 
 cell_df <- policy_df %>%
     count(civ, branch, name = "n") %>%
@@ -113,11 +112,10 @@ winrate_totals <- winrate_long %>%
     group_by(branch_name) %>%
     summarise(total_winrate = sum(winrate), .groups = "drop")
 
-# Use the global n_games so this composite's caption matches every other
-# report graph (those use default_caption() with no override). The bottom
-# two panels are still computed from branch_stats_df, but the headline
-# game count in the caption should be the same as everywhere else.
-caption_text <- default_caption()
+n_games_eff <- length(unique(branch_stats_df$game_id))
+caption_text <- sprintf(
+    "%d Civ5 VP autoplay games  -  Emperor difficulty",
+    n_games_eff)
 
 # ---------------------------------------------------------------------------
 # Panel 1: orange policy-branch table.
@@ -126,19 +124,18 @@ panel_table <- ggplot(cell_df,
                      aes(x = branch_name, y = civ, fill = prop)) +
     geom_tile(color = "grey25", linewidth = 0.3) +
     geom_text(aes(label = ifelse(n == 0, "0", as.character(n))),
-              size = 4.0, color = FG) +
+              size = 3.2, color = FG) +
     geom_vline(xintercept = sep_x, color = "grey55", linewidth = 0.7) +
-    scale_fill_gradient(low = GREEN_LO, high = GREEN_HI,
+    scale_fill_gradient(low = "#1f1b18", high = ORANGE,
                         limits = c(0, 1), guide = "none") +
     scale_x_discrete(position = "top", expand = c(0, 0),
                      limits = BRANCH_NAMES) +
     scale_y_discrete(expand = c(0, 0)) +
-    labs(title = "Branch Opens by Civilization",
+    labs(title = "Policies Chosen Per Civilization, By Branch",
          x = NULL, y = NULL) +
     theme_report_dark(base_size = 12) +
     theme(panel.grid       = element_blank(),
           panel.background = element_rect(fill = BG, color = NA),
-          plot.background  = element_rect(fill = BG, color = NA),
           axis.text.x.top  = element_text(angle = 90, hjust = 0, vjust = 0.5,
                                           face = "bold"),
           axis.text.y      = element_text(face = "bold"),
@@ -149,16 +146,16 @@ panel_table <- ggplot(cell_df,
 # ---------------------------------------------------------------------------
 panel_marginal <- ggplot(opens_per_branch,
                         aes(x = branch_name, y = opens)) +
-    geom_col(fill = GREEN_HI, width = 0.78) +
+    geom_col(fill = ORANGE, width = 0.78) +
     geom_text(aes(label = opens),
               vjust = -0.3, size = 3.2, color = FG, fontface = "bold") +
-    scale_x_discrete(position = "top", limits = BRANCH_NAMES, expand = c(0, 0)) +
+    geom_vline(xintercept = sep_x, color = "grey55", linewidth = 0.7) +
+    scale_x_discrete(limits = BRANCH_NAMES, expand = c(0, 0)) +
     scale_y_reverse(expand = expansion(mult = c(0.25, 0))) +
     labs(title = "Total Branch Opens", x = NULL, y = NULL) +
     theme_report_dark(base_size = 12) +
     theme(
-        axis.text.x.top    = element_text(face = "bold", color = FG,
-                                          size = 10),
+        axis.text.x        = element_blank(),
         axis.ticks.x       = element_blank(),
         axis.text.y        = element_blank(),
         axis.ticks.y       = element_blank(),
@@ -185,8 +182,8 @@ panel_wins <- ggplot(wins_per_branch,
          x = NULL, y = "Wins") +
     theme_report_dark(base_size = 12) +
     theme(
-        axis.text.x        = element_text(angle = 45, hjust = 1, vjust = 1,
-                                          size = 10),
+        axis.text.x        = element_blank(),
+        axis.ticks.x       = element_blank(),
         panel.grid.major.x = element_blank()
     )
 
@@ -206,12 +203,15 @@ panel_winrate <- ggplot(winrate_long,
     scale_y_continuous(labels = percent_format(accuracy = 1),
                        expand = expansion(mult = c(0, 0.18))) +
     labs(title = "Win Rate by Policy Branch",
+         caption = caption_text,
          x = "Policy branch", y = "Win rate") +
     theme_report_dark(base_size = 12) +
     theme(
         axis.text.x        = element_text(angle = 45, hjust = 1, vjust = 1,
                                           size = 10),
-        panel.grid.major.x = element_blank()
+        panel.grid.major.x = element_blank(),
+        plot.caption       = element_text(color = FG, size = 11,
+                                          hjust = 1, face = "italic")
     )
 
 # ---------------------------------------------------------------------------
@@ -233,10 +233,8 @@ top_stack <- (panel_table /
         heights = c(table_h, marginal_h, wins_h, winrate_h),
         guides  = "collect"
     ) &
-    theme(legend.position   = "bottom",
-          legend.background = element_rect(fill = BG, color = BG),
-          plot.background   = element_rect(fill = BG, color = NA),
-          panel.background  = element_rect(fill = BG, color = NA))
+    theme(legend.position = "bottom",
+          legend.background = element_rect(fill = BG, color = BG))
 
 TOP_PATH <- file.path(COMP_DIR, "_policies_overview_top.png")
 ggsave(TOP_PATH, top_stack, width = 14, height = top_total_h,
@@ -244,31 +242,22 @@ ggsave(TOP_PATH, top_stack, width = 14, height = top_total_h,
 cat("saved:", TOP_PATH, "\n")
 
 # ---------------------------------------------------------------------------
-# Wrap the top patchwork into a captioned composite (the all-civs sankey
-# lives in its own standalone figure now).
+# Stack: top patchwork | all-civs policy flow sankey.
 # ---------------------------------------------------------------------------
 read_img <- function(path) {
     if (!file.exists(path)) stop("Missing image: ", path)
     image_read(path)
 }
 
-composite <- read_img(TOP_PATH)
+ptop    <- read_img(TOP_PATH)
+psankey <- read_img(file.path(DARK_DIR, "policy_flow", "_all_civs.png"))
 
-# Single caption rendered once in the very bottom-right of the figure.
-caption_h <- 100L
-info_c <- image_info(composite)
-canvas <- image_blank(width = info_c$width,
-                      height = info_c$height + caption_h,
-                      color = BG)
-composite <- image_composite(canvas, composite, offset = "+0+0")
-composite <- image_annotate(
-    composite, caption_text,
-    gravity  = "southeast",
-    location = "+24+10",
-    size     = 18,
-    color    = "grey60",
-    style    = "italic"
-)
+imgs <- c(ptop, psankey)
+target_w <- max(image_info(imgs)$width)
+scaled <- lapply(seq_along(imgs), function(i) {
+    image_scale(imgs[i], paste0(target_w, "x"))
+})
+composite <- image_append(do.call(c, scaled), stack = TRUE)
 
 OUT_PATH <- file.path(COMP_DIR, "policies_overview.png")
 image_write(composite, OUT_PATH, format = "png")

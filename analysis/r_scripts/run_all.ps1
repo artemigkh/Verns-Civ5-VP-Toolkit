@@ -52,6 +52,7 @@ try {
         '20_victory_overview_composite.R',
         '21_policies_overview_composite.R',
         '22_winrate_version_compare.R',
+        '23_unit_composition_by_era.R',
         'make_composites.R'
     )
 

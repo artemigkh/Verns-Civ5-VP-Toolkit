@@ -11,20 +11,19 @@ BRANCH_NAMES <- c(
     "Freedom",   "Order",       "Autocracy"
 )
 
-# Each (game_id, civ) timeline: rows of "Branch N" mark when that tree
-# was opened. We count distinct (game_id, civ) pairs that opened each
-# branch, so each cell reads as "games in which this civ opened this
-# branch" rather than the raw number of policies adopted within it.
+# Each (game_id, civ) timeline: rows of "Branch N" mark the active tree;
+# subsequent policy picks belong to that tree until another Branch row.
 policy_df <- policy_df %>%
     mutate(pick_order = as.integer(pick_order),
            item       = as.character(item),
            branch_marker = suppressWarnings(
                as.integer(stringr::str_match(item, "^Branch (\\d+)$")[, 2])
            )) %>%
-    filter(!is.na(branch_marker),
-           branch_marker >= 0, branch_marker <= 11) %>%
-    rename(branch = branch_marker) %>%
-    distinct(game_id, civ, branch)
+    arrange(game_id, civ, pick_order) %>%
+    group_by(game_id, civ) %>%
+    mutate(branch = zoo::na.locf(branch_marker, na.rm = FALSE)) %>%
+    ungroup() %>%
+    filter(!is.na(branch), branch >= 0, branch <= 11)
 
 cell_df <- policy_df %>%
     count(civ, branch, name = "n") %>%
@@ -57,8 +56,7 @@ build_policy_table <- function(theme_fn, bg, tile_outline, text_color,
                             limits = c(0, 1), guide = "none") +
         scale_x_discrete(position = "top", expand = c(0, 0)) +
         scale_y_discrete(expand = c(0, 0)) +
-        labs(title = "Branch Opens by Civilization",
-             caption = default_caption(),
+        labs(title = "Policies Chosen Per Civilization, By Branch",
              x = NULL, y = NULL) +
         theme_fn(base_size = 12) +
         theme(panel.grid       = element_blank(),
@@ -73,25 +71,14 @@ n_civs <- length(civ_levels)
 save_plot(build_policy_table(theme_report, IPSUM_VP_BG,
                              tile_outline = "grey80", text_color = "grey15",
                              sep_color = "grey25",
-                             low_color = "#f7f4ef", high_color = "#ff9900") +
-              caption_theme("a"),
+                             low_color = "#f7f4ef", high_color = "#ff9900"),
           "15a_policy_branch_table",
           width = 12, height = max(10, 0.32 * n_civs + 3))
-# 15b uses a dark-green gradient so this table reads as the "greens" panel.
 save_plot_dark(build_policy_table(theme_report_dark, IPSUM_VP_DARK_BG,
                                   tile_outline = "grey25",
                                   text_color = IPSUM_VP_DARK_FG,
                                   sep_color = "grey55",
-                                  low_color = "#0f1f15",
-                                  high_color = "#1a9850") +
-                   caption_theme("b"),
+                                  low_color = "#1f1b18",
+                                  high_color = "#ff9900"),
                "15b_policy_branch_table",
                width = 12, height = max(10, 0.32 * n_civs + 3))
-save_plot_dark_nocap(build_policy_table(theme_report_dark, IPSUM_VP_DARK_BG,
-                                        tile_outline = "grey25",
-                                        text_color = IPSUM_VP_DARK_FG,
-                                        sep_color = "grey55",
-                                        low_color = "#0f1f15",
-                                        high_color = "#1a9850"),
-                     "15b_policy_branch_table_nocap",
-                     width = 12, height = max(10, 0.32 * n_civs + 3))

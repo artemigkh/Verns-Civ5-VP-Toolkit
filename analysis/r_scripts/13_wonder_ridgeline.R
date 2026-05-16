@@ -11,7 +11,7 @@ wonder_eras <- read_csv("../db_util/out/wonder_eras.csv", show_col_types = FALSE
     rename(wonder = Name, era = Era)
 
 ERA_LEVELS <- c("Ancient", "Classical", "Medieval", "Renaissance",
-                "Industrial", "Modern", "Postmodern", "Future")
+                "Industrial", "Modern", "Atomic", "Information")
 
 wonder_turns_df <- wonders_df %>%
     inner_join(wonder_eras, by = "wonder") %>%

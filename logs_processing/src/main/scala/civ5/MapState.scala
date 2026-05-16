@@ -198,6 +198,90 @@ object MapState extends SparkJob {
           |""".stripMargin).createOrReplaceTempView("effective_ownership_by_game_turn")
   }
 
+  def AggregateUnitCompositionsByTurn(): DataFrame = {
+    val unitCompositionsTurnsDF = spark.sql(
+      """
+        | SELECT
+        |   game_id,
+        |   unit_owner_civ AS civ,
+        |   CAST(turn AS INT) AS turn,
+        |   unit,
+        |   COUNT(*) AS count
+        | FROM map_state
+        | WHERE
+        |   unit IS NOT NULL AND unit <> '' AND
+        |   unit_owner_civ IS NOT NULL AND unit_owner_civ <> ''
+        | GROUP BY
+        |   game_id,
+        |   unit_owner_civ,
+        |   CAST(turn AS INT),
+        |   unit
+        | ORDER BY
+        |   game_id,
+        |   civ,
+        |   turn,
+        |   unit
+        |""".stripMargin)
+    unitCompositionsTurnsDF.createOrReplaceTempView("unit_compositions_turns")
+    unitCompositionsTurnsDF
+  }
+
+  def AggregateUnitCompositionsByEra(): DataFrame = {
+    val unitCompositionsErasDF = spark.sql(
+      """
+        | WITH unit_counts_by_era AS (
+        |   SELECT
+        |     uct.game_id,
+        |     uct.civ,
+        |     e.era,
+        |     uct.unit,
+        |     SUM(uct.count) AS total_count
+        |   FROM
+        |     unit_compositions_turns uct
+        |     INNER JOIN civ_turn_era e
+        |       ON uct.game_id = e.game_id AND
+        |          uct.civ = e.civ AND
+        |          uct.turn = e.turn
+        |   GROUP BY
+        |     uct.game_id,
+        |     uct.civ,
+        |     e.era,
+        |     uct.unit
+        | ),
+        | turn_counts_by_era AS (
+        |   SELECT
+        |     game_id,
+        |     civ,
+        |     era,
+        |     COUNT(DISTINCT turn) AS turn_count
+        |   FROM civ_turn_era
+        |   GROUP BY
+        |     game_id,
+        |     civ,
+        |     era
+        | )
+        | SELECT
+        |   uc.game_id,
+        |   uc.civ,
+        |   uc.era,
+        |   uc.unit,
+        |   CAST(uc.total_count AS DOUBLE) / tc.turn_count AS avg_count
+        | FROM
+        |   unit_counts_by_era uc
+        |   INNER JOIN turn_counts_by_era tc
+        |     ON uc.game_id = tc.game_id AND
+        |        uc.civ = tc.civ AND
+        |        uc.era = tc.era
+        | ORDER BY
+        |   uc.game_id,
+        |   uc.civ,
+        |   uc.era,
+        |   uc.unit
+        |""".stripMargin)
+    unitCompositionsErasDF.createOrReplaceTempView("unit_compositions_eras")
+    unitCompositionsErasDF
+  }
+
   def AggregateMapStateByEra(mapStateDF: DataFrame): DataFrame = {
     // Aggregate unit ownership using the same approach as tile ownership but without vassalage transfership
     mapStateDF

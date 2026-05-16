@@ -124,7 +124,8 @@ object Util {
    *      ONLY those gameIds and appends them to the parquet cache (partitioned by game_id).
    *      If the resulting DF is empty (no log files of this type exist for any
    *      missing game), writes a marker so we don't re-attempt next run.
-   *   4. Reads the full cache back and returns it (with original column order restored).
+  *   4. Reads only the requested gameIds back and returns them (with original
+  *      column order restored), even when the cache directory contains more games.
    */
   def cachedParse(
       spark: SparkSession,
@@ -140,7 +141,8 @@ object Util {
     val markerFile = new File(dir, "_no_data.marker")
 
     if (missing.nonEmpty) {
-      println(s"[cache] $name: ${cachedIds.size} cached, ${missing.size} to parse")
+      val requestedCached = allGameIds.intersect(cachedIds)
+      println(s"[cache] $name: ${requestedCached.size}/${allGameIds.size} requested cached (${cachedIds.size} total cached), ${missing.size} to parse")
       val freshDF = compute(missing)
       val originalCols = freshDF.columns.toSeq
       // Materialize with a count so we can decide if there are any rows to write.
@@ -164,8 +166,11 @@ object Util {
       }
       writeColumns(columnsFile, originalCols)
     } else {
-      println(s"[cache] $name: full hit (${cachedIds.size} games)")
+      println(s"[cache] $name: requested hit (${allGameIds.size}/${allGameIds.size}; ${cachedIds.size} total cached)")
     }
+
+    val cachedIdsForRead = listCachedGameIds(dir)
+    val requestedCachedIds = allGameIds.intersect(cachedIdsForRead)
 
     // Partition values like "2026-05-03T16.09.11.793785" get inferred as
     // Date/Timestamp by default, which then fails downstream code that
@@ -174,7 +179,15 @@ object Util {
     val priorInfer = spark.conf.getOption("spark.sql.sources.partitionColumnTypeInference.enabled")
     spark.conf.set("spark.sql.sources.partitionColumnTypeInference.enabled", "false")
     val readBack = try {
-      spark.read.parquet(dir.getAbsolutePath)
+      if (requestedCachedIds.nonEmpty) {
+        val requestedPaths = requestedCachedIds.toSeq.sorted
+          .map(gameId => new File(dir, s"game_id=$gameId").getAbsolutePath)
+        spark.read
+          .option("basePath", dir.getAbsolutePath)
+          .parquet(requestedPaths: _*)
+      } else {
+        spark.read.parquet(dir.getAbsolutePath).limit(0)
+      }
     } finally {
       priorInfer match {
         case Some(v) => spark.conf.set("spark.sql.sources.partitionColumnTypeInference.enabled", v)

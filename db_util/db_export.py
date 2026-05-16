@@ -87,16 +87,20 @@ def export_wonder_eras(
 ) -> None:
     wonders_df = pd.read_sql_query(
         """
-        select bc.DefaultBuilding, b.Description, b.Type, b.PrereqTech, t.Era
-        from BuildingClasses bc, Buildings b, Technologies t
+        select bc.DefaultBuilding, b.Description, b.Type, b.PrereqTech,
+               t.Era, e.Description as EraDescription
+        from BuildingClasses bc
+        join Buildings b on bc.DefaultBuilding = b.Type
+        join Technologies t on b.PrereqTech = t.Type
+        join Eras e on t.Era = e.Type
         where bc.MaxGlobalInstances = 1
-          and bc.DefaultBuilding = b.type
-          and b.PrereqTech = t.Type
         """,
         cnx,
     )
     wonders_df["Name"] = wonders_df["Description"].map(txt_lut)
-    wonders_df["Era"] = wonders_df["Era"].map(lambda s: s[4:].title())
+    wonders_df["Era"] = wonders_df["EraDescription"].map(txt_lut).str.replace(
+        r"\s+Era$", "", regex=True
+    )
     wonders_df[["Name", "Era"]].to_csv(out_path, index=False)
     print(f"Wrote {out_path} ({len(wonders_df)} wonders)")
 
@@ -217,6 +221,18 @@ def export_civ_flavors(cnx: sqlite3.Connection, out_path: Path) -> None:
     print(f"Wrote {out_path} ({len(pivoted)} civs)")
 
 
+def export_units(cnx: sqlite3.Connection, out_path: Path) -> None:
+    df = pd.read_sql_query("SELECT * FROM Units", cnx)
+    df.to_csv(out_path, index=False)
+    print(f"Wrote {out_path} ({len(df)} units)")
+
+
+def export_text_lut(txt_lut: dict[str, str], out_path: Path) -> None:
+    df = pd.DataFrame(list(txt_lut.items()), columns=["Tag", "Text"])
+    df.to_csv(out_path, index=False)
+    print(f"Wrote {out_path} ({len(df)} entries)")
+
+
 def export_beliefs(
     cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
 ) -> None:
@@ -264,12 +280,14 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     txt_lut = load_text_lut(loc_db)
+    export_text_lut(txt_lut, args.output_dir / "text_lut.csv")
     with sqlite3.connect(debug_db) as cnx:
         export_wonder_eras(cnx, txt_lut, args.output_dir / "wonder_eras.csv")
         export_civ_colors(cnx, args.output_dir / "civ_colors.csv")
         export_civ_bg_colors(cnx, args.output_dir / "civ_bg_colors.csv")
         export_civ_flavors(cnx, args.output_dir / "civ_flavors.csv")
         export_beliefs(cnx, txt_lut, args.output_dir / "beliefs.csv")
+        export_units(cnx, args.output_dir / "units.csv")
 
 
 if __name__ == "__main__":

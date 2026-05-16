@@ -146,10 +146,8 @@ build_violin_panel <- function(df, x_col, y_col, title) {
                            oob = scales::squish) +
         labs(title = title, x = NULL, y = "Game-ending turn") +
         theme_report_dark(base_size = 12) +
-        theme(legend.position  = "none",
-              axis.text.x      = element_text(angle = 20, hjust = 1),
-              plot.background  = element_rect(fill = BG, color = NA),
-              panel.background = element_rect(fill = BG, color = NA))
+        theme(legend.position = "none",
+              axis.text.x = element_text(angle = 20, hjust = 1))
 }
 
 donut1  <- build_donut_panel(game_result_df, "victory_type",
@@ -164,12 +162,17 @@ violin1 <- build_violin_panel(game_result_df, "victory_type", "turn",
 violin2 <- build_violin_panel(aug_df, "victory_type_aug", "turn_aug",
                               "Authority Victory Time Spread")
 
-caption_text <- default_caption()
+caption_text <- sprintf(
+    "%d completed Civ5 VP autoplay games  -  Emperor difficulty", n_games)
 
 top_block <- (donut1 | donut2) / (violin1 | violin2) +
-    plot_layout(heights = c(1, 1)) &
-    theme(plot.background  = element_rect(fill = BG, color = NA),
-          panel.background = element_rect(fill = BG, color = NA))
+    plot_layout(heights = c(1, 1)) +
+    plot_annotation(
+        caption = caption_text,
+        theme = theme_report_dark(base_size = 13) +
+            theme(plot.caption = element_text(color = FG, size = 11,
+                                              hjust = 1, face = "italic"))
+    )
 
 # Save the top 2x2 block to a temp file so {magick} can compose it.
 TOP_PATH <- file.path(COMP_DIR, "_victory_overview_top.png")
@@ -185,8 +188,8 @@ read_img <- function(path) {
     image_read(path)
 }
 
-p02 <- read_img(file.path(DARK_DIR, "02b_winrate_by_civ_stacked_bars_nocap.png"))
-p04 <- read_img(file.path(DARK_DIR, "04b_pseudo_dom_winrate_by_civ_nocap.png"))
+p02 <- read_img(file.path(DARK_DIR, "02b_winrate_by_civ_stacked_bars.png"))
+p04 <- read_img(file.path(DARK_DIR, "04b_pseudo_dom_winrate_by_civ.png"))
 ptop <- read_img(TOP_PATH)
 
 imgs <- c(ptop, p02, p04)
@@ -195,23 +198,6 @@ scaled <- lapply(seq_along(imgs), function(i) {
     image_scale(imgs[i], paste0(target_w, "x"))
 })
 composite <- image_append(do.call(c, scaled), stack = TRUE)
-
-# Single caption rendered once in the very bottom-right of the combined
-# figure (replaces the per-panel captions normally baked into 02b / 04b).
-caption_h <- 100L
-info_c <- image_info(composite)
-canvas <- image_blank(width = info_c$width,
-                      height = info_c$height + caption_h,
-                      color = BG)
-composite <- image_composite(canvas, composite, offset = "+0+0")
-composite <- image_annotate(
-    composite, caption_text,
-    gravity  = "southeast",
-    location = "+24+10",
-    size     = 18,
-    color    = "grey60",
-    style    = "italic"
-)
 
 OUT_PATH <- file.path(COMP_DIR, "victory_overview.png")
 image_write(composite, OUT_PATH, format = "png")
