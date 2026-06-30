@@ -40,3 +40,16 @@ def test_defaults_have_reasonable_types(monkeypatch) -> None:
     assert isinstance(cfg.heartbeat_interval_sec, float)
     assert cfg.recovery_max_attempts >= 1
     assert cfg.crash_handler_poll_ms >= 0
+
+
+def test_stats_mode_defaults_to_sqlite(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOPLAY_RUNNER_BIND_HOST", "127.0.0.1")
+    cfg = load_config()
+    assert cfg.stats_mode == "sqlite"
+
+
+def test_stats_mode_env_override(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOPLAY_RUNNER_BIND_HOST", "127.0.0.1")
+    monkeypatch.setenv("AUTOPLAY_RUNNER_STATS_MODE", "legacy_logs")
+    cfg = load_config()
+    assert cfg.stats_mode == "legacy_logs"

@@ -45,7 +45,7 @@ pushd "%ANALYSIS_DIR%" || (
     exit /b 1
 )
 
-set SCRIPTS=01_victory_mix.R 02_winrate_by_civ.R 03_pseudo_dom_victory_mix.R 04_pseudo_dom_winrate_by_civ.R 05_religion_attainment.R 06_pantheon.R 07_founder.R 08_enhancer.R 09_reformation.R 10_religion_sankey.R 11_tech_era_ridgeline.R 12_era_progression.R 13_wonder_ridgeline.R 14_wonders_per_civ_lollipop.R 15_policy_branch_table.R 16_policy_branch_wins_bars.R 16_policy_branch_winrate_bars.R 17_policy_flow_sankey.R 19_vassalage_heatmap.R 20_victory_overview_composite.R 21_policies_overview_composite.R 23_unit_composition_by_era.R
+set SCRIPTS=01_victory_mix.R 02_winrate_by_civ.R 03_pseudo_dom_victory_mix.R 04_pseudo_dom_winrate_by_civ.R 05_religion_attainment.R 06_pantheon.R 07_founder.R 08_enhancer.R 09_reformation.R 10_religion_sankey.R 11_tech_era_ridgeline.R 12_era_progression.R 13_wonder_ridgeline.R 14_wonders_per_civ_lollipop.R 15_policy_branch_table.R 16_policy_branch_wins_bars.R 16_policy_branch_winrate_bars.R 17_policy_flow_sankey.R 19_vassalage_heatmap.R 20_victory_overview_composite.R 21_policies_overview_composite.R 23_unit_composition_by_era.R 24_winrate_by_slot.R
 
 for %%S in (%SCRIPTS%) do (
     echo ==^> Rscript r_scripts\%%S

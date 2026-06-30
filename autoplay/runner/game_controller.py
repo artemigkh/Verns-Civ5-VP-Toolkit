@@ -18,6 +18,7 @@ import gzip
 import io
 import logging
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tarfile
@@ -25,6 +26,7 @@ import time
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import httpx
 import psutil
@@ -34,6 +36,9 @@ from autoplay.runner.civ_io import (
     find_most_recent_autosave,
     game_result_present,
     read_current_turn,
+    read_current_turn_sqlite,
+    sqlite_game_complete,
+    stats_db_path,
 )
 from autoplay.runner.config import RunnerConfig
 from autoplay.runner.crash_handler import crash_handler_window_present
@@ -54,11 +59,13 @@ _EXE_WAIT_POLL_SEC = 1.0
 # CSV log files that have a single header row. When concatenating multiple
 # crash-recovery segments back into a single file, all but the first
 # segment's header row must be stripped.
-_HEADERED_CSVS = frozenset({
-    "WorldState_Log.csv",
-    "Score_Log.csv",
-    "GameResult_Log.csv",
-})
+_HEADERED_CSVS = frozenset(
+    {
+        "WorldState_Log.csv",
+        "Score_Log.csv",
+        "GameResult_Log.csv",
+    }
+)
 
 # Directory (sibling of the game's ``Logs`` dir) where per-recovery snapshots
 # of CSV log files are staged. Civ5 overwrites these files when it restarts
@@ -149,7 +156,11 @@ def _remove_path_with_retry(child: Path) -> None:
         if delay:
             logger.warning(
                 "Retrying delete of %s in %.0fs (attempt %d/%d) after PermissionError: %s",
-                child, delay, attempt, len(_REMOVE_RETRY_BACKOFF_SEC), last_exc,
+                child,
+                delay,
+                attempt,
+                len(_REMOVE_RETRY_BACKOFF_SEC),
+                last_exc,
             )
             time.sleep(delay)
         try:
@@ -202,6 +213,54 @@ def _clear_segments_root(user_dir: Path) -> None:
             shutil.rmtree(root, ignore_errors=True)
     except OSError as exc:
         logger.warning("Failed to clean segments root %s: %s", root, exc)
+
+
+# --- SQLite-stats mode helpers ---------------------------------------------
+
+
+def _stats_db_sidecars(user_dir: Path) -> list[Path]:
+    """The stats db and its WAL/SHM sidecar files."""
+    db = stats_db_path(user_dir)
+    return [db, db.with_name(db.name + "-wal"), db.with_name(db.name + "-shm")]
+
+
+def _reset_stats_db(user_dir: Path) -> None:
+    """Ensure the cache dir exists and delete any stale stats db + WAL sidecars."""
+    db = stats_db_path(user_dir)
+    db.parent.mkdir(parents=True, exist_ok=True)
+    for p in _stats_db_sidecars(user_dir):
+        try:
+            p.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Could not delete stats db file %s: %s", p, exc)
+
+
+def _checkpoint_and_read_stats_db(user_dir: Path) -> bytes | None:
+    """Checkpoint the WAL and return the stats db bytes, or None if absent.
+
+    The caller MUST have stopped the Civ5 process first so the file is
+    unlocked and the WAL can be folded back into the main db file, producing a
+    single self-contained ``.db`` safe to upload.
+    """
+    db = stats_db_path(user_dir)
+    if not db.is_file():
+        return None
+    try:
+        conn = sqlite3.connect(str(db), timeout=10.0)
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            conn.commit()
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        logger.warning("WAL checkpoint failed for %s: %s; reading as-is", db, exc)
+    try:
+        return db.read_bytes()
+    except OSError as exc:
+        logger.error("Could not read stats db %s: %s", db, exc)
+        return None
 
 
 # Per-file copy retry schedule (seconds). Civ5 / antivirus / Steam can hold
@@ -265,14 +324,9 @@ def _snapshot_csv_segment(
         )
         return None
     try:
-        csv_files = [
-            p for p in logs_dir.iterdir()
-            if p.is_file() and p.suffix.lower() == ".csv"
-        ]
+        csv_files = [p for p in logs_dir.iterdir() if p.is_file() and p.suffix.lower() == ".csv"]
     except OSError as exc:
-        logger.warning(
-            "Snapshot (%s): failed to list %s: %s", label, logs_dir, exc
-        )
+        logger.warning("Snapshot (%s): failed to list %s: %s", label, logs_dir, exc)
         return None
     if not csv_files:
         logger.info(
@@ -323,9 +377,7 @@ def _snapshot_csv_segment(
     return seg_dir
 
 
-def _consolidate_csv_segments(
-    logs_dir: Path, game_id: str, user_dir: Path
-) -> int:
+def _consolidate_csv_segments(logs_dir: Path, game_id: str, user_dir: Path) -> int:
     """Splice prior segment snapshots back into the current ``logs_dir`` CSVs.
 
     The current ``logs_dir`` content is treated as the *final* segment. For
@@ -443,6 +495,19 @@ class GameController:
         self._state = state
         self._proc: subprocess.Popen[bytes] | None = None
         self._monitor_task: asyncio.Task[None] | None = None
+        self._sqlite_mode = cfg.stats_mode == "sqlite"
+
+    async def _completion_present(self, logs_dir: Path) -> bool:
+        """True when the current game has finished (mode-aware)."""
+        if self._sqlite_mode:
+            return await asyncio.to_thread(sqlite_game_complete, stats_db_path(self._cfg.user_dir))
+        return await asyncio.to_thread(game_result_present, logs_dir)
+
+    async def _read_turn(self, logs_dir: Path) -> int | None:
+        """Read the latest turn for the current game (mode-aware)."""
+        if self._sqlite_mode:
+            return await asyncio.to_thread(read_current_turn_sqlite, stats_db_path(self._cfg.user_dir))
+        return await asyncio.to_thread(read_current_turn, logs_dir)
 
     def _resolve_exe(self) -> Path:
         """Return the path to ``CivilizationV_DX11.exe`` under the install dir.
@@ -492,9 +557,7 @@ class GameController:
         """Async wrapper around :meth:`_log_exe_state` so we never stall the loop."""
         await asyncio.to_thread(self._log_exe_state, label)
 
-    async def _wait_for_exe(
-        self, timeout_sec: float = _EXE_WAIT_TIMEOUT_SEC
-    ) -> Path:
+    async def _wait_for_exe(self, timeout_sec: float = _EXE_WAIT_TIMEOUT_SEC) -> Path:
         """Resolve the exe and wait up to ``timeout_sec`` for it to be readable.
 
         Raises :class:`NoInstallError` if ``CivilizationV_DX11.exe`` is still
@@ -528,8 +591,7 @@ class GameController:
                     last_reason,
                 )
                 raise NoInstallError(
-                    f"CivilizationV_DX11.exe not accessible at {exe} "
-                    f"after {timeout_sec:.0f}s ({last_reason})"
+                    f"CivilizationV_DX11.exe not accessible at {exe} after {timeout_sec:.0f}s ({last_reason})"
                 )
             logger.warning(
                 "Civ5 exe not yet accessible (%s); waiting up to %.0fs",
@@ -538,9 +600,7 @@ class GameController:
             )
             await asyncio.sleep(_EXE_WAIT_POLL_SEC)
 
-    async def _await_process_started(
-        self, proc: subprocess.Popen[bytes], timeout_sec: float
-    ) -> None:
+    async def _await_process_started(self, proc: subprocess.Popen[bytes], timeout_sec: float) -> None:
         """Confirm the spawned process either persists or dies within ``timeout_sec``.
 
         Polls ``proc.poll()`` once per second. If the process exits during this
@@ -552,12 +612,9 @@ class GameController:
         while time.time() < deadline:
             await asyncio.sleep(1.0)
             if proc.poll() is not None:
-                logger.warning(
-                    "Civ5 process exited within startup window (rc=%s)", proc.returncode
-                )
+                logger.warning("Civ5 process exited within startup window (rc=%s)", proc.returncode)
                 return
         logger.info("Civ5 process startup window elapsed (pid=%s alive)", proc.pid)
-
 
     @property
     def is_running(self) -> bool:
@@ -671,20 +728,21 @@ class GameController:
         # Drop any leftover CSV segment snapshots from a prior game so they
         # cannot bleed into this run's harvest.
         await asyncio.to_thread(_clear_segments_root, self._cfg.user_dir)
+        # SQLite-stats mode: ensure the cache dir exists and remove any stale
+        # stats.db so a previous game's GameResult rows can't be mistaken for
+        # this run's completion.
+        if self._sqlite_mode:
+            await asyncio.to_thread(_reset_stats_db, self._cfg.user_dir)
 
         game_id = _make_game_id()
         await self._log_exe_state_async("start:before-wait")
         exe = await self._wait_for_exe()
-        logger.info(
-            "Launching %s (gameId=%s, exists=%s)", exe, game_id, exe.is_file()
-        )
+        logger.info("Launching %s (gameId=%s, exists=%s)", exe, game_id, exe.is_file())
 
         # Fresh starts must NOT auto-load the most recent autosave; ensure the
         # patched MainMenu.lua has ``loadOnStart = false`` before launching.
         await asyncio.to_thread(set_load_on_start, self._cfg.install_dir, enabled=False)
-        self._proc = await asyncio.to_thread(
-            self._spawn_civ5, exe, ["-Automation", "RunAutoplayGame.lua"]
-        )
+        self._proc = await asyncio.to_thread(self._spawn_civ5, exe, ["-Automation", "RunAutoplayGame.lua"])
         # Fire-and-forget startup-window watcher: logs early-death within 30s
         # so the process-launch-vs-game-startup distinction is visible in
         # logs. The main monitor task below also polls proc death every 1s.
@@ -699,9 +757,7 @@ class GameController:
             self._state.current_game_start_time = time.time()
             self._state.current_game_turn = None
 
-        self._monitor_task = asyncio.create_task(
-            self._monitor(logs_dir, game_id), name="game-monitor"
-        )
+        self._monitor_task = asyncio.create_task(self._monitor(logs_dir, game_id), name="game-monitor")
         logger.info("Game started: gameId=%s modpack=%s", game_id, self._state.modpack)
         return game_id
 
@@ -732,6 +788,8 @@ class GameController:
 
         await asyncio.to_thread(_clear_logs_dir, self._cfg.user_dir / "Logs")
         await asyncio.to_thread(_clear_segments_root, self._cfg.user_dir)
+        if self._sqlite_mode:
+            await asyncio.to_thread(_reset_stats_db, self._cfg.user_dir)
 
         with self._state.lock:
             self._state.state = RunnerState.idle
@@ -795,11 +853,7 @@ class GameController:
                 # technically still alive, so we have to detect it by window
                 # title and force-kill the tree to enter the recovery flow.
                 poll_ms = max(0, int(cfg.crash_handler_poll_ms))
-                if (
-                    proc_alive
-                    and poll_ms > 0
-                    and (now - last_crash_check_ts) * 1000.0 >= poll_ms
-                ):
+                if proc_alive and poll_ms > 0 and (now - last_crash_check_ts) * 1000.0 >= poll_ms:
                     last_crash_check_ts = now
                     if await asyncio.to_thread(crash_handler_window_present):
                         logger.error(
@@ -814,8 +868,8 @@ class GameController:
                         await asyncio.to_thread(_kill_process_tree, proc.pid)
                         proc_alive = False
 
-                if await asyncio.to_thread(game_result_present, logs_dir):
-                    logger.info("GameResult_Log.csv detected; harvesting logs")
+                if await self._completion_present(logs_dir):
+                    logger.info("Game completion detected; harvesting results")
                     await self._harvest_and_submit_complete(logs_dir, game_id)
                     return
 
@@ -830,13 +884,9 @@ class GameController:
                         last_turn,
                         rc,
                     )
-                    recovered = await self._attempt_recovery(
-                        logs_dir, game_id, crashed_turn=last_turn
-                    )
+                    recovered = await self._attempt_recovery(logs_dir, game_id, crashed_turn=last_turn)
                     if not recovered:
-                        await self._harvest_and_submit_crash(
-                            logs_dir, game_id, reason="process_died"
-                        )
+                        await self._harvest_and_submit_crash(logs_dir, game_id, reason="process_died")
                         return
                     # Recovery succeeded — refresh local tracking from state
                     # and continue monitoring this same game_id.
@@ -846,7 +896,7 @@ class GameController:
                     got_any_log = True
                     continue
 
-                turn = await asyncio.to_thread(read_current_turn, logs_dir)
+                turn = await self._read_turn(logs_dir)
                 if turn is not None:
                     got_any_log = True
                     with state.lock:
@@ -859,8 +909,7 @@ class GameController:
 
                 if not got_any_log and (now - start_time) > cfg.startup_timeout_sec:
                     logger.error(
-                        "Startup timeout: no log output within %ss (game_id=%s, "
-                        "proc_alive=%s, exitcode=%s)",
+                        "Startup timeout: no log output within %ss (game_id=%s, proc_alive=%s, exitcode=%s)",
                         cfg.startup_timeout_sec,
                         game_id,
                         proc_alive,
@@ -884,13 +933,9 @@ class GameController:
                     # spawn a fresh one.
                     if proc_alive:
                         await asyncio.to_thread(_kill_process_tree, proc.pid)
-                    recovered = await self._attempt_recovery(
-                        logs_dir, game_id, crashed_turn=last_turn
-                    )
+                    recovered = await self._attempt_recovery(logs_dir, game_id, crashed_turn=last_turn)
                     if not recovered:
-                        await self._harvest_and_submit_crash(
-                            logs_dir, game_id, reason="turn_timeout"
-                        )
+                        await self._harvest_and_submit_crash(logs_dir, game_id, reason="turn_timeout")
                         return
                     snap = state.snapshot()
                     last_turn = snap.current_game_turn or last_turn
@@ -935,8 +980,7 @@ class GameController:
         if max_attempts == 0 or crashed_turn <= 0:
             # Nothing meaningful to recover from (game never reached turn 1).
             logger.warning(
-                "Skipping recovery (max_attempts=%d, crashed_turn=%d): "
-                "no autosave to reload from.",
+                "Skipping recovery (max_attempts=%d, crashed_turn=%d): no autosave to reload from.",
                 max_attempts,
                 crashed_turn,
             )
@@ -945,14 +989,17 @@ class GameController:
         # Snapshot the live CSV log files RIGHT NOW, before _wait_for_exe
         # potentially blocks for tens of seconds and before any recovery
         # process can truncate them. This is the only chance we have to
-        # capture the data from the run that just crashed.
-        await asyncio.to_thread(
-            _snapshot_csv_segment,
-            logs_dir,
-            game_id,
-            cfg.user_dir,
-            label=f"crash@turn{crashed_turn}",
-        )
+        # capture the data from the run that just crashed. In SQLite-stats
+        # mode there are no CSV segments — the persistent stats.db in
+        # ``cache/`` survives the recovery relaunch — so this is skipped.
+        if not self._sqlite_mode:
+            await asyncio.to_thread(
+                _snapshot_csv_segment,
+                logs_dir,
+                game_id,
+                cfg.user_dir,
+                label=f"crash@turn{crashed_turn}",
+            )
 
         try:
             await self._log_exe_state_async("recovery:before-wait")
@@ -995,9 +1042,7 @@ class GameController:
 
             # Recovery launches must auto-load the most recent autosave; flip
             # the patched MainMenu.lua's ``loadOnStart`` flag to true.
-            await asyncio.to_thread(
-                set_load_on_start, cfg.install_dir, enabled=True
-            )
+            await asyncio.to_thread(set_load_on_start, cfg.install_dir, enabled=True)
             try:
                 self._proc = await asyncio.to_thread(self._spawn_civ5, exe, [])
             except Exception as exc:  # noqa: BLE001
@@ -1017,9 +1062,7 @@ class GameController:
                 getattr(self._proc, "pid", None),
             )
 
-            recovered = await self._watch_recovery(
-                logs_dir, crashed_turn, cfg.recovery_attempt_timeout_sec
-            )
+            recovered = await self._watch_recovery(logs_dir, crashed_turn, cfg.recovery_attempt_timeout_sec)
             if recovered:
                 with state.lock:
                     state.state = RunnerState.recovered
@@ -1050,9 +1093,7 @@ class GameController:
         )
         return False
 
-    async def _watch_recovery(
-        self, logs_dir: Path, crashed_turn: int, timeout_sec: int
-    ) -> bool:
+    async def _watch_recovery(self, logs_dir: Path, crashed_turn: int, timeout_sec: int) -> bool:
         """Poll until the recovered game progresses past ``crashed_turn`` or dies/times out."""
         deadline = time.time() + timeout_sec
         poll_ms = max(0, int(self._cfg.crash_handler_poll_ms))
@@ -1064,8 +1105,7 @@ class GameController:
                 return False
             if proc.poll() is not None:
                 logger.warning(
-                    "Recovery process pid=%s exited (rc=%s) before progressing "
-                    "past turn %s",
+                    "Recovery process pid=%s exited (rc=%s) before progressing past turn %s",
                     getattr(proc, "pid", None),
                     getattr(proc, "returncode", None),
                     crashed_turn,
@@ -1122,6 +1162,9 @@ class GameController:
             logger.warning("Pulse heartbeat (%s) failed: %s", pulse_state.value, exc)
 
     async def _harvest_and_submit_complete(self, logs_dir: Path, game_id: str) -> None:
+        if self._sqlite_mode:
+            await self._harvest_and_submit_complete_sqlite(game_id)
+            return
         state = self._state
         cfg = self._cfg
         modpack = state.modpack or "unknown"
@@ -1131,13 +1174,9 @@ class GameController:
         # Splice any per-recovery CSV snapshots back into the live logs dir
         # so the harvested bundle reflects every turn played, not just those
         # since the most recent restart.
-        await asyncio.to_thread(
-            _consolidate_csv_segments, logs_dir, game_id, cfg.user_dir
-        )
+        await asyncio.to_thread(_consolidate_csv_segments, logs_dir, game_id, cfg.user_dir)
         bundle = await asyncio.to_thread(_make_tar_gz, logs_dir, cfg.log_ignore_patterns)
-        logger.info(
-            "Logs harvested: gameId=%s bytes=%s", game_id, len(bundle)
-        )
+        logger.info("Logs harvested: gameId=%s bytes=%s", game_id, len(bundle))
 
         if self._proc is not None and self._proc.poll() is None:
             await asyncio.to_thread(_kill_process_tree, self._proc.pid)
@@ -1175,6 +1214,62 @@ class GameController:
         await asyncio.to_thread(_clear_segments_root, cfg.user_dir)
         self._maybe_reschedule()
 
+    async def _harvest_and_submit_complete_sqlite(self, game_id: str) -> None:
+        """SQLite-stats completion: stop Civ5, checkpoint+upload stats.db, delete local."""
+        state = self._state
+        cfg = self._cfg
+        modpack = state.modpack or "unknown"
+
+        with state.lock:
+            state.state = RunnerState.harvesting_logs
+        # Civ5 must be fully stopped before we touch the SQLite file so the WAL
+        # is flushed back into the main db and the file is unlocked.
+        if self._proc is not None and self._proc.poll() is None:
+            await asyncio.to_thread(_kill_process_tree, self._proc.pid)
+        self._proc = None
+
+        content = await asyncio.to_thread(_checkpoint_and_read_stats_db, cfg.user_dir)
+        if content is None:
+            logger.error(
+                "Stats db missing at completion (gameId=%s); nothing to upload",
+                game_id,
+            )
+        else:
+            logger.info("Stats db harvested: gameId=%s bytes=%s", game_id, len(content))
+            with state.lock:
+                state.state = RunnerState.uploading_logs
+            snap = state.snapshot()
+            time_elapsed = (
+                int(time.time() - snap.current_game_start_time)
+                if snap.current_game_start_time is not None
+                else None
+            )
+            await self._upload(
+                endpoint="/submit-stats",
+                modpack=modpack,
+                game_id=game_id,
+                filename=f"{game_id}.db",
+                content=content,
+                final=True,
+                extra_fields={
+                    "turn": snap.current_game_turn,
+                    "timeElapsedSec": time_elapsed,
+                    "runnerUrl": snap.url,
+                },
+            )
+            logger.info("Stats uploaded: gameId=%s", game_id)
+            # The bytes are now either accepted by the hypervisor or staged in
+            # pending_uploads, so the local copy is safe to drop.
+            await asyncio.to_thread(_reset_stats_db, cfg.user_dir)
+
+        await self._log_exe_state_async("complete-end")
+        with state.lock:
+            state.state = RunnerState.idle
+            state.current_game_id = None
+            state.current_game_start_time = None
+            state.current_game_turn = None
+        self._maybe_reschedule()
+
     async def _harvest_and_submit_crash(
         self,
         logs_dir: Path,
@@ -1182,6 +1277,9 @@ class GameController:
         *,
         reason: str,
     ) -> None:
+        if self._sqlite_mode:
+            await self._harvest_and_submit_crash_sqlite(game_id, reason=reason)
+            return
         state = self._state
         cfg = self._cfg
         modpack = state.modpack or "unknown"
@@ -1191,9 +1289,7 @@ class GameController:
 
         # Pre-read both artifacts so we know which upload will be the last.
         try:
-            await asyncio.to_thread(
-                _consolidate_csv_segments, logs_dir, game_id, cfg.user_dir
-            )
+            await asyncio.to_thread(_consolidate_csv_segments, logs_dir, game_id, cfg.user_dir)
             bundle = await asyncio.to_thread(_make_tar_gz, logs_dir, cfg.log_ignore_patterns)
         except Exception:  # noqa: BLE001
             logger.exception("Failed to build partial log bundle for crashed game")
@@ -1255,6 +1351,75 @@ class GameController:
         await asyncio.to_thread(_clear_segments_root, cfg.user_dir)
         self._maybe_reschedule()
 
+    async def _harvest_and_submit_crash_sqlite(self, game_id: str, *, reason: str) -> None:
+        """SQLite-stats crash path: upload the partial stats.db (NOT ingested) + autosave."""
+        state = self._state
+        cfg = self._cfg
+        modpack = state.modpack or "unknown"
+
+        with state.lock:
+            state.state = RunnerState.failed
+
+        # Stop Civ5 before reading the SQLite file so it is unlocked.
+        if self._proc is not None and self._proc.poll() is None:
+            await asyncio.to_thread(_kill_process_tree, self._proc.pid)
+        self._proc = None
+
+        db_bytes = await asyncio.to_thread(_checkpoint_and_read_stats_db, cfg.user_dir)
+
+        autosave_path: Path | None = None
+        autosave_bytes: bytes | None = None
+        try:
+            autosave_path = find_most_recent_autosave(cfg.user_dir)
+            if autosave_path is not None:
+                autosave_bytes = await asyncio.to_thread(autosave_path.read_bytes)
+        except PermissionError as exc:
+            fatal_permission_error(exc, where=f"reading crash autosave under {cfg.user_dir}")
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to read crash autosave")
+            autosave_path = None
+            autosave_bytes = None
+
+        have_autosave = autosave_path is not None and autosave_bytes is not None
+
+        if db_bytes:
+            try:
+                await self._upload(
+                    endpoint="/submit-crash",
+                    modpack=modpack,
+                    game_id=game_id,
+                    filename=f"{game_id}.db",
+                    content=db_bytes,
+                    final=not have_autosave,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to upload partial stats db for crashed game")
+
+        if have_autosave:
+            assert autosave_path is not None and autosave_bytes is not None
+            try:
+                await self._upload(
+                    endpoint="/submit-crash",
+                    modpack=modpack,
+                    game_id=game_id,
+                    filename=autosave_path.name,
+                    content=autosave_bytes,
+                    final=True,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to upload crash autosave")
+
+        await asyncio.to_thread(_reset_stats_db, cfg.user_dir)
+        logger.info("Crash-path upload complete (reason=%s)", reason)
+        await self._log_exe_state_async(f"crash-end:{reason}")
+        await asyncio.sleep(2)
+        with state.lock:
+            state.state = RunnerState.idle
+            state.current_game_id = None
+            state.current_game_start_time = None
+            state.current_game_turn = None
+        self._maybe_reschedule()
+
     async def _upload(
         self,
         *,
@@ -1264,7 +1429,7 @@ class GameController:
         filename: str,
         content: bytes,
         final: bool = True,
-        extra_fields: dict[str, str] | None = None,
+        extra_fields: dict[str, Any] | None = None,
     ) -> None:
         """Upload an artifact, falling back to local staging if the hypervisor is unreachable.
 

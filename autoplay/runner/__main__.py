@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import socket
 from pathlib import Path
@@ -19,6 +20,20 @@ def _allocate_port(host: str) -> int:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(prog="autoplay.runner")
+    parser.add_argument(
+        "--legacy-logs",
+        action="store_true",
+        help=(
+            "Run in legacy CSV-log mode (watch <USER_DIR>/Logs and upload tar "
+            "bundles) instead of the default SQLite-stats mode."
+        ),
+    )
+    args = parser.parse_args()
+    if args.legacy_logs:
+        # Set before load_config()/app import so RunnerConfig picks it up.
+        os.environ["AUTOPLAY_RUNNER_STATS_MODE"] = "legacy_logs"
+
     cfg = load_config()
     port = _allocate_port(cfg.bind_host)
     os.environ["AUTOPLAY_RUNNER_ALLOCATED_PORT"] = str(port)

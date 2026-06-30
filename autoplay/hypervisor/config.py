@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +27,14 @@ class HypervisorConfig(BaseSettings):
     runner_timeout_sec: int = Field(
         default=120,
         description="Seconds since last heartbeat after which a runner is considered dead.",
+    )
+    stats_mode: Literal["sqlite", "legacy_logs"] = Field(
+        default="sqlite",
+        description=(
+            "Stats ingestion mode. ``sqlite`` (default) ingests uploaded SQLite "
+            "stats databases into a per-modpack DuckDB store. ``legacy_logs`` "
+            "keeps the historical behaviour of archiving CSV log tar bundles."
+        ),
     )
 
 

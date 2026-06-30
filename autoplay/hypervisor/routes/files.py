@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
+import uuid as uuid_module
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
@@ -14,6 +16,7 @@ from autoplay.common import FileStatus
 from autoplay.common.constants import MODPACK_FOLDER_REGEX
 from autoplay.hypervisor import game_stats_db
 from autoplay.hypervisor.bundles_db import record_bundle
+from autoplay.hypervisor.stats_ingest import ingest_stats_db
 
 router = APIRouter(tags=["files"])
 logger = logging.getLogger(__name__)
@@ -139,7 +142,11 @@ async def _refresh_file_status(storage_root: Path) -> FileStatus:
                 continue
             if not MODPACK_FOLDER_REGEX.match(modpack_dir.name):
                 continue
-            complete = _count_files(modpack_dir / "complete", ".tar")
+            # Completed games are stored as ``<gameId>.tar`` (legacy CSV-log
+            # mode) or ``<gameId>.db`` (SQLite-stats mode); count both.
+            complete = _count_files(modpack_dir / "complete", ".tar") + _count_files(
+                modpack_dir / "complete", ".db"
+            )
             failed = _count_failed_unique(modpack_dir / "failed")
             status_obj.complete[modpack_dir.name] = complete
             status_obj.failed[modpack_dir.name] = failed
@@ -227,6 +234,155 @@ async def submit_logs(
             game_id=game_id,
             success=True,
         )
+
+
+def _incoming_dir(storage_root: Path) -> Path:
+    return storage_root / "incoming"
+
+
+@router.post("/submit-stats", status_code=status.HTTP_204_NO_CONTENT)
+async def submit_stats(
+    request: Request,
+    modpack: str = Form(...),
+    game_id: str = Form(..., alias="gameId"),
+    file: UploadFile = File(...),
+    runner_uuid: str | None = Form(default=None, alias="runnerUuid"),
+    turn: int | None = Form(default=None),
+    time_elapsed_sec: int | None = Form(default=None, alias="timeElapsedSec"),
+    runner_url: str | None = Form(default=None, alias="runnerUrl"),
+) -> None:
+    """Accept an uploaded SQLite ``stats.db`` and queue it for DuckDB ingestion.
+
+    The file is streamed into ``<storage_root>/incoming/`` alongside a sidecar
+    ``.json`` of submission metadata, then handed to the single background
+    ingest worker. Returns immediately; ingestion happens asynchronously.
+    """
+    _validate_modpack(modpack)
+    _validate_game_id(game_id)
+    queue = getattr(request.app.state, "stats_queue", None)
+    if queue is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Hypervisor is not running in SQLite-stats mode.",
+        )
+    incoming = _incoming_dir(_storage_root(request))
+    stem = f"{int(time.time() * 1000)}-{uuid_module.uuid4().hex[:8]}"
+    dest = incoming / f"{stem}.db"
+    if not await _stream_to_disk(file, dest):
+        # Client disconnected mid-upload; nothing to record.
+        return
+    meta = {
+        "modpack": modpack,
+        "gameId": game_id,
+        "runnerUuid": runner_uuid,
+        "turn": turn,
+        "timeElapsedSec": time_elapsed_sec,
+        "runnerUrl": runner_url,
+        "originalFilename": file.filename,
+        "stagedAt": time.time(),
+    }
+    sidecar = dest.with_suffix(".json")
+    await asyncio.to_thread(sidecar.write_text, json.dumps(meta, indent=2), "utf-8")
+    await queue.put(dest)
+    logger.info(
+        "Stats db staged for ingest: runner=%s modpack=%s game=%s file=%s",
+        runner_uuid or "?",
+        modpack,
+        game_id,
+        dest.name,
+    )
+
+
+async def process_stats_upload(app, db_path: Path) -> None:
+    """Ingest one staged SQLite stats db into DuckDB and run success bookkeeping.
+
+    Invoked by the hypervisor's single background ingest worker (one file at a
+    time). On a successful ingest the raw db is archived to ``complete/`` by
+    :func:`ingest_stats_db`; here we record the bundle, bump the runner's
+    success counter, mark the game finished, and refresh the file-status cache.
+    A schema mismatch quarantines the file (handled inside ``ingest_stats_db``)
+    and is logged without success bookkeeping.
+    """
+    storage_root: Path = app.state.config.storage_root
+    sidecar = db_path.with_suffix(".json")
+    try:
+        meta = json.loads(await asyncio.to_thread(sidecar.read_text, "utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("Cannot read sidecar for %s: %s; skipping.", db_path.name, exc)
+        meta = {}
+
+    modpack = meta.get("modpack")
+    game_id = meta.get("gameId")
+    runner_uuid = meta.get("runnerUuid")
+    turn = meta.get("turn")
+    time_elapsed_sec = meta.get("timeElapsedSec")
+    runner_url = meta.get("runnerUrl")
+
+    if not modpack or not game_id or not db_path.is_file():
+        logger.error(
+            "Skipping ingest of %s: missing modpack/gameId or file vanished.",
+            db_path.name,
+        )
+        await asyncio.to_thread(sidecar.unlink, True)
+        return
+
+    result = await asyncio.to_thread(ingest_stats_db, storage_root, modpack, game_id, db_path)
+
+    if result.ok:
+        await asyncio.to_thread(
+            record_bundle,
+            storage_root,
+            modpack=modpack,
+            bundle_name=result.bundle_name or f"{game_id}.db",
+            game_id=game_id,
+            runner_uuid=runner_uuid,
+            file_size_bytes=result.file_size_bytes,
+            metadata={
+                "turn": turn,
+                "timeElapsedSec": time_elapsed_sec,
+                "runnerUrl": runner_url,
+                "originalFilename": meta.get("originalFilename"),
+                "rowsIngested": result.rows_ingested,
+                "tablesIngested": list(result.tables_ingested),
+                "format": "sqlite-duckdb",
+            },
+        )
+        if runner_uuid:
+            app.state.db.increment_success(runner_uuid)
+            await asyncio.to_thread(
+                game_stats_db.update_game,
+                storage_root,
+                runner_uuid=runner_uuid,
+                game_id=game_id,
+                modpack=modpack,
+                turn=turn,
+                time_elapsed_sec=time_elapsed_sec,
+            )
+            await asyncio.to_thread(
+                game_stats_db.mark_finished,
+                storage_root,
+                runner_uuid=runner_uuid,
+                game_id=game_id,
+                success=True,
+            )
+        await _refresh_file_status(storage_root)
+        logger.info(
+            "Stats ingest complete: runner=%s modpack=%s game=%s rows=%d",
+            runner_uuid or "?",
+            modpack,
+            game_id,
+            result.rows_ingested,
+        )
+    else:
+        logger.error(
+            "Stats ingest failed (quarantined): modpack=%s game=%s reason=%s path=%s",
+            modpack,
+            game_id,
+            result.error,
+            result.quarantine_path,
+        )
+
+    await asyncio.to_thread(sidecar.unlink, True)
 
 
 @router.post("/submit-crash", status_code=status.HTTP_204_NO_CONTENT)

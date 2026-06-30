@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,13 +31,20 @@ class RunnerConfig(BaseSettings):
     hypervisor_url: str = Field(default="http://localhost:5000")
     user_dir: Path = Field(default_factory=_default_user_dir)
     install_dir: Path = Field(default_factory=_default_install_dir)
+    stats_mode: Literal["sqlite", "legacy_logs"] = Field(
+        default="sqlite",
+        description=(
+            "Stats collection mode. ``sqlite`` (default) detects completion and "
+            "turn progress from ``<USER_DIR>/cache/stats.db`` and uploads that "
+            "SQLite database. ``legacy_logs`` watches the CSV files under "
+            "``<USER_DIR>/Logs`` and uploads a tar bundle."
+        ),
+    )
     startup_timeout_sec: int = Field(default=600)
     turn_timeout_sec: int = Field(default=600)
     registration_timeout_sec: int = Field(default=180)
     heartbeat_interval_sec: float = Field(default=2.0)
-    log_ignore_patterns: list[str] = Field(
-        default_factory=lambda: ["CitySites_*", "TradePlayerRouteLog_*"]
-    )
+    log_ignore_patterns: list[str] = Field(default_factory=lambda: ["CitySites_*", "TradePlayerRouteLog_*"])
     recovery_max_attempts: int = Field(
         default=3,
         description=(

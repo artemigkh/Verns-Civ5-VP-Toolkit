@@ -11,7 +11,7 @@ There are two major components:
 
 ## Terminology and Concepts
 * Civ 5 VP: Sid Meier's Civilization 5 running the Community Patch Vox Populi Overhaul Mod
-* Autoplay Game: a game played out by 8 computer controlled players that has been configured to start when the executable is launched. It is considered complete once a `GameResult_Log.csv` has been written to the logs directory. 
+* Autoplay Game: a game played out by 8 computer controlled players that has been configured to start when the executable is launched. Completion is detected differently per stats mode (see **Stats Collection Modes**): in SQLite-stats mode (default) when rows for the latest game id appear in the `GameResult` table of the local `stats.db`; in legacy-logs mode when a `GameResult_Log.csv` has been written to the logs directory.
 * Modpack: A folder loaded by the game containing a specific Vox Populi version. In this project, modpacks are identified by the folder name, which generally looks like `MP_AUTOPLAY_VP_<version>`. Modpacks are distributed as zip files that are unpacked into the `DLC` folder by the runner.
 
 ### Civ 5 VP Install
@@ -21,6 +21,32 @@ Civ 5 installs consist of two locations:
 
 ## Technical Design
 
+### Stats Collection Modes
+
+The system supports two mutually exclusive stats-collection modes, selected independently on the hypervisor (`AUTOPLAY_HV_STATS_MODE`) and runner (`AUTOPLAY_RUNNER_STATS_MODE`). Both services default to `sqlite`; pass `--legacy-logs` on either's command line to force `legacy_logs` (the flag sets the corresponding env var before config load).
+
+* **`sqlite` (default)** — The Civ 5 process writes game statistics into a local SQLite database at `<USER_DIR>/cache/stats.db`. On completion the runner uploads that single file to the hypervisor, which ingests it into a per-modpack DuckDB long-term store.
+* **`legacy_logs`** — The historical behaviour: the game writes per-system CSV logs into `<USER_DIR>/Logs`, which the runner gzips into a `.tar` bundle and uploads to `/submit-logs`.
+
+Game correlation metadata (`gameId`, `runnerUuid`, `turn`, `timeElapsedSec`, `runnerUrl`) is sent as form fields in **both** modes, so the bundles audit log, `game_stats.sqlite`, and `file-status.json` behave identically regardless of mode.
+
+#### SQLite stats schema
+
+Each `stats.db` contains a `uuid_dictionary(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid_hex TEXT UNIQUE NOT NULL)` table mapping a per-game local integer id to that game's UUID hex string. Every stats table (`GameResult`, `MilitarySummary`, `PolicyChoices`, `ReligionChoices`, `TechChoices`, `WorldStateLog`, …) has a leading `GameId INTEGER` column referencing `uuid_dictionary.id`. `sqlite_sequence` and `uuid_dictionary` are bookkeeping tables and are never ingested as stats tables.
+
+#### DuckDB ingestion (hypervisor)
+
+The hypervisor eagerly creates a `stats.duckdb` file under `data/<MP_VERSION>/` for every existing modpack directory at startup (and on first upload for a new modpack), each pre-seeded with a global `uuid_dictionary(id BIGINT PRIMARY KEY DEFAULT nextval(seq), uuid_hex VARCHAR UNIQUE NOT NULL)`.
+
+Uploaded files are streamed to a staging directory `data/incoming/<stem>.db` with a sidecar `<stem>.json` of submission metadata, then handed to a **single background ingest worker** (one `asyncio.Queue` consumer — effectively a mutex so only one file ingests at a time). Leftover `data/incoming/*.db` files from a prior run are re-enqueued on startup.
+
+For each staged file the worker, via DuckDB's native `sqlite` extension (`ATTACH ... (TYPE SQLITE, READ_ONLY)` + `INSERT ... SELECT`):
+1. **Validates every table's schema first (atomic).** A table's column **names and types** must match the existing DuckDB table. If *any* table disagrees, the whole file is rejected, **nothing** is ingested, and the file is moved to `data/<MP_VERSION>/incomplete_processing/` with the mismatch logged. Atomic per-file granularity avoids partial/double ingestion when a file is later re-examined.
+2. **Translates ids local → global.** Distinct `uuid_hex` values are upserted into the global `uuid_dictionary` (minting fresh global ids via a sequence; existing hexes dedupe to their existing id). Each stats table's `GameId` is rewritten from the local id to the global id by joining through both dictionaries, inside a single transaction.
+3. On success the raw `.db` is archived to `data/<MP_VERSION>/complete/<gameId>.db`, a row is appended to `<modpack>_bundles.sqlite`, the runner's success counter and `game_stats.sqlite` are updated, and `file-status.json` is refreshed.
+
+`file-status.json` completed-game counts include both `.tar` (legacy) and `.db` (sqlite) files in `complete/`.
+
 ### Autoplay Hypersivor
 
 The autoplay hypervisor server code will live in `autoplay/hypervisor/`. In order to support multiple worker processes in parallel, internal state about active runners and games will be stored in a SQLite database at the `STORAGE_ROOT` location. Additionally, it must be deployed in such a way that endpoints are non-blocking, as some operations may involve lengthy file IO. The hypervisor will store logs sent by the runners to the `STORAGE_ROOT` location with the following structure (there will be one set of logs for each `<version>` of the Vox Populi modpack):
@@ -28,15 +54,18 @@ The autoplay hypervisor server code will live in `autoplay/hypervisor/`. In orde
 STORAGE_ROOT/
   file-status.json
   runners.db
+  incoming/                          # SQLite-stats staging (uploaded stats.db + sidecar .json)
   MP_AUTOPLAY_VP_<version>_bundles.sqlite
   MP_AUTOPLAY_VP_<version>/
+    stats.duckdb                     # per-modpack DuckDB long-term store (SQLite-stats mode)
     complete/
-        2024-10-11T23.09.45.167468.tar
-        2024-10-12T03.11.24.296620.tar
+        2024-10-11T23.09.45.167468.tar   # legacy-logs mode
+        2024-10-12T03.11.24.296620.db    # SQLite-stats mode (archived raw upload)
         ...
         2024-10-12T13.30.48.399117.tar
     failed/
         2024-10-04T17.43.48.196137-turn350.Civ5Save
+    incomplete_processing/           # quarantined stats.db files that failed schema validation
 ```
 
 For each modpack version, an **append-only** `<MODPACK_VERSION>_bundles.sqlite` is maintained at the storage root. Every successful `/submit-logs` ingest inserts a single row recording the bundle filename, gameId, runner UUID, file size, ingest timestamp, and a JSON blob of all extra metadata the runner submitted (e.g. final turn, elapsed seconds, runner URL). Rows are never updated or deleted; this is a permanent audit log of bundle provenance.
@@ -50,6 +79,7 @@ All configuration is supplied via environment variables (prefix `AUTOPLAY_HV_`).
 * `PORT` [default: 5000]: The port on which the hypervisor server listens for HTTP requests.
 * `HOST` [default: `0.0.0.0`]: Bind host.
 * `RUNNER_TIMEOUT_SEC` [default: 120]: The amount of time after missing a heartbeat that a runner is considered dead and removed from the pool of available runners.
+* `STATS_MODE` [default: `sqlite`]: Either `sqlite` (DuckDB ingestion of uploaded `stats.db` files via `/submit-stats`) or `legacy_logs` (CSV `.tar` bundles via `/submit-logs`). Launch with `--legacy-logs` to force the latter. In `sqlite` mode the ingest worker and `/submit-stats` are active; in `legacy_logs` mode the worker is not started and `/submit-stats` returns 503.
 
 
 #### HTTP Endpoints
@@ -80,7 +110,7 @@ uuid: str - The unique identifier of the runner being removed
 ```
 Called by a runner during graceful shutdown so the hypervisor immediately removes it from the live list rather than waiting for the heartbeat-timeout grace window. Idempotent (returns 204 even when the runner was already absent).
 
-* `POST /submit-logs`: Endpoint for runners to submit logs after completing a game. A simple file upload endpoint for submitting the tar log bundles (each individual log file is gzip-compressed with a `.gz` suffix inside an uncompressed `.tar`). The request should include the following form data:
+* `POST /submit-logs`: **(legacy-logs mode)** Endpoint for runners to submit logs after completing a game. A simple file upload endpoint for submitting the tar log bundles (each individual log file is gzip-compressed with a `.gz` suffix inside an uncompressed `.tar`). The request should include the following form data:
 ```
 modpack: str - The modpack version of the logs being submitted
 gameId: str - The unique identifier of the game these logs correspond to
@@ -91,7 +121,9 @@ runnerUrl: str (optional) - Submitting runner's URL
 ```
 and write the uploaded file to the `STORAGE_ROOT/<modpack>/<gameId>.tar` location on disk, then append a row to `<modpack>_bundles.sqlite` recording the metadata above plus the file size and ingest timestamp.
 
-* `POST /submit-crash`: Endpoint for runners to submit crash saves after a game fails. A simple file upload endpoint for submitting the Civ5Save files. The request should include the following form data:
+* `POST /submit-stats`: **(SQLite-stats mode)** Endpoint for runners to upload the local `stats.db` after completing a game. Accepts the same form fields as `/submit-logs` (`modpack`, `gameId`, `runnerUuid`, `turn`, `timeElapsedSec`, `runnerUrl`) plus the file. The upload is streamed to `STORAGE_ROOT/incoming/<stem>.db` with a sidecar metadata `.json`, then enqueued to the single background ingest worker (see **DuckDB ingestion** above); the endpoint returns immediately (204) without blocking on ingestion. Returns 503 if the hypervisor is running in legacy-logs mode.
+
+* `POST /submit-crash`: Endpoint for runners to submit crash artifacts after a game fails. A simple file upload endpoint that stores the uploaded file under `STORAGE_ROOT/<modpack>/failed/<gameId><ext>` (extension chosen from the uploaded filename: `.tar` partial log bundle, `.db` partial stats database in SQLite-stats mode, or `.Civ5Save` autosave). Crash artifacts are **never ingested** into DuckDB. The request should include the following form data:
 ```
 modpack: str - The modpack version of the crash save being submitted
 gameId: str - The unique identifier of the game these logs correspond to
@@ -173,7 +205,7 @@ The autoplay runner server code will live in `autoplay/runner/`. While the hyper
    Failures here are logged but non-fatal. The patched FrontEnd/MainMenu pair causes the game to auto-load the most recent autosave when launched with no command-line arguments — this is what enables crash recovery (see below). The first line of the installed `MainMenu.lua` is a `local loadOnStart = <bool>;` flag that the runner rewrites immediately before each launch: `false` for a fresh `-Automation` start, `true` when relaunching to recover a crashed game.
 4. Determine the modpack version currently installed by checking the `DLC` folder in the `INSTALL_DIR` for folders matching the `MP_AUTOPLAY_VP_<version>` pattern
 5. Send a registration request to the hypervisor to register itself
-6. Start a heartbeat thread that sends heartbeats to the hypervisor every `HEARTBEAT_INTERVAL_SEC` seconds with updates on the current state of the runner and active game (if any), as determined from watching the log files in the `USER_DIR/Logs` directory. Once the heartbeat thread detects the end of the game via presence of the `GameResult_Log.csv` file, it should submit an asynchronous task to harvest the logs, gzip each file individually, pack them into an uncompressed tar bundle, and submit them to the hypervisor via the `POST /submit-logs` endpoint, and then return to an idle state.
+6. Start a heartbeat thread that sends heartbeats to the hypervisor every `HEARTBEAT_INTERVAL_SEC` seconds with updates on the current state of the runner and active game (if any). The source of game progress and completion is **mode-dependent**: in SQLite-stats mode (default) the runner reads the local `<USER_DIR>/cache/stats.db` (latest game = `MAX(id)` in `uuid_dictionary`; current turn = `MAX(Turn)` in `WorldStateLog` for that id, falling back to `MilitarySummary`; complete when `GameResult` has rows for that id); in legacy-logs mode it watches the CSV files in `<USER_DIR>/Logs` (current turn from `WorldState_Log.csv`, complete when `GameResult_Log.csv` exists). On completion the runner submits an asynchronous harvest task (SQLite-stats: checkpoint + upload `stats.db` to `/submit-stats`; legacy-logs: gzip each log, pack into an uncompressed tar, upload to `/submit-logs`) and then returns to an idle state.
 
 #### Global State
 The runner will maintain the following global state in memory:
@@ -202,6 +234,7 @@ For convenience, `autoplay/scripts/run_both.bat` spawns the hypervisor and runne
 * `RECOVERY_ATTEMPT_TIMEOUT_SEC` [default: 600]: Per-recovery-attempt deadline. If no turn progresses past the crashed turn within this many seconds (or the process dies again), the attempt is counted as a failure and the next one is tried.
 * `CRASH_HANDLER_POLL_MS` [default: 1000]: How often (milliseconds) the runner enumerates top-level windows looking for one whose title contains `Game Crash`. If found, the game's process tree is killed and the runner enters the same recovery flow as a normal process-died event. Set to `0` to disable.
 * `PENDING_UPLOADS_DIR` [default: `~/.civ5_autoplay_pending`]: Local directory used to stage log/crash bundles that could not be uploaded immediately (e.g. while the hypervisor is unreachable). A background drain loop retries until each pending bundle is accepted.
+* `STATS_MODE` [default: `sqlite`]: Either `sqlite` (poll `<USER_DIR>/cache/stats.db` for completion/turns and upload it to `/submit-stats`) or `legacy_logs` (watch `<USER_DIR>/Logs` CSVs and upload a `.tar` to `/submit-logs`). Launch with `--legacy-logs` to force the latter.
 
 #### Process Death Detection & Crash Recovery
 
@@ -221,6 +254,16 @@ Civ 5 *overwrites* its log files (rather than appending) when it restarts from a
 
 For `WorldState_Log.csv`, `Score_Log.csv`, and `GameResult_Log.csv` (the three CSVs that have a header row) only the first segment's header is kept; every other CSV is concatenated raw. Non-CSV log files (`*.log`, `*.txt`, etc.) are not snapshotted — only the most recent run's copy is harvested. After a successful upload (or terminal crash report) the segment dir for that game is deleted.
 
+> This CSV segment preservation applies to **legacy-logs mode only**. In SQLite-stats mode the persistent `<USER_DIR>/cache/stats.db` survives a recovery relaunch unchanged (the game reopens and continues appending to the same file), so no per-recovery snapshotting is needed and CSV segments are not used.
+
+##### SQLite-stats harvest & lifecycle
+
+In SQLite-stats mode the `stats.db` lifecycle is:
+* **On `start-game`**: ensure `<USER_DIR>/cache/` exists and delete any stale `stats.db` (plus its `-wal`/`-shm` sidecars) so a previous game's `GameResult` rows cannot be mistaken for this run's completion.
+* **On completion** (`GameResult` has rows for the latest id): the runner first **stops the Civ 5 process** (so the file is unlocked and WAL is flushed), runs `PRAGMA wal_checkpoint(TRUNCATE)` to fold the WAL back into a single self-contained file, uploads it to `/submit-stats` with filename `<gameId>.db`, and on return deletes the local copy. (If the hypervisor was unreachable the bytes are staged in `PENDING_UPLOADS_DIR` first, so deleting the local copy is still safe.)
+* **On terminal crash/timeout**: the runner stops Civ 5, checkpoints the partial `stats.db`, and uploads it (plus the most recent autosave) to `/submit-crash` — these are stored under `failed/` and **not** ingested. The local `stats.db` is then cleared.
+* **On `stop-game`**: in addition to clearing `Logs`, the local `stats.db` and its sidecars are deleted.
+
 The hypervisor exposes a per-runner `recoveryCount` alongside `successCount` / `failureCount` in `/runner-status`, and the webapp shows it as a sortable **Recoveries** column.
 
 #### Hypervisor-Outage Behavior
@@ -237,7 +280,7 @@ The runner is designed to survive a hypervisor that goes down, restarts, or is b
 
 * `POST /start-game`. If a game is currently running, returns a 400 with an error message. Otherwise, starts a new autoplay game by launching the Civ 5 executable. `gameId` is the ISO-timestamp string of the launch time (e.g. `2024-10-11T23.09.45.167468`). Also sets the runner's `is_scheduling_games` flag to True so the runner automatically starts a new game after each completion or crash (once all artifacts are uploaded).
 
-* `POST /stop-game`. Clears `is_scheduling_games`, then terminates any running Civ 5 process tree (recursively via `psutil`) and clears the `USER_DIR/Logs` directory. Returns 200 even if no game is active (idempotent). No log or crash bundle is uploaded.
+* `POST /stop-game`. Clears `is_scheduling_games`, then terminates any running Civ 5 process tree (recursively via `psutil`) and clears the `USER_DIR/Logs` directory (and, in SQLite-stats mode, deletes the local `stats.db`). Returns 200 even if no game is active (idempotent). No log, stats, or crash bundle is uploaded.
 
 * `POST /update-modpack` which accepts a zip file upload of a modpack and unpacks it to the `DLC` folder in the `INSTALL_DIR`, then deleting any old modpacks that may be present (starts with the same `MP_AUTOPLAY_VP_` prefix). The zip must contain a single top-level `MP_AUTOPLAY_VP_<version>/` folder. Rejected with 409 if a game is currently running.
 ```

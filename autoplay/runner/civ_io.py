@@ -4,9 +4,19 @@ from __future__ import annotations
 
 import csv
 import logging
+import sqlite3
 from pathlib import Path
 
-from autoplay.common.constants import MODPACK_FOLDER_PREFIX, MODPACK_FOLDER_REGEX
+from autoplay.common.constants import (
+    GAME_RESULT_TABLE,
+    MILITARY_SUMMARY_TABLE,
+    MODPACK_FOLDER_PREFIX,
+    MODPACK_FOLDER_REGEX,
+    STATS_DB_FILENAME,
+    STATS_GAME_FK_COLUMN,
+    UUID_DICTIONARY_TABLE,
+    WORLD_STATE_LOG_TABLE,
+)
 from autoplay.runner.fatal import fatal_permission_error
 
 logger = logging.getLogger(__name__)
@@ -73,3 +83,96 @@ def find_most_recent_autosave(user_dir: Path) -> Path | None:
     if not saves:
         return None
     return max(saves, key=lambda p: p.stat().st_mtime)
+
+
+# --- SQLite-stats mode ------------------------------------------------------
+
+
+def stats_db_path(user_dir: Path) -> Path:
+    """Path to the SQLite stats database the Civ5 process writes to."""
+    return user_dir / "cache" / STATS_DB_FILENAME
+
+
+def _connect_stats_ro(db_path: Path) -> sqlite3.Connection | None:
+    """Open the stats db read-only, or return None if it can't be opened."""
+    if not db_path.is_file():
+        return None
+    try:
+        uri = db_path.resolve().as_uri()
+        return sqlite3.connect(f"{uri}?mode=ro", uri=True, timeout=5.0)
+    except sqlite3.Error as exc:
+        logger.debug("Could not open stats db %s read-only: %s", db_path, exc)
+        return None
+
+
+def latest_game_local_id(db_path: Path) -> int | None:
+    """Return the highest local game id in ``uuid_dictionary``, or None."""
+    conn = _connect_stats_ro(db_path)
+    if conn is None:
+        return None
+    try:
+        cur = conn.execute(f"SELECT MAX(id) FROM {UUID_DICTIONARY_TABLE}")
+        row = cur.fetchone()
+        return int(row[0]) if row and row[0] is not None else None
+    except sqlite3.Error as exc:
+        logger.debug("Could not read latest game id from %s: %s", db_path, exc)
+        return None
+    finally:
+        conn.close()
+
+
+def sqlite_game_complete(db_path: Path) -> bool:
+    """True when ``GameResult`` has at least one row for the latest game id."""
+    conn = _connect_stats_ro(db_path)
+    if conn is None:
+        return False
+    try:
+        cur = conn.execute(f"SELECT MAX(id) FROM {UUID_DICTIONARY_TABLE}")
+        row = cur.fetchone()
+        if not row or row[0] is None:
+            return False
+        latest = int(row[0])
+        cur = conn.execute(
+            f"SELECT 1 FROM {GAME_RESULT_TABLE} WHERE {STATS_GAME_FK_COLUMN} = ? LIMIT 1",
+            (latest,),
+        )
+        return cur.fetchone() is not None
+    except sqlite3.Error as exc:
+        logger.debug("Could not check game completion in %s: %s", db_path, exc)
+        return False
+    finally:
+        conn.close()
+
+
+def read_current_turn_sqlite(db_path: Path) -> int | None:
+    """Read the most recent turn for the latest game from the stats db, or None.
+
+    Uses ``WorldStateLog`` (one row per turn) and falls back to
+    ``MilitarySummary`` when the former has no rows yet.
+    """
+    conn = _connect_stats_ro(db_path)
+    if conn is None:
+        return None
+    try:
+        cur = conn.execute(f"SELECT MAX(id) FROM {UUID_DICTIONARY_TABLE}")
+        row = cur.fetchone()
+        if not row or row[0] is None:
+            return None
+        latest = int(row[0])
+        for table in (WORLD_STATE_LOG_TABLE, MILITARY_SUMMARY_TABLE):
+            try:
+                cur = conn.execute(
+                    f"SELECT MAX(Turn) FROM {table} WHERE {STATS_GAME_FK_COLUMN} = ?",
+                    (latest,),
+                )
+            except sqlite3.Error:
+                continue
+            res = cur.fetchone()
+            if res and res[0] is not None:
+                return int(res[0])
+        return None
+    except sqlite3.Error as exc:
+        logger.debug("Could not read current turn from %s: %s", db_path, exc)
+        return None
+    finally:
+        conn.close()

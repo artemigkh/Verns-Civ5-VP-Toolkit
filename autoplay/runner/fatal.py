@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
+from typing import NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 LOW_DISK_THRESHOLD_BYTES = 50 * 1024 * 1024 * 1024  # 50 GiB
 
 
-def fatal_permission_error(exc: PermissionError, where: str) -> None:
+def fatal_permission_error(exc: PermissionError, where: str) -> NoReturn:
     """Log ``exc`` with context and abort the process.
 
     Uses ``os._exit`` so that no atexit / shutdown hooks can swallow the
