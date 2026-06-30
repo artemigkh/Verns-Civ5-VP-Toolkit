@@ -1,8 +1,9 @@
-"""Render the two summary CSVs into a single self-contained ``index.html``.
+"""Render the summary CSVs into a single self-contained ``index.html``.
 
 The output embeds the Plotly.js library, CSS, JS, and the aggregated data inline
 so it can be hosted on GitHub Pages (or opened from disk) with zero backend and
-zero external network requests.
+zero external network requests. Both reports (Building Yields and Religion Yields)
+are bundled into the one file; a Report Type dropdown switches between them in-page.
 """
 
 from __future__ import annotations
@@ -30,14 +31,30 @@ PREFERRED_YIELD_ORDER = [
     "Tourism",
 ]
 
+# Religion report yield preference (Faith leads since it's the religion currency).
+RELIGION_PREFERRED_YIELD_ORDER = [
+    "Faith",
+    "Production",
+    "Gold",
+    "Science",
+    "Food",
+    "Culture",
+    "Tourism",
+]
+
+# Belief sections, in the fixed display order used by the right sidebar.
+RELIGION_BELIEF_TYPE_ORDER = ["Pantheon", "Founder", "Follower", "Enhancer", "Reformation"]
+# Belief types active (and thus shown) by default — matches the wireframe.
+RELIGION_DEFAULT_BELIEF_TYPES = ["Pantheon", "Founder", "Follower"]
+
 # Display eras shown by default (matches the wireframe).
 DEFAULT_DISPLAY_ERAS = ["Ancient", "Classical", "Medieval", "Renaissance"]
 
 _VALUE_COLS = ["BaseYields", "BonusYields", "InstantYields"]
 
 
-def _order_yields(present: set[str]) -> list[str]:
-    ordered = [y for y in PREFERRED_YIELD_ORDER if y in present]
+def _order_yields(present: set[str], preferred: list[str] = PREFERRED_YIELD_ORDER) -> list[str]:
+    ordered = [y for y in preferred if y in present]
     ordered += sorted(present - set(ordered))
     return ordered
 
@@ -105,7 +122,7 @@ def _building_info_payload(meta: Metadata, buildings: set[str]) -> dict[str, dic
     return out
 
 
-def build_payload(cfg: Config) -> dict:
+def build_building_payload(cfg: Config) -> dict:
     meta = load_metadata()
     turn_df = pd.read_csv(cfg.turn_average_path)
     total_df = pd.read_csv(cfg.era_totals_path)
@@ -137,11 +154,72 @@ def build_payload(cfg: Config) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Religion report payload
+# ---------------------------------------------------------------------------
+
+def _religion_nested_data(df: pd.DataFrame) -> dict:
+    """yield -> era -> belief -> {owner, follower} (rounded)."""
+    out: dict[str, dict[str, dict[str, dict[str, float]]]] = {}
+    for row in df.itertuples(index=False):
+        out.setdefault(row.Yield, {}).setdefault(row.Era, {})[row.Belief] = {
+            "owner": round(float(row.YieldTotalForOwner), 4),
+            "follower": round(float(row.YieldTotalForFollower), 4),
+        }
+    return out
+
+
+def _beliefs_by_type(df: pd.DataFrame) -> dict[str, list[str]]:
+    """BeliefType -> sorted list of beliefs of that type."""
+    out: dict[str, list[str]] = {}
+    for bt, group in df.groupby("BeliefType"):
+        out[bt] = sorted(group["Belief"].unique())
+    return out
+
+
+def _belief_yields(df: pd.DataFrame) -> dict[str, list[str]]:
+    """belief -> sorted yields it has any nonzero (owner or follower) value for."""
+    has_value = (df["YieldTotalForOwner"].abs() + df["YieldTotalForFollower"].abs()) > 0
+    sub = df[has_value]
+    out: dict[str, list[str]] = {}
+    for belief, group in sub.groupby("Belief"):
+        out[belief] = sorted(group["Yield"].unique())
+    return out
+
+
+def build_religion_payload(cfg: Config) -> dict:
+    turn_df = pd.read_csv(cfg.religion_turn_average_path)
+    total_df = pd.read_csv(cfg.religion_era_totals_path)
+    combined = pd.concat([turn_df, total_df], ignore_index=True)
+
+    present_yields = set(turn_df["Yield"]) | set(total_df["Yield"])
+
+    return {
+        "yields": _order_yields(present_yields, RELIGION_PREFERRED_YIELD_ORDER),
+        "beliefTypes": RELIGION_BELIEF_TYPE_ORDER,
+        "defaultBeliefTypes": RELIGION_DEFAULT_BELIEF_TYPES,
+        "eraOrder": list(ERA_LUT.values()),
+        "defaultDisplayEras": DEFAULT_DISPLAY_ERAS,
+        "beliefsByType": _beliefs_by_type(combined),
+        "beliefYields": _belief_yields(combined),
+        "data": {
+            "turn": _religion_nested_data(turn_df),
+            "total": _religion_nested_data(total_df),
+        },
+    }
+
+
 def render(cfg: Config) -> Path:
-    payload = build_payload(cfg)
+    payload = {
+        "defaultReport": "building",
+        "building": build_building_payload(cfg),
+        "religion": build_religion_payload(cfg),
+    }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
     app_js = (ASSETS_DIR / "app.js").read_text(encoding="utf-8")
+    religion_js = (ASSETS_DIR / "religion.js").read_text(encoding="utf-8")
+    app_js = app_js + "\n" + religion_js
     plotly_js = po.get_plotlyjs()
 
     html = (

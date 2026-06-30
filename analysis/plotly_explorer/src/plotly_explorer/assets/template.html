@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plotly Explorer</title>
+<style>
+/*__STYLES__*/
+</style>
+</head>
+<body>
+<div id="app" class="show-building">
+  <button id="expand-btn" class="icon-btn" title="Show controls">&#187;</button>
+  <aside id="sidebar">
+    <div id="sidebar-head">
+      <span>Controls</span>
+      <button id="collapse-btn" class="icon-btn" title="Hide controls">&#171;</button>
+    </div>
+
+    <section class="panel">
+      <h2>Report Type</h2>
+      <select id="report-select">
+        <option value="building">Building Yields</option>
+        <option value="religion">Religion Yields</option>
+      </select>
+    </section>
+
+    <!-- ===================== Building report controls ===================== -->
+    <div class="report-building">
+      <section class="panel">
+        <h2>Yield Selection</h2>
+        <div id="yield-controls" class="chip-grid"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Graph Controls</h2>
+        <h3>Metric</h3>
+        <div id="metric-controls" class="chip-grid"></div>
+        <h3>Displayed Eras</h3>
+        <div id="display-era-controls" class="chip-grid"></div>
+        <h3>Buildings Per Graph</h3>
+        <div id="topn-controls" class="topn-row"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Building Filters</h2>
+        <h3>Building Era</h3>
+        <div id="filter-era-controls" class="chip-grid"></div>
+        <h3>Building Type</h3>
+        <div id="filter-type-controls" class="chip-grid"></div>
+      </section>
+    </div>
+
+    <!-- ===================== Religion report controls ===================== -->
+    <div class="report-religion">
+      <section class="panel">
+        <h2>Yield Selection</h2>
+        <div id="rel-yield-controls" class="chip-grid"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Graph Controls</h2>
+        <h3>Metric</h3>
+        <div id="rel-metric-controls" class="chip-grid"></div>
+        <h3>Benefactor</h3>
+        <div id="rel-benefactor-controls" class="chip-grid"></div>
+        <h3>Displayed Eras</h3>
+        <div id="rel-display-era-controls" class="chip-grid"></div>
+        <h3>Beliefs Per Graph</h3>
+        <div id="rel-topn-controls" class="topn-row"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Belief Filters</h2>
+        <h3>Belief Type</h3>
+        <div id="rel-filter-type-controls" class="chip-grid"></div>
+      </section>
+    </div>
+
+  </aside>
+
+  <div id="resizer" title="Drag to resize"></div>
+
+  <main id="main">
+    <div id="main-inner">
+      <div class="report-building">
+        <h1 id="chart-title">Building Production Yield</h1>
+        <div id="legend"></div>
+        <div id="facet-grid"></div>
+        <p id="empty-msg" hidden>No buildings match the current filters &amp; yield.</p>
+      </div>
+      <div class="report-religion">
+        <h1 id="rel-chart-title">Religious Belief Yield Explorer</h1>
+        <div id="rel-legend"></div>
+        <div id="rel-facet-grid"></div>
+        <p id="rel-empty-msg" hidden>No beliefs match the current filters &amp; yields.</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="resizer-right" title="Drag to resize"></div>
+
+  <aside id="sidebar-right">
+    <div id="sidebar-head">
+      <span class="report-building">Buildings</span>
+      <span class="report-religion">Beliefs</span>
+      <button id="collapse-btn-right" class="icon-btn" title="Hide list">&#187;</button>
+    </div>
+    <section class="panel grow">
+      <div class="report-building" id="building-list"></div>
+      <div class="report-religion" id="belief-list"></div>
+    </section>
+  </aside>
+
+  <button id="expand-btn-right" class="icon-btn" title="Show list">&#171;</button>
+</div>
+
+<script>
+/*__PLOTLYJS__*/
+</script>
+<script>
+/*__DATA__*/
+</script>
+<script>
+/*__APPJS__*/
+</script>
+</body>
+</html>

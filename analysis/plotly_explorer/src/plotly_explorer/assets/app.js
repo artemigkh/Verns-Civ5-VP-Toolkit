@@ -1,8 +1,8 @@
-/* Building Yield Explorer — client-side reactivity (no backend). */
+/* Building Yield report — client-side reactivity (no backend). */
 (function () {
   "use strict";
 
-  var P = window.PAYLOAD;
+  var P = window.PAYLOAD.building;
 
   var COLORS = { base: "#4f9da6", bonus: "#7c83ff", instant: "#e0a458" };
   var SEGMENTS = [
@@ -419,6 +419,17 @@
   var SIDEBAR_MIN = 170;
   var SIDEBAR_MAX = 560;
 
+  // The sidebars (collapse + drag-to-resize) are shared chrome owned by this
+  // module, but a width change must reflow whichever report is currently shown.
+  function renderActive() {
+    var app = document.getElementById("app");
+    if (app && app.classList.contains("show-religion") && window.ReligionReport) {
+      window.ReligionReport.render();
+    } else {
+      render();
+    }
+  }
+
   // Wire one collapse/expand pair + drag-to-resize handle.
   function makeSidebar(opts) {
     var app = document.getElementById("app");
@@ -429,13 +440,13 @@
       .getElementById(opts.collapseBtnId)
       .addEventListener("click", function () {
         app.classList.add(opts.collapsedClass);
-        render();
+        renderActive();
       });
     document
       .getElementById(opts.expandBtnId)
       .addEventListener("click", function () {
         app.classList.remove(opts.collapsedClass);
-        render();
+        renderActive();
       });
 
     var dragging = false;
@@ -455,7 +466,7 @@
         rafPending = true;
         requestAnimationFrame(function () {
           rafPending = false;
-          render();
+          renderActive();
         });
       }
     }
@@ -466,7 +477,7 @@
       resizer.classList.remove("dragging");
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      render();
+      renderActive();
     }
 
     resizer.addEventListener("mousedown", function (e) {
@@ -505,7 +516,7 @@
   var resizeTimer = null;
   window.addEventListener("resize", function () {
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(render, 150);
+    resizeTimer = setTimeout(renderActive, 150);
   });
 
   setupSidebar();
@@ -519,4 +530,7 @@
   buildBuildingList();
   buildLegend();
   render();
+
+  // Expose this report's render so the shared chrome + report switcher can reflow it.
+  window.BuildingReport = { render: render };
 })();
