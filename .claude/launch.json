@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "yield-explorer-preview",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--project", "analysis/building_yield_explorer", "python", "-m", "http.server", "8753", "--directory", "misc/building_yields/public"],
+      "port": 8753
+    }
+  ]
+}

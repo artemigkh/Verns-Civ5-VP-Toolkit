@@ -1,0 +1,359 @@
+:root {
+  --bg: #0e1117;
+  --panel: #161c27;
+  --panel-2: #1d2533;
+  --border: #2a3445;
+  --text: #d7dde7;
+  --text-dim: #8b97a8;
+  --accent: #5aa9e6;
+  --accent-on: #1f6feb;
+  --chip: #232c3c;
+  --chip-on: #2f5d8c;
+  --chip-on-border: #5aa9e6;
+  --base: #4f9da6;
+  --bonus: #7c83ff;
+  --instant: #e0a458;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  font-size: 14px;
+}
+
+#app {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ---- Sidebar ---- */
+#sidebar {
+  width: 325px;
+  flex: 0 0 auto;
+  height: 100%;
+  /* No visible scrollbar; falls back to scrolling only if the controls are
+     taller than a short viewport so nothing gets clipped. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Firefox */
+  padding: 14px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+#app.collapsed #sidebar,
+#app.collapsed #resizer {
+  display: none;
+}
+
+/* Header row holding the collapse button */
+#sidebar-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: -4px;
+}
+
+#sidebar-head span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.icon-btn {
+  border: 1px solid var(--border);
+  background: var(--chip);
+  color: var(--text);
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  border-color: var(--accent);
+}
+
+/* Drag-to-resize handle between sidebar and main */
+#resizer {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+}
+
+#resizer:hover,
+#resizer.dragging {
+  background: var(--accent);
+}
+
+/* Floating button to re-open a collapsed sidebar */
+#expand-btn {
+  position: absolute;
+  top: 12px;
+  left: 10px;
+  z-index: 50;
+  display: none;
+}
+
+#app.collapsed #expand-btn {
+  display: flex;
+}
+
+/* ---- Right sidebar (buildings) ---- */
+#sidebar-right {
+  width: 200px;
+  flex: 0 0 auto;
+  height: 100%;
+  overflow: hidden; /* only the building list inside scrolls */
+  padding: 14px;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#app.collapsed-right #sidebar-right,
+#app.collapsed-right #resizer-right {
+  display: none;
+}
+
+#resizer-right {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+}
+
+#resizer-right:hover,
+#resizer-right.dragging {
+  background: var(--accent);
+}
+
+#expand-btn-right {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  z-index: 50;
+  display: none;
+}
+
+#app.collapsed-right #expand-btn-right {
+  display: flex;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.panel.grow {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+
+.panel h3 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.panel h3:first-of-type { margin-top: 2px; }
+
+/* ---- Chips (toggle buttons) ---- */
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  background: var(--chip);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s, border-color .12s;
+}
+
+.chip:hover { border-color: var(--accent); }
+
+.chip.on {
+  background: var(--chip-on);
+  border-color: var(--chip-on-border);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Buildings-per-graph slider */
+.topn-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.num-suffix {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+  min-width: 18px;
+  text-align: right;
+}
+
+/* ---- Building list ---- */
+#building-list {
+  margin-top: 6px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  padding-right: 4px;
+}
+
+.b-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.b-row:hover { background: var(--panel-2); }
+.b-row.child { padding-left: 20px; }
+.b-row.child .b-name { color: var(--accent); }
+.b-row input { accent-color: var(--accent); cursor: pointer; }
+.b-name { font-size: 13px; }
+
+/* ---- Main / facets ---- */
+#main {
+  flex: 1 1 auto;
+  height: 100%;
+  overflow-y: auto;
+  padding: 18px 22px;
+}
+
+/* Reserve room for the floating expand button(s) when a sidebar is collapsed,
+   so the title/graphs never sit underneath them. */
+#app.collapsed #main {
+  padding-left: 56px;
+}
+
+#app.collapsed-right #main {
+  padding-right: 56px;
+}
+
+/* Center the chart block vertically when there's spare height; the min-height
+   trick keeps it scrollable when the content is taller than the viewport. */
+#main-inner {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+#chart-title {
+  margin: 0 0 14px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+#facet-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.facet {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 8px 2px;
+}
+
+.facet-title {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 6px 0 0;
+}
+
+.facet .plot { width: 100%; height: 340px; }
+
+/* ---- Shared legend ---- */
+#legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin: 18px 0 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+#empty-msg {
+  text-align: center;
+  color: var(--text-dim);
+  margin-top: 40px;
+  font-style: italic;
+}

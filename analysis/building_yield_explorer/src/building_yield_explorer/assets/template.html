@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Building Yield Explorer</title>
+<style>
+/*__STYLES__*/
+</style>
+</head>
+<body>
+<div id="app">
+  <button id="expand-btn" class="icon-btn" title="Show controls">&#187;</button>
+  <aside id="sidebar">
+    <div id="sidebar-head">
+      <span>Controls</span>
+      <button id="collapse-btn" class="icon-btn" title="Hide controls">&#171;</button>
+    </div>
+    <section class="panel">
+      <h2>Yield Selection</h2>
+      <div id="yield-controls" class="chip-grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Graph Controls</h2>
+      <h3>Metric</h3>
+      <div id="metric-controls" class="chip-grid"></div>
+      <h3>Displayed Eras</h3>
+      <div id="display-era-controls" class="chip-grid"></div>
+      <h3>Buildings Per Graph</h3>
+      <div id="topn-controls" class="topn-row"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Building Filters</h2>
+      <h3>Building Era</h3>
+      <div id="filter-era-controls" class="chip-grid"></div>
+      <h3>Building Type</h3>
+      <div id="filter-type-controls" class="chip-grid"></div>
+    </section>
+
+  </aside>
+
+  <div id="resizer" title="Drag to resize"></div>
+
+  <main id="main">
+    <div id="main-inner">
+      <h1 id="chart-title">Building Production Yield</h1>
+      <div id="facet-grid"></div>
+      <div id="legend"></div>
+      <p id="empty-msg" hidden>No buildings match the current filters &amp; yield.</p>
+    </div>
+  </main>
+
+  <div id="resizer-right" title="Drag to resize"></div>
+
+  <aside id="sidebar-right">
+    <div id="sidebar-head">
+      <span>Buildings</span>
+      <button id="collapse-btn-right" class="icon-btn" title="Hide buildings">&#187;</button>
+    </div>
+    <section class="panel grow">
+      <div id="building-list"></div>
+    </section>
+  </aside>
+
+  <button id="expand-btn-right" class="icon-btn" title="Show buildings">&#171;</button>
+</div>
+
+<script>
+/*__PLOTLYJS__*/
+</script>
+<script>
+/*__DATA__*/
+</script>
+<script>
+/*__APPJS__*/
+</script>
+</body>
+</html>

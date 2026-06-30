@@ -4,11 +4,12 @@ Reads ``Localization-Merged.db`` and ``Civ5DebugDatabase.db`` from the user's
 "My Games" Civ5 cache folder and emits the small lookup CSVs used by the R
 visualization scripts and the analysis notebooks:
 
-    * wonder_eras.csv      - wonder name -> era
-    * civ_colors.csv       - civ -> primary RGB color
-    * civ_bg_colors.csv    - civ -> secondary RGB color
-    * civ_flavors.csv      - civ -> per-flavor pivot + leader personality
-    * beliefs.csv          - religion belief metadata
+    * wonder_eras.csv         - wonder name -> era
+    * civ_colors.csv          - civ -> primary RGB color
+    * civ_bg_colors.csv       - civ -> secondary RGB color
+    * civ_flavors.csv         - civ -> per-flavor pivot + leader personality
+    * beliefs.csv             - religion belief metadata
+    * unique_buildings.json   - base building -> list of unique replacements
 
 Run with ``python db_util/db_export.py`` from the repository root, or pass
 ``--output-dir`` to write outputs elsewhere.
@@ -17,7 +18,9 @@ Run with ``python db_util/db_export.py`` from the repository root, or pass
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
 import sqlite3
 from pathlib import Path
 
@@ -255,6 +258,82 @@ def export_beliefs(
     print(f"Wrote {out_path} ({len(df)} beliefs)")
 
 
+def export_building_info(
+    cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
+) -> None:
+    df = pd.read_sql_query(
+        """
+        SELECT
+            b.Type,
+            b.Description,
+            b.PrereqTech,
+            e.Description          AS EraDescription,
+            b.UnlockedByBelief,
+            b.FaithCost,
+            bc.MaxGlobalInstances,
+            bc.MaxPlayerInstances
+        FROM Buildings b
+        LEFT JOIN BuildingClasses bc ON b.BuildingClass = bc.Type
+        LEFT JOIN Technologies t     ON b.PrereqTech = t.Type
+        LEFT JOIN Eras e             ON t.Era = e.Type
+        ORDER BY b.Type
+        """,
+        cnx,
+    )
+
+    df["building"] = df["Description"].map(lambda k: txt_lut.get(k, k))
+
+    def resolve_era(row: pd.Series) -> str | None:
+        if pd.notna(row["EraDescription"]):
+            era_text = txt_lut.get(row["EraDescription"], row["EraDescription"])
+            return re.sub(r"\s+Era$", "", era_text)
+        if row["UnlockedByBelief"] == 1:
+            # Religious buildings are unlocked by faith/religion, not a tech era.
+            return None
+        return "Ancient"
+
+    df["era"] = df.apply(resolve_era, axis=1)
+    df["is_world_wonder"] = (df["MaxGlobalInstances"] == 1)
+    df["is_national_wonder"] = (df["MaxPlayerInstances"] == 1) & (df["MaxGlobalInstances"] != 1)
+    # Religious: unlocked by belief AND low FaithCost (<=250 covers the 0-cost belief
+    # national wonders and the 200-cost follower buildings, but excludes ideology
+    # buildings that are also faith-purchasable at 300+ faith).
+    df["is_religious"] = (df["UnlockedByBelief"] == 1) & (df["FaithCost"] <= 250)
+
+    out_df = df[["building", "era", "is_world_wonder", "is_national_wonder", "is_religious"]]
+    out_df.to_csv(out_path, index=False)
+    print(f"Wrote {out_path} ({len(out_df)} buildings)")
+
+
+def export_unique_buildings(
+    cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
+) -> None:
+    df = pd.read_sql_query(
+        """
+        SELECT bc.DefaultBuilding,
+               def_b.Description AS DefaultDescription,
+               b.Description      AS UniqueDescription
+        FROM BuildingClasses bc
+        JOIN Buildings def_b ON def_b.Type = bc.DefaultBuilding
+        JOIN Buildings b     ON b.BuildingClass = bc.Type
+                             AND b.Type != bc.DefaultBuilding
+        WHERE bc.MaxGlobalInstances != 1
+        ORDER BY bc.DefaultBuilding, b.Type
+        """,
+        cnx,
+    )
+    df["BaseName"] = df["DefaultDescription"].map(lambda k: txt_lut.get(k, k))
+    df["UniqueName"] = df["UniqueDescription"].map(lambda k: txt_lut.get(k, k))
+
+    result: dict[str, list[str]] = {}
+    for base_name, group in df.groupby("BaseName", sort=True):
+        result[base_name] = sorted(group["UniqueName"].tolist())
+
+    out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    total_unique = sum(len(v) for v in result.values())
+    print(f"Wrote {out_path} ({len(result)} base buildings, {total_unique} unique replacements)")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -288,6 +367,8 @@ def main() -> None:
         export_civ_flavors(cnx, args.output_dir / "civ_flavors.csv")
         export_beliefs(cnx, txt_lut, args.output_dir / "beliefs.csv")
         export_units(cnx, args.output_dir / "units.csv")
+        export_unique_buildings(cnx, txt_lut, args.output_dir / "unique_buildings.json")
+        export_building_info(cnx, txt_lut, args.output_dir / "building_info.csv")
 
 
 if __name__ == "__main__":
