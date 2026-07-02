@@ -4,11 +4,15 @@ Reads ``Localization-Merged.db`` and ``Civ5DebugDatabase.db`` from the user's
 "My Games" Civ5 cache folder and emits the small lookup CSVs used by the R
 visualization scripts and the analysis notebooks:
 
-    * wonder_eras.csv      - wonder name -> era
-    * civ_colors.csv       - civ -> primary RGB color
-    * civ_bg_colors.csv    - civ -> secondary RGB color
-    * civ_flavors.csv      - civ -> per-flavor pivot + leader personality
-    * beliefs.csv          - religion belief metadata
+    * wonder_eras.csv         - wonder name -> era
+    * civ_colors.csv          - civ -> primary RGB color
+    * civ_bg_colors.csv       - civ -> secondary RGB color
+    * civ_flavors.csv         - civ -> per-flavor pivot + leader personality
+    * beliefs.csv             - religion belief metadata
+    * unique_buildings.json   - base building -> list of unique replacements
+    * building_info.csv       - per-building era / wonder / religious flags
+    * unit_info.csv           - per-unit combat class / domain / unique flag
+    * unique_units.json       - base unit -> list of unique replacements
 
 Run with ``python db_util/db_export.py`` from the repository root, or pass
 ``--output-dir`` to write outputs elsewhere.
@@ -17,7 +21,9 @@ Run with ``python db_util/db_export.py`` from the repository root, or pass
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
 import sqlite3
 from pathlib import Path
 
@@ -73,6 +79,45 @@ CIV_TAG_TO_TEXT_MAP = {
     "CIVILIZATION_SHOSHONE": "The Shoshone",
     "CIVILIZATION_VENICE": "Venice",
     "CIVILIZATION_ZULU": "The Zulus",
+}
+
+
+# Human-readable names for the UNITCOMBAT_* combat classes. Most are a simple
+# title-case of the suffix, but the compound naval classes and a few others need
+# an explicit split, so the whole set is spelled out for clarity.
+COMBAT_CLASS_TO_TEXT_MAP = {
+    "UNITCOMBAT_ARCHAEOLOGIST": "Archaeologist",
+    "UNITCOMBAT_ARCHER": "Archer",
+    "UNITCOMBAT_ARMOR": "Armor",
+    "UNITCOMBAT_BOMBER": "Bomber",
+    "UNITCOMBAT_CARAVAN": "Caravan",
+    "UNITCOMBAT_CARGO": "Cargo",
+    "UNITCOMBAT_CARRIER": "Carrier",
+    "UNITCOMBAT_DIPLOMACY": "Diplomacy",
+    "UNITCOMBAT_FIGHTER": "Fighter",
+    "UNITCOMBAT_GUN": "Gun",
+    "UNITCOMBAT_INQUISITOR": "Inquisitor",
+    "UNITCOMBAT_MELEE": "Melee",
+    "UNITCOMBAT_MISSILE": "Missile",
+    "UNITCOMBAT_MISSIONARY": "Missionary",
+    "UNITCOMBAT_MOUNTED": "Mounted",
+    "UNITCOMBAT_NAVALMELEE": "Naval Melee",
+    "UNITCOMBAT_NAVALRANGED": "Naval Ranged",
+    "UNITCOMBAT_NUKE": "Nuke",
+    "UNITCOMBAT_RECON": "Recon",
+    "UNITCOMBAT_SETTLER": "Settler",
+    "UNITCOMBAT_SIEGE": "Siege",
+    "UNITCOMBAT_SPACESHIP": "Spaceship",
+    "UNITCOMBAT_SPECIAL_PEOPLE": "Special People",
+    "UNITCOMBAT_SUBMARINE": "Submarine",
+    "UNITCOMBAT_WORKBOAT": "Work Boat",
+    "UNITCOMBAT_WORKER": "Worker",
+}
+
+DOMAIN_TO_TEXT_MAP = {
+    "DOMAIN_LAND": "Land",
+    "DOMAIN_SEA": "Sea",
+    "DOMAIN_AIR": "Air",
 }
 
 
@@ -227,6 +272,124 @@ def export_units(cnx: sqlite3.Connection, out_path: Path) -> None:
     print(f"Wrote {out_path} ({len(df)} units)")
 
 
+def _major_civ_unique_unit_types(cnx: sqlite3.Connection) -> set[str]:
+    """Return the set of UnitTypes that are civ unique-unit replacements.
+
+    ``Civilization_UnitClassOverrides`` is the authoritative source of unique
+    units in Civ5/VP. We exclude the barbarian and city-state (minor) civs so
+    only genuine major-civ unique units are flagged.
+    """
+    rows = cnx.execute(
+        """
+        SELECT DISTINCT UnitType
+        FROM Civilization_UnitClassOverrides
+        WHERE UnitType IS NOT NULL
+          AND CivilizationType NOT IN ('CIVILIZATION_BARBARIAN', 'CIVILIZATION_MINOR')
+        """
+    ).fetchall()
+    return {r[0] for r in rows}
+
+
+def export_unit_info(
+    cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
+) -> None:
+    df = pd.read_sql_query(
+        """
+        SELECT u.Type, u.Description, u.CombatClass, u.Domain,
+               u.Combat, u.RangedCombat, u.IsMounted,
+               e.Description AS EraDescription
+        FROM Units u
+        LEFT JOIN Technologies t ON u.PrereqTech = t.Type
+        LEFT JOIN Eras e         ON t.Era = e.Type
+        ORDER BY u.Type
+        """,
+        cnx,
+    )
+    unique_types = _major_civ_unique_unit_types(cnx)
+
+    df["unit"] = df["Description"].map(lambda k: txt_lut.get(k, k))
+    df["combat_class"] = df["CombatClass"].map(COMBAT_CLASS_TO_TEXT_MAP)
+    df["domain"] = df["Domain"].map(DOMAIN_TO_TEXT_MAP)
+    df["is_unique"] = df["Type"].isin(unique_types).astype(int)
+
+    def resolve_era(era_desc: object) -> str:
+        # Units with no PrereqTech (starting units, Great People, early uniques)
+        # are available from the game start, so default them to the Ancient era.
+        if pd.notna(era_desc):
+            era_text = txt_lut.get(era_desc, era_desc)
+            return re.sub(r"\s+Era$", "", era_text)
+        return "Ancient"
+
+    df["era"] = df["EraDescription"].map(resolve_era)
+    # Ranged: the unit has a ranged-attack strength (archers, siege, naval ranged,
+    # air units, etc.). Nukes are excluded -- they have a Range but no RangedCombat.
+    df["is_ranged"] = (df["RangedCombat"] > 0).astype(int)
+    # Mounted: the two mounted signals are complementary. The melee cavalry line
+    # (Horseman/Knight/Lancer) uses the UNITCOMBAT_MOUNTED class, while the
+    # mounted-ranged/skirmisher line (Chariot Archer/Cavalry/Camel Archer) is in
+    # the ARCHER class but carries the IsMounted flag. Union captures both.
+    df["is_mounted"] = (
+        (df["IsMounted"] == 1) | (df["CombatClass"] == "UNITCOMBAT_MOUNTED")
+    ).astype(int)
+    # Combat: the unit can fight -- it has a melee (Combat) or ranged (RangedCombat)
+    # strength. is_combat=0 marks civilian/support units (Settlers, Workers, Great
+    # People, trade/religious units, spaceship parts) that only ferry or build.
+    df["is_combat"] = (
+        (df["Combat"].fillna(0) > 0) | (df["RangedCombat"].fillna(0) > 0)
+    ).astype(int)
+
+    out_df = df[
+        [
+            "unit",
+            "era",
+            "combat_class",
+            "domain",
+            "is_unique",
+            "is_ranged",
+            "is_mounted",
+            "is_combat",
+        ]
+    ]
+    out_df.to_csv(out_path, index=False)
+    print(
+        f"Wrote {out_path} ({len(out_df)} units, {int(df['is_unique'].sum())} unique, "
+        f"{int(df['is_ranged'].sum())} ranged, {int(df['is_mounted'].sum())} mounted, "
+        f"{int(df['is_combat'].sum())} combat)"
+    )
+
+
+def export_unique_units(
+    cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
+) -> None:
+    df = pd.read_sql_query(
+        """
+        SELECT du.Description AS BaseDescription,
+               u.Description  AS UniqueDescription
+        FROM Civilization_UnitClassOverrides o
+        JOIN UnitClasses uc ON o.UnitClassType = uc.Type
+        JOIN Units u        ON u.Type = o.UnitType
+        LEFT JOIN Units du  ON du.Type = uc.DefaultUnit
+        WHERE o.UnitType IS NOT NULL
+          AND o.CivilizationType NOT IN ('CIVILIZATION_BARBARIAN', 'CIVILIZATION_MINOR')
+        """,
+        cnx,
+    )
+    # Some unique units belong to a class with no default unit (DefaultUnit is
+    # 'NONE'), so they replace nothing -- group these under a "None" key.
+    df["BaseName"] = df["BaseDescription"].map(
+        lambda k: txt_lut.get(k, k) if pd.notna(k) else "None"
+    )
+    df["UniqueName"] = df["UniqueDescription"].map(lambda k: txt_lut.get(k, k))
+
+    result: dict[str, list[str]] = {}
+    for base_name, group in df.groupby("BaseName", sort=True):
+        result[base_name] = sorted(set(group["UniqueName"].tolist()))
+
+    out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    total_unique = sum(len(v) for v in result.values())
+    print(f"Wrote {out_path} ({len(result)} base units, {total_unique} unique replacements)")
+
+
 def export_text_lut(txt_lut: dict[str, str], out_path: Path) -> None:
     df = pd.DataFrame(list(txt_lut.items()), columns=["Tag", "Text"])
     df.to_csv(out_path, index=False)
@@ -253,6 +416,82 @@ def export_beliefs(
     df["ShortDescription"] = df["ShortDescription"].map(lambda k: txt_lut.get(k, k))
     df.to_csv(out_path, index=False)
     print(f"Wrote {out_path} ({len(df)} beliefs)")
+
+
+def export_building_info(
+    cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
+) -> None:
+    df = pd.read_sql_query(
+        """
+        SELECT
+            b.Type,
+            b.Description,
+            b.PrereqTech,
+            e.Description          AS EraDescription,
+            b.UnlockedByBelief,
+            b.FaithCost,
+            bc.MaxGlobalInstances,
+            bc.MaxPlayerInstances
+        FROM Buildings b
+        LEFT JOIN BuildingClasses bc ON b.BuildingClass = bc.Type
+        LEFT JOIN Technologies t     ON b.PrereqTech = t.Type
+        LEFT JOIN Eras e             ON t.Era = e.Type
+        ORDER BY b.Type
+        """,
+        cnx,
+    )
+
+    df["building"] = df["Description"].map(lambda k: txt_lut.get(k, k))
+
+    def resolve_era(row: pd.Series) -> str | None:
+        if pd.notna(row["EraDescription"]):
+            era_text = txt_lut.get(row["EraDescription"], row["EraDescription"])
+            return re.sub(r"\s+Era$", "", era_text)
+        if row["UnlockedByBelief"] == 1:
+            # Religious buildings are unlocked by faith/religion, not a tech era.
+            return None
+        return "Ancient"
+
+    df["era"] = df.apply(resolve_era, axis=1)
+    df["is_world_wonder"] = (df["MaxGlobalInstances"] == 1)
+    df["is_national_wonder"] = (df["MaxPlayerInstances"] == 1) & (df["MaxGlobalInstances"] != 1)
+    # Religious: unlocked by belief AND low FaithCost (<=250 covers the 0-cost belief
+    # national wonders and the 200-cost follower buildings, but excludes ideology
+    # buildings that are also faith-purchasable at 300+ faith).
+    df["is_religious"] = (df["UnlockedByBelief"] == 1) & (df["FaithCost"] <= 250)
+
+    out_df = df[["building", "era", "is_world_wonder", "is_national_wonder", "is_religious"]]
+    out_df.to_csv(out_path, index=False)
+    print(f"Wrote {out_path} ({len(out_df)} buildings)")
+
+
+def export_unique_buildings(
+    cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
+) -> None:
+    df = pd.read_sql_query(
+        """
+        SELECT bc.DefaultBuilding,
+               def_b.Description AS DefaultDescription,
+               b.Description      AS UniqueDescription
+        FROM BuildingClasses bc
+        JOIN Buildings def_b ON def_b.Type = bc.DefaultBuilding
+        JOIN Buildings b     ON b.BuildingClass = bc.Type
+                             AND b.Type != bc.DefaultBuilding
+        WHERE bc.MaxGlobalInstances != 1
+        ORDER BY bc.DefaultBuilding, b.Type
+        """,
+        cnx,
+    )
+    df["BaseName"] = df["DefaultDescription"].map(lambda k: txt_lut.get(k, k))
+    df["UniqueName"] = df["UniqueDescription"].map(lambda k: txt_lut.get(k, k))
+
+    result: dict[str, list[str]] = {}
+    for base_name, group in df.groupby("BaseName", sort=True):
+        result[base_name] = sorted(group["UniqueName"].tolist())
+
+    out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    total_unique = sum(len(v) for v in result.values())
+    print(f"Wrote {out_path} ({len(result)} base buildings, {total_unique} unique replacements)")
 
 
 def main() -> None:
@@ -288,6 +527,10 @@ def main() -> None:
         export_civ_flavors(cnx, args.output_dir / "civ_flavors.csv")
         export_beliefs(cnx, txt_lut, args.output_dir / "beliefs.csv")
         export_units(cnx, args.output_dir / "units.csv")
+        export_unique_buildings(cnx, txt_lut, args.output_dir / "unique_buildings.json")
+        export_building_info(cnx, txt_lut, args.output_dir / "building_info.csv")
+        export_unit_info(cnx, txt_lut, args.output_dir / "unit_info.csv")
+        export_unique_units(cnx, txt_lut, args.output_dir / "unique_units.json")
 
 
 if __name__ == "__main__":
