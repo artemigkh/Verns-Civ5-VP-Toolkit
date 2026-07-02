@@ -5,23 +5,31 @@ Both summaries share the columns::
     Era, BeliefType, Belief, Yield, YieldTotalForOwner, YieldTotalForFollower
 
 The raw ``ReligionBeliefYields`` table holds one row per
-(GameId, Turn, Era, Civ, Belief, BeliefType, IsReligionOwner, Source, Yield). The
+(GameId, Turn, Era, Civ, Belief, BeliefType, IsReligionOwner, Source, Yield). Those
+rows are logged via the game's instant-yield system, so a belief only shows up on
+the turns a trigger actually fires — event sources (border growth, faith purchase,
+spread, conversion, …) appear on a small fraction of a player's turns. The
 aggregation runs in three stages:
 
 1. Pool ``Source`` -> one player-turn's total of a yield from a belief
    (e.g. CityYield + AnySpecialist Science for the same player-turn).
-2. Average across the (GameId, Civ) players present in each turn -> the per-turn
-   value one benefitting player can expect.
-3. Collapse the turns of an era:
+2. Sum each ``(GameId, Civ)`` player's per-turn totals into their era total, then
+   divide by the number of turns that player actually spent in the era. The turn
+   count comes from ``civ_turn_era`` — **not** the count of turns that happened to
+   fire a yield — so sparse instant yields are amortized across every era turn
+   instead of being averaged over only the (far fewer) turns they appeared on,
+   which previously inflated them.
+3. Average across the ``(GameId, Civ)`` player-instances that held the belief in
+   the era:
 
-   * ``religion_yields_turn_average_summary.csv`` takes the **mean** of the per-turn
+   * ``religion_yields_turn_average_summary.csv`` takes the mean of the per-turn
      values — what a single benefitting player can expect in the average turn of the era.
-   * ``religion_yields_era_totals_summary.csv`` takes the **sum** — what they can expect
-     across all the turns of the era.
+   * ``religion_yields_era_totals_summary.csv`` takes the mean of the era totals —
+     what they can expect across all the turns of the era.
 
 The ``...ForOwner`` / ``...ForFollower`` columns split on ``IsReligionOwner`` (1/0).
 This mirrors the building pipeline's "present instances only" convention (only the
-turns/players that actually appear form the denominators).
+players that actually appear form the denominators).
 
 The DB is only re-read when its mtime changes (tracked in a sidecar file), so repeat
 runs are cheap.
@@ -33,7 +41,7 @@ import os
 
 import pandas as pd
 
-from ..config import RELIGION_TABLE, Config
+from ..config import CIV_TURN_ERA_TABLE, RELIGION_TABLE, Config
 from ..db import read_table
 from ..metadata import db_era_to_name
 
@@ -83,6 +91,21 @@ def _normalize_owner(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce").fillna(0).astype(int)
 
 
+def _era_turn_counts(cfg: Config) -> pd.DataFrame:
+    """Turns each ``(GameId, Civ)`` actually spent in each ``Era``.
+
+    Belief yields are logged only on the turns a trigger fires, so instant-yield
+    sources (border growth, faith purchase, spread, …) appear on a small fraction
+    of a player's turns. To average them fairly we need the true denominator — how
+    many turns the player spent in the era — which ``civ_turn_era`` provides.
+    """
+    cte = read_table(cfg, CIV_TURN_ERA_TABLE)
+    counts = cte.groupby(["GameId", "civ", "era"], as_index=False).agg(
+        EraTurns=("Turn", "nunique")
+    )
+    return counts.rename(columns={"civ": "Civ", "era": "Era"})
+
+
 def _build_summaries(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
     raw = read_table(cfg, RELIGION_TABLE)
 
@@ -105,17 +128,44 @@ def _build_summaries(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
     ]
     stage1 = raw.groupby(s1_keys, as_index=False)["YieldValue"].sum()
 
-    # Stage 2: average across the (GameId, Civ) players present in each turn.
-    s2_keys = ["Era", "Turn", "Belief", "BeliefType", "IsReligionOwner", "Yield"]
-    stage2 = stage1.groupby(s2_keys, as_index=False).agg(
-        Total=("YieldValue", "sum"), Players=("YieldValue", "size")
+    # Stage 2: sum a player's per-turn totals into their era total, then divide by
+    # the turns they actually spent in the era (from civ_turn_era). This amortizes
+    # sparse instant yields across every era turn instead of only the turns that
+    # fired, which is what previously inflated the per-turn average.
+    s2_keys = [
+        "GameId",
+        "Civ",
+        "Era",
+        "Belief",
+        "BeliefType",
+        "IsReligionOwner",
+        "Yield",
+    ]
+    stage2 = stage1.groupby(s2_keys, as_index=False)["YieldValue"].sum().rename(
+        columns={"YieldValue": "PlayerEraTotal"}
     )
-    stage2["PerTurnAvg"] = stage2["Total"] / stage2["Players"]
 
-    # Stage 3: collapse the turns of each era (mean -> per-turn, sum -> era total).
+    era_turns = _era_turn_counts(cfg)
+    stage2 = stage2.merge(era_turns, on=["GameId", "Civ", "Era"], how="left")
+    # Drop the rare player-instance with no civ_turn_era coverage (can't amortize).
+    stage2 = stage2[stage2["EraTurns"].fillna(0) > 0].copy()
+    stage2["PlayerPerTurn"] = stage2["PlayerEraTotal"] / stage2["EraTurns"]
+
+    # Stage 3: average across the (GameId, Civ) player-instances that held the
+    # belief in the era ("present instances only" denominator).
+    #   * turn_average -> mean per-turn value one benefitting player can expect.
+    #   * era_totals   -> mean value across all the turns of the era.
     s3_keys = ["Era", "BeliefType", "Belief", "Yield", "IsReligionOwner"]
-    turn_average = stage2.groupby(s3_keys, as_index=False)["PerTurnAvg"].mean()
-    era_totals = stage2.groupby(s3_keys, as_index=False)["PerTurnAvg"].sum()
+    turn_average = (
+        stage2.groupby(s3_keys, as_index=False)["PlayerPerTurn"]
+        .mean()
+        .rename(columns={"PlayerPerTurn": "PerTurnAvg"})
+    )
+    era_totals = (
+        stage2.groupby(s3_keys, as_index=False)["PlayerEraTotal"]
+        .mean()
+        .rename(columns={"PlayerEraTotal": "PerTurnAvg"})
+    )
 
     return _finalize(era_totals), _finalize(turn_average)
 

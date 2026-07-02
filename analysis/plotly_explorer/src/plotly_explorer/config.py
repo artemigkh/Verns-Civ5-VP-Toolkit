@@ -32,6 +32,9 @@ SOURCE_MTIME_FILE = ".source_mtime"
 
 # Religion report.
 RELIGION_TABLE = "ReligionBeliefYields"
+# Per-(GameId, Civ, Turn) era assignment; used to amortize sparse instant yields
+# across every turn a civ actually spent in an era.
+CIV_TURN_ERA_TABLE = "civ_turn_era"
 RELIGION_ERA_TOTALS_CSV = "religion_yields_era_totals_summary.csv"
 RELIGION_TURN_AVERAGE_CSV = "religion_yields_turn_average_summary.csv"
 RELIGION_SOURCE_MTIME_FILE = ".religion_source_mtime"
