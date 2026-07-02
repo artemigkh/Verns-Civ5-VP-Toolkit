@@ -2,5 +2,6 @@
 
 from .pipeline import ensure_summaries
 from .religion import ensure_religion_summaries
+from .units import ensure_unit_summaries
 
-__all__ = ["ensure_summaries", "ensure_religion_summaries"]
+__all__ = ["ensure_summaries", "ensure_religion_summaries", "ensure_unit_summaries"]

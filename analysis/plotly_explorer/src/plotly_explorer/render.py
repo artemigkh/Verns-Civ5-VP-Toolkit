@@ -15,7 +15,16 @@ import pandas as pd
 import plotly.offline as po
 
 from .config import Config
-from .metadata import BUILDING_FILTER_ERAS, ERA_LUT, Metadata, load_metadata
+from .metadata import (
+    BUILDING_FILTER_ERAS,
+    ERA_LUT,
+    UNIT_CATEGORIES,
+    UNIT_FILTER_ERAS,
+    Metadata,
+    load_civ_list,
+    load_metadata,
+    load_unit_metadata,
+)
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
@@ -209,17 +218,66 @@ def build_religion_payload(cfg: Config) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Unit-composition report payload
+# ---------------------------------------------------------------------------
+
+def _units_nested_data(df: pd.DataFrame) -> dict:
+    """civ -> era -> unit -> avg count (rounded)."""
+    out: dict[str, dict[str, dict[str, float]]] = {}
+    for row in df.itertuples(index=False):
+        out.setdefault(row.Civ, {}).setdefault(row.Era, {})[row.Unit] = round(
+            float(row.AvgCount), 4
+        )
+    return out
+
+
+def build_units_payload(cfg: Config) -> dict:
+    unit_info = load_unit_metadata()
+    df = pd.read_csv(cfg.unit_summary_path)
+
+    # Combat classes offered as filter chips: genuine combat classes only
+    # (civilian/support units are governed by the single "Non-Combat" chip).
+    combat_classes = sorted(
+        {
+            info["combat_class"]
+            for info in unit_info.values()
+            if info["is_combat"] and info["combat_class"]
+        }
+    )
+    domains = [d for d in ("Land", "Sea", "Air") if any(
+        info["domain"] == d for info in unit_info.values()
+    )]
+
+    return {
+        "civs": load_civ_list(),
+        "eraOrder": list(ERA_LUT.values()),
+        "defaultDisplayEras": DEFAULT_DISPLAY_ERAS,
+        "unitFilterEras": UNIT_FILTER_ERAS,
+        "combatClasses": combat_classes,
+        "domains": domains,
+        "legend": [
+            {"key": key, "label": label, "color": color}
+            for key, label, color in UNIT_CATEGORIES
+        ],
+        "unitInfo": unit_info,
+        "data": _units_nested_data(df),
+    }
+
+
 def render(cfg: Config) -> Path:
     payload = {
         "defaultReport": "building",
         "building": build_building_payload(cfg),
         "religion": build_religion_payload(cfg),
+        "units": build_units_payload(cfg),
     }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
     app_js = (ASSETS_DIR / "app.js").read_text(encoding="utf-8")
     religion_js = (ASSETS_DIR / "religion.js").read_text(encoding="utf-8")
-    app_js = app_js + "\n" + religion_js
+    units_js = (ASSETS_DIR / "units.js").read_text(encoding="utf-8")
+    app_js = app_js + "\n" + religion_js + "\n" + units_js
     plotly_js = po.get_plotlyjs()
 
     html = (

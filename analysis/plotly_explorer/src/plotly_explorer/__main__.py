@@ -1,4 +1,4 @@
-"""Build the Plotly Explorer dashboard (Building + Religion yield reports).
+"""Build the Plotly Explorer dashboard (Building + Religion + Unit reports).
 
 Pipeline: load config -> ensure intermediate summaries (regenerated only when the
 source DB changes) -> render a single self-contained ``index.html`` into
@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import argparse
 
-from .aggregate import ensure_religion_summaries, ensure_summaries
+from .aggregate import (
+    ensure_religion_summaries,
+    ensure_summaries,
+    ensure_unit_summaries,
+)
 from .config import load_config
 from .render import render
 
@@ -27,6 +31,7 @@ def main() -> None:
     print(f"[config] db_type={cfg.db_type} db={cfg.db_path}")
     ensure_summaries(cfg, force=args.force)
     ensure_religion_summaries(cfg, force=args.force)
+    ensure_unit_summaries(cfg, force=args.force)
     out = render(cfg)
     print(f"[done] open {out}")
 

@@ -60,7 +60,8 @@ html, body {
    the same way #sidebar gaps its own direct children. Scoped to the shown
    report so it doesn't override the report-hiding rules below. */
 #app.show-building #sidebar .report-building,
-#app.show-religion #sidebar .report-religion {
+#app.show-religion #sidebar .report-religion,
+#app.show-units #sidebar .report-units {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -331,7 +332,8 @@ html, body {
 }
 
 #facet-grid,
-#rel-facet-grid {
+#rel-facet-grid,
+#unit-facet-grid {
   display: grid;
   gap: 16px;
 }
@@ -355,7 +357,8 @@ html, body {
 
 /* ---- Shared legend ---- */
 #legend,
-#rel-legend {
+#rel-legend,
+#unit-legend {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -379,7 +382,8 @@ html, body {
 }
 
 #empty-msg,
-#rel-empty-msg {
+#rel-empty-msg,
+#unit-empty-msg {
   text-align: center;
   color: var(--text-dim);
   margin-top: 40px;
@@ -404,3 +408,10 @@ html, body {
 .report-religion { display: none; }
 #app.show-religion .report-religion { display: block; }
 #app.show-religion .report-building { display: none; }
+
+.report-units { display: none; }
+#app.show-units .report-units { display: block; }
+#app.show-units .report-building { display: none; }
+
+/* Civs with no data in the dataset are dimmed in the civ list. */
+.b-name.no-data { opacity: 0.45; }

@@ -511,16 +511,20 @@
   var app = document.getElementById("app");
   if (!sel || !app) return;
 
+  // report value -> { class on #app, the report module exposing render() }
+  var REPORTS = {
+    building: { cls: "show-building", mod: "BuildingReport" },
+    religion: { cls: "show-religion", mod: "ReligionReport" },
+    units: { cls: "show-units", mod: "UnitsReport" },
+  };
+
   function apply() {
-    if (sel.value === "religion") {
-      app.classList.add("show-religion");
-      app.classList.remove("show-building");
-      if (window.ReligionReport) window.ReligionReport.render();
-    } else {
-      app.classList.add("show-building");
-      app.classList.remove("show-religion");
-      if (window.BuildingReport) window.BuildingReport.render();
-    }
+    var target = REPORTS[sel.value] || REPORTS.building;
+    Object.keys(REPORTS).forEach(function (key) {
+      app.classList.toggle(REPORTS[key].cls, REPORTS[key] === target);
+    });
+    var mod = window[target.mod];
+    if (mod) mod.render();
   }
 
   sel.value = (window.PAYLOAD && window.PAYLOAD.defaultReport) || "building";

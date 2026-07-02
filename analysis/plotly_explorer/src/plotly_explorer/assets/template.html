@@ -22,6 +22,7 @@
       <select id="report-select">
         <option value="building">Building Yields</option>
         <option value="religion">Religion Yields</option>
+        <option value="units">Unit Composition</option>
       </select>
     </section>
 
@@ -77,6 +78,31 @@
       </section>
     </div>
 
+    <!-- ===================== Unit report controls ===================== -->
+    <div class="report-units">
+      <section class="panel">
+        <h2>Graph Controls</h2>
+        <h3>Displayed Eras</h3>
+        <div id="unit-display-era-controls" class="chip-grid"></div>
+        <h3>Units Per Graph</h3>
+        <div id="unit-topn-controls" class="topn-row"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Unit Filters</h2>
+        <h3>Unit Era</h3>
+        <div id="unit-filter-era-controls" class="chip-grid"></div>
+        <h3>Unit Type</h3>
+        <div id="unit-type-controls" class="chip-grid"></div>
+        <h3>Domain</h3>
+        <div id="unit-domain-controls" class="chip-grid"></div>
+        <h3>Ranged</h3>
+        <div id="unit-ranged-controls" class="chip-grid"></div>
+        <h3>Mounted</h3>
+        <div id="unit-mounted-controls" class="chip-grid"></div>
+      </section>
+    </div>
+
   </aside>
 
   <div id="resizer" title="Drag to resize"></div>
@@ -95,6 +121,12 @@
         <div id="rel-facet-grid"></div>
         <p id="rel-empty-msg" hidden>No beliefs match the current filters &amp; yields.</p>
       </div>
+      <div class="report-units">
+        <h1 id="unit-chart-title">Average Unit Composition</h1>
+        <div id="unit-legend"></div>
+        <div id="unit-facet-grid"></div>
+        <p id="unit-empty-msg" hidden>No units match the current filters for this civ.</p>
+      </div>
     </div>
   </main>
 
@@ -104,11 +136,13 @@
     <div id="sidebar-head">
       <span class="report-building">Buildings</span>
       <span class="report-religion">Beliefs</span>
+      <span class="report-units">Civilization</span>
       <button id="collapse-btn-right" class="icon-btn" title="Hide list">&#187;</button>
     </div>
     <section class="panel grow">
       <div class="report-building" id="building-list"></div>
       <div class="report-religion" id="belief-list"></div>
+      <div class="report-units" id="civ-list"></div>
     </section>
   </aside>
 

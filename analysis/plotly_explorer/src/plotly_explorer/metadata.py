@@ -12,7 +12,12 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from .config import BUILDING_INFO_CSV, UNIQUE_BUILDINGS_JSON
+from .config import (
+    BUILDING_INFO_CSV,
+    CIV_COLORS_CSV,
+    UNIT_INFO_CSV,
+    UNIQUE_BUILDINGS_JSON,
+)
 
 # 1-indexed era numbers (matches the design; DB era is 0-indexed, so DB era n
 # corresponds to ERA_LUT[n + 1]).
@@ -104,3 +109,99 @@ def load_metadata() -> Metadata:
         unique_groups=unique_groups,
         unique_to_base=unique_to_base,
     )
+
+
+# ===========================================================================
+# Unit-composition report metadata
+# ===========================================================================
+
+# Unit unlock eras offered in the "Unit Era" filter (Ancient through Information),
+# mirroring the building-era filter.
+UNIT_FILTER_ERAS: list[str] = list(BUILDING_FILTER_ERAS)
+
+# Colored bar categories, in the fixed legend display order. Each entry is
+# (key, label, color); ``unit_category`` resolves a unit to one of these keys.
+UNIT_CATEGORIES: list[tuple[str, str, str]] = [
+    ("melee_infantry", "Melee Infantry", "#2e7d32"),   # dark green
+    ("ranged_infantry", "Ranged Infantry", "#8bc34a"),  # light green
+    ("melee_cavalry", "Melee Cavalry", "#6d4c2f"),      # dark brown
+    ("ranged_cavalry", "Ranged Cavalry", "#c9a26b"),    # light brown
+    ("melee_naval", "Melee Naval", "#1565c0"),          # dark blue
+    ("ranged_naval", "Ranged Naval", "#64b5f6"),        # light blue
+    ("air", "Air", "#ffffff"),                          # white
+    ("non_combat", "Non-Combat", "#6a1b9a"),            # dark purple
+]
+
+_UNIT_CATEGORY_COLOR: dict[str, str] = {key: color for key, _, color in UNIT_CATEGORIES}
+
+
+def unit_category(
+    *, domain: str, is_ranged: bool, is_mounted: bool, is_combat: bool
+) -> str:
+    """Resolve a unit to a legend category key (non-combat takes precedence)."""
+    if not is_combat:
+        return "non_combat"
+    if domain == "Air":
+        return "air"
+    if domain == "Sea":
+        return "ranged_naval" if is_ranged else "melee_naval"
+    # Land (and any other domain) -> infantry/cavalry split.
+    if is_mounted:
+        return "ranged_cavalry" if is_ranged else "melee_cavalry"
+    return "ranged_infantry" if is_ranged else "melee_infantry"
+
+
+def _to_bool01(value: object) -> bool:
+    return str(value).strip() in {"1", "1.0", "True", "true"}
+
+
+def load_unit_metadata() -> dict[str, dict]:
+    """unit name -> {era, combat_class, domain, is_unique, is_ranged, is_mounted,
+    is_combat, non_combat, category, color}."""
+    df = pd.read_csv(UNIT_INFO_CSV, dtype=str).fillna("")
+    out: dict[str, dict] = {}
+    for _, row in df.iterrows():
+        name = row["unit"].strip()
+        if not name:
+            continue
+        domain = row["domain"].strip()
+        is_ranged = _to_bool01(row["is_ranged"])
+        is_mounted = _to_bool01(row["is_mounted"])
+        is_combat = _to_bool01(row["is_combat"])
+        category = unit_category(
+            domain=domain,
+            is_ranged=is_ranged,
+            is_mounted=is_mounted,
+            is_combat=is_combat,
+        )
+        out[name] = {
+            "era": row["era"].strip() or None,
+            "combat_class": row["combat_class"].strip(),
+            "domain": domain,
+            "is_unique": _to_bool01(row["is_unique"]),
+            "is_ranged": is_ranged,
+            "is_mounted": is_mounted,
+            "is_combat": is_combat,
+            "non_combat": not is_combat,
+            "category": category,
+            "color": _UNIT_CATEGORY_COLOR[category],
+        }
+    return out
+
+
+# Non-playable "civs" in civ_colors.csv that are not major civilizations.
+_NON_MAJOR_CIVS = {"City State", "Barbarians"}
+
+
+def load_civ_list() -> list[str]:
+    """The 43 major civilizations (civ_colors.csv minus City State/Barbarians)."""
+    df = pd.read_csv(CIV_COLORS_CSV, dtype=str).fillna("")
+    civs = [c.strip() for c in df["civ"] if c.strip() and c.strip() not in _NON_MAJOR_CIVS]
+    # Preserve file order but drop any accidental duplicates.
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for c in civs:
+        if c not in seen:
+            seen.add(c)
+            ordered.append(c)
+    return ordered

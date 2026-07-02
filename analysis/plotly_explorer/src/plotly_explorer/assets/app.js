@@ -423,7 +423,13 @@
   // module, but a width change must reflow whichever report is currently shown.
   function renderActive() {
     var app = document.getElementById("app");
-    if (app && app.classList.contains("show-religion") && window.ReligionReport) {
+    if (app && app.classList.contains("show-units") && window.UnitsReport) {
+      window.UnitsReport.render();
+    } else if (
+      app &&
+      app.classList.contains("show-religion") &&
+      window.ReligionReport
+    ) {
       window.ReligionReport.render();
     } else {
       render();

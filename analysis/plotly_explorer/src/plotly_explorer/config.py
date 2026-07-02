@@ -23,6 +23,8 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 METADATA_DIR = REPO_ROOT / "db_util" / "out"
 BUILDING_INFO_CSV = METADATA_DIR / "building_info.csv"
 UNIQUE_BUILDINGS_JSON = METADATA_DIR / "unique_buildings.json"
+UNIT_INFO_CSV = METADATA_DIR / "unit_info.csv"
+CIV_COLORS_CSV = METADATA_DIR / "civ_colors.csv"
 
 ERA_TOTALS_CSV = "building_yields_era_totals_summary.csv"
 TURN_AVERAGE_CSV = "building_yields_turn_average_summary.csv"
@@ -33,6 +35,10 @@ RELIGION_TABLE = "ReligionBeliefYields"
 RELIGION_ERA_TOTALS_CSV = "religion_yields_era_totals_summary.csv"
 RELIGION_TURN_AVERAGE_CSV = "religion_yields_turn_average_summary.csv"
 RELIGION_SOURCE_MTIME_FILE = ".religion_source_mtime"
+
+# Unit-composition report.
+UNIT_SUMMARY_CSV = "unit_composition_summary.csv"
+UNIT_SOURCE_MTIME_FILE = ".units_source_mtime"
 
 
 @dataclass(frozen=True)
@@ -65,6 +71,14 @@ class Config:
     @property
     def religion_source_mtime_path(self) -> Path:
         return self.intermediate_data_dir / RELIGION_SOURCE_MTIME_FILE
+
+    @property
+    def unit_summary_path(self) -> Path:
+        return self.intermediate_data_dir / UNIT_SUMMARY_CSV
+
+    @property
+    def unit_source_mtime_path(self) -> Path:
+        return self.intermediate_data_dir / UNIT_SOURCE_MTIME_FILE
 
     @property
     def index_html_path(self) -> Path:
