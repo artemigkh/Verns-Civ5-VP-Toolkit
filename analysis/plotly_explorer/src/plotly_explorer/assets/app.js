@@ -18,7 +18,7 @@
     metric: "turn", // 'turn' | 'total'
     displayEras: new Set(P.defaultDisplayEras),
     filterEras: new Set(["Ancient", "Classical"]), // building-era filter
-    types: new Set(["regular", "unique"]), // regular | ww | nw | rel | corp | unique
+    types: new Set(["regular", "unique"]), // regular | ww | nw | rel | unique
     topN: 15, // max buildings shown per facet
     selected: new Set(), // checked buildings
   };
@@ -35,13 +35,11 @@
   function matchesType(name) {
     if (state.types.size === 0) return false;
     var info = P.buildingInfo[name] || {};
+    if (info.corp) return false;
     var isReplacement = !!uniqueToBase[name]; // a civ-specific unique replacement
     if (state.types.has("ww") && info.ww) return true;
     if (state.types.has("nw") && info.nw) return true;
     if (state.types.has("rel") && info.rel) return true;
-    // Corporations = corporation headquarters and offices, gated solely by this
-    // chip (they carry no unlock era and no wonder/religious flag).
-    if (state.types.has("corp") && info.corp) return true;
     // Unique = only the civ-specific replacements (Tatara, Pitz Court, ...);
     // the standard building each one replaces (Forge, Arena, ...) is Regular.
     if (state.types.has("unique") && isReplacement) return true;
@@ -215,7 +213,6 @@
       { key: "ww", label: "World Wonders" },
       { key: "nw", label: "National Wonders" },
       { key: "rel", label: "Religious" },
-      { key: "corp", label: "Corporations" },
     ];
     opts.forEach(function (o) {
       host.appendChild(
