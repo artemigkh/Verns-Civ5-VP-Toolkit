@@ -18,7 +18,7 @@
     metric: "turn", // 'turn' | 'total'
     displayEras: new Set(P.defaultDisplayEras),
     filterEras: new Set(["Ancient", "Classical"]), // building-era filter
-    types: new Set(["regular", "unique"]), // regular | ww | nw | rel | unique
+    types: new Set(["regular", "unique"]), // regular | ww | nw | rel | corp | unique
     topN: 15, // max buildings shown per facet
     selected: new Set(), // checked buildings
   };
@@ -39,16 +39,20 @@
     if (state.types.has("ww") && info.ww) return true;
     if (state.types.has("nw") && info.nw) return true;
     if (state.types.has("rel") && info.rel) return true;
+    // Corporations = corporation headquarters and offices, gated solely by this
+    // chip (they carry no unlock era and no wonder/religious flag).
+    if (state.types.has("corp") && info.corp) return true;
     // Unique = only the civ-specific replacements (Tatara, Pitz Court, ...);
     // the standard building each one replaces (Forge, Arena, ...) is Regular.
     if (state.types.has("unique") && isReplacement) return true;
     // Regular = any standard building (including the bases that uniques replace):
-    // no wonder/religious modifier and not itself a civ-specific unique.
+    // no wonder/religious/corp modifier and not itself a civ-specific unique.
     if (
       state.types.has("regular") &&
       !info.ww &&
       !info.nw &&
       !info.rel &&
+      !info.corp &&
       !isReplacement
     )
       return true;
@@ -56,8 +60,13 @@
   }
 
   function matchesEra(name) {
-    if (state.filterEras.size === 0) return false;
     var info = P.buildingInfo[name];
+    // Religious / faith-purchased buildings carry no unlock era, so the era
+    // filter doesn't scope them: they're always era-eligible and gated solely
+    // by the type filter (the "Religious" chip). Without this, no era could
+    // ever match them and they'd be invisible regardless of the type filter.
+    if (info && !info.era) return true;
+    if (state.filterEras.size === 0) return false;
     return !!(info && info.era && state.filterEras.has(info.era));
   }
 
@@ -202,10 +211,11 @@
     host.innerHTML = "";
     var opts = [
       { key: "regular", label: "Regular Buildings" },
+      { key: "unique", label: "Unique Buildings" },
       { key: "ww", label: "World Wonders" },
       { key: "nw", label: "National Wonders" },
       { key: "rel", label: "Religious" },
-      { key: "unique", label: "Unique Buildings" },
+      { key: "corp", label: "Corporations" },
     ];
     opts.forEach(function (o) {
       host.appendChild(
@@ -296,10 +306,72 @@
     return rows;
   }
 
-  function fmt(v) {
+  function fmt(v, decimals) {
     if (!v) return "";
-    return v.toFixed(2);
+    return v.toFixed(decimals);
   }
+
+  // -------------------------------------------------------------------------
+  // Dynamic bar-label precision: estimate how many characters fit across one
+  // bar (labels are horizontal, 10px font) and shrink from 2 decimals down to
+  // 0; when fewer than 3 characters fit (or the integer part alone doesn't),
+  // omit the labels entirely instead of letting Plotly clip them.
+  // -------------------------------------------------------------------------
+  var LABEL_CHAR_PX = 6; // approx digit width at the 10px annotation font
+  function labelDecimals(values, barPx) {
+    var maxAbs = 0;
+    values.forEach(function (v) {
+      maxAbs = Math.max(maxAbs, Math.abs(v));
+    });
+    var intDigits = maxAbs >= 1 ? Math.floor(Math.log10(maxAbs)) + 1 : 1;
+    var fits = Math.floor(barPx / LABEL_CHAR_PX);
+    if (fits < 3 || fits < intDigits) return -1; // omit labels entirely
+    if (fits >= intDigits + 3) return 2; // room for "12.34"
+    if (fits >= intDigits + 2) return 1; // room for "12.3"
+    return 0;
+  }
+
+  // -------------------------------------------------------------------------
+  // x-axis label coloring: unique buildings blue, national wonders lighter
+  // orange, world wonders a deeper orange-red. Everything else keeps the
+  // default dimmed tick color.
+  // -------------------------------------------------------------------------
+  var LABEL_DEFAULT = "#aab4c4";
+  function labelColor(name) {
+    var info = P.buildingInfo[name] || {};
+    // Unique takes precedence: a civ-specific unique that also carries a wonder
+    // flag is colored blue, not orange.
+    if (uniqueToBase[name]) return "#5aa9e6"; // unique building — blue
+    if (info.ww) return "#e35d3b"; // world wonder — deep orange/red
+    if (info.nw) return "#f0a24e"; // national wonder — lighter orange
+    return LABEL_DEFAULT;
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function coloredTicks(names) {
+    return names.map(function (name) {
+      return (
+        '<span style="color:' + labelColor(name) + '">' + esc(name) + "</span>"
+      );
+    });
+  }
+
+  // Which category label-colors actually occur in the dataset (respecting the
+  // unique-precedence rule), so the legend key can omit categories no building
+  // ever falls into. Computed once — the building set is fixed for the payload.
+  var presentLabelColors = (function () {
+    var set = {};
+    Object.keys(P.buildingInfo).forEach(function (name) {
+      set[labelColor(name)] = true;
+    });
+    return set;
+  })();
 
   function buildFacet(era, container) {
     var rows = facetData(era);
@@ -318,6 +390,19 @@
       return r.name;
     });
 
+    // Estimated width of one bar: plot width minus the l/r margins, split
+    // across the bars, less Plotly's default category gap (~20%).
+    var avail = Math.max(40, (plot.clientWidth || 380) - 54);
+    var barPx = (rows.length ? avail / rows.length : avail) * 0.8;
+    var allVals = [];
+    rows.forEach(function (r) {
+      SEGMENTS.forEach(function (seg) {
+        if (r[seg.key]) allVals.push(r[seg.key]);
+      });
+    });
+    var decimals = labelDecimals(allVals, barPx);
+    var showText = decimals >= 0;
+
     var traces = SEGMENTS.map(function (seg) {
       var vals = rows.map(function (r) {
         return r[seg.key];
@@ -328,8 +413,12 @@
         x: x,
         y: vals,
         marker: { color: seg.color },
-        text: vals.map(fmt),
-        texttemplate: "%{text}",
+        text: showText
+          ? vals.map(function (v) {
+              return fmt(v, decimals);
+            })
+          : undefined,
+        texttemplate: showText ? "%{text}" : undefined,
         // Place inside when it fits, otherwise on top of the bar; never rotate.
         textposition: "auto",
         textangle: 0,
@@ -353,6 +442,9 @@
         type: "category",
         categoryorder: "array",
         categoryarray: x,
+        tickmode: "array",
+        tickvals: x.map(function (_, i) { return i; }),
+        ticktext: coloredTicks(x),
         tickangle: -40,
         automargin: true,
         gridcolor: "rgba(255,255,255,0.04)",
@@ -394,6 +486,10 @@
     eras.forEach(function (era) {
       buildFacet(era, grid);
     });
+
+    // Rebuild the legend so its category key reflects the current type-filter
+    // selection (categories are hidden when their filter is toggled off).
+    buildLegend();
   }
 
   function buildLegend() {
@@ -409,6 +505,24 @@
       label.textContent = seg.label;
       item.appendChild(sw);
       item.appendChild(label);
+      host.appendChild(item);
+    });
+    // Key for the x-axis label colors (building categories). Each entry shows
+    // only when the dataset actually contains a building of that color AND the
+    // matching type filter is currently enabled.
+    [
+      { type: "unique", color: "#5aa9e6", label: "Unique Building" },
+      { type: "nw", color: "#f0a24e", label: "National Wonder" },
+      { type: "ww", color: "#e35d3b", label: "World Wonder" },
+    ].forEach(function (c) {
+      if (!presentLabelColors[c.color] || !state.types.has(c.type)) return;
+      var item = document.createElement("div");
+      item.className = "legend-item";
+      var lab = document.createElement("span");
+      lab.style.color = c.color;
+      lab.style.fontWeight = "600";
+      lab.textContent = c.label;
+      item.appendChild(lab);
       host.appendChild(item);
     });
   }
@@ -534,7 +648,6 @@
   buildFilterEraControls();
   buildFilterTypeControls();
   buildBuildingList();
-  buildLegend();
   render();
 
   // Expose this report's render so the shared chrome + report switcher can reflow it.

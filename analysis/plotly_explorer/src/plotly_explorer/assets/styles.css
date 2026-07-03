@@ -261,9 +261,10 @@ html, body {
   text-align: right;
 }
 
-/* ---- Building / belief list ---- */
+/* ---- Building / belief / civ list ---- */
 #building-list,
-#belief-list {
+#belief-list,
+#civ-list {
   margin-top: 6px;
   overflow-y: auto;
   flex: 1 1 auto;

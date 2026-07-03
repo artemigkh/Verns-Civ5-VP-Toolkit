@@ -246,9 +246,26 @@
     return rows;
   }
 
-  function fmt(v) {
+  function fmt(v, decimals) {
     if (!v) return "";
-    return v.toFixed(2);
+    return v.toFixed(decimals);
+  }
+
+  // Dynamic bar-label precision (same scheme as the building report): shrink
+  // from 2 decimals to 0 as bars narrow; omit labels once fewer than 3
+  // characters (or the integer part) would fit.
+  var LABEL_CHAR_PX = 6; // approx digit width at the 10px annotation font
+  function labelDecimals(values, barPx) {
+    var maxAbs = 0;
+    values.forEach(function (v) {
+      maxAbs = Math.max(maxAbs, Math.abs(v));
+    });
+    var intDigits = maxAbs >= 1 ? Math.floor(Math.log10(maxAbs)) + 1 : 1;
+    var fits = Math.floor(barPx / LABEL_CHAR_PX);
+    if (fits < 3 || fits < intDigits) return -1; // omit labels entirely
+    if (fits >= intDigits + 3) return 2; // room for "12.34"
+    if (fits >= intDigits + 2) return 1; // room for "12.3"
+    return 0;
   }
 
   function buildFacet(era, container) {
@@ -271,13 +288,24 @@
       return r.value;
     });
 
+    // Estimated width of one bar: plot width minus the l/r margins, split
+    // across the bars, less Plotly's default category gap (~20%).
+    var avail = Math.max(40, (plot.clientWidth || 380) - 54);
+    var barPx = (rows.length ? avail / rows.length : avail) * 0.8;
+    var decimals = labelDecimals(y, barPx);
+    var showText = decimals >= 0;
+
     var trace = {
       type: "bar",
       x: x,
       y: y,
       marker: { color: rows.map(function (r) { return r.color; }) },
-      text: y.map(fmt),
-      texttemplate: "%{text}",
+      text: showText
+        ? y.map(function (v) {
+            return fmt(v, decimals);
+          })
+        : undefined,
+      texttemplate: showText ? "%{text}" : undefined,
       textposition: "auto",
       textangle: 0,
       insidetextanchor: "middle",

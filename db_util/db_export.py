@@ -10,7 +10,7 @@ visualization scripts and the analysis notebooks:
     * civ_flavors.csv         - civ -> per-flavor pivot + leader personality
     * beliefs.csv             - religion belief metadata
     * unique_buildings.json   - base building -> list of unique replacements
-    * building_info.csv       - per-building era / wonder / religious flags
+    * building_info.csv       - per-building era / wonder / religious / corp flags
     * unit_info.csv           - per-unit combat class / domain / unique flag
     * unique_units.json       - base unit -> list of unique replacements
 
@@ -418,6 +418,31 @@ def export_beliefs(
     print(f"Wrote {out_path} ({len(df)} beliefs)")
 
 
+def _corp_building_types(
+    cnx: sqlite3.Connection,
+) -> tuple[set[str], set[str]]:
+    """Return (hq_types, office_types): the concrete building Types that serve as
+    corporation headquarters and offices.
+
+    ``Corporations`` references building *classes* (HeadquartersBuildingClass /
+    OfficeBuildingClass); each class's ``DefaultBuilding`` is the building Type
+    that appears in ``Buildings``.
+    """
+
+    def resolve(class_column: str) -> set[str]:
+        rows = cnx.execute(
+            f"""
+            SELECT bc.DefaultBuilding
+            FROM Corporations c
+            JOIN BuildingClasses bc ON c.{class_column} = bc.Type
+            WHERE bc.DefaultBuilding IS NOT NULL
+            """
+        ).fetchall()
+        return {r[0] for r in rows}
+
+    return resolve("HeadquartersBuildingClass"), resolve("OfficeBuildingClass")
+
+
 def export_building_info(
     cnx: sqlite3.Connection, txt_lut: dict[str, str], out_path: Path
 ) -> None:
@@ -443,6 +468,13 @@ def export_building_info(
 
     df["building"] = df["Description"].map(lambda k: txt_lut.get(k, k))
 
+    # Corporation buildings: each corporation defines a headquarters and an
+    # office building *class*; the class's DefaultBuilding is the concrete
+    # building Type we flag here.
+    corp_hq_types, corp_office_types = _corp_building_types(cnx)
+    df["is_corp_hq"] = df["Type"].isin(corp_hq_types)
+    df["is_corp_office"] = df["Type"].isin(corp_office_types)
+
     def resolve_era(row: pd.Series) -> str | None:
         if pd.notna(row["EraDescription"]):
             era_text = txt_lut.get(row["EraDescription"], row["EraDescription"])
@@ -450,19 +482,41 @@ def export_building_info(
         if row["UnlockedByBelief"] == 1:
             # Religious buildings are unlocked by faith/religion, not a tech era.
             return None
+        if row["is_corp_hq"] or row["is_corp_office"]:
+            # Corporation buildings are unlocked by founding a corporation, not a
+            # tech era, so they carry no era and are gated solely by the type
+            # filter (the "Corporations" chip), mirroring religious buildings.
+            return None
         return "Ancient"
 
     df["era"] = df.apply(resolve_era, axis=1)
-    df["is_world_wonder"] = (df["MaxGlobalInstances"] == 1)
+    # Corp headquarters have MaxGlobalInstances == 1 (one per game), which would
+    # otherwise flag them as world wonders; exclude them so the Corporations
+    # filter is their sole control.
+    df["is_world_wonder"] = (df["MaxGlobalInstances"] == 1) & ~df["is_corp_hq"]
     df["is_national_wonder"] = (df["MaxPlayerInstances"] == 1) & (df["MaxGlobalInstances"] != 1)
     # Religious: unlocked by belief AND low FaithCost (<=250 covers the 0-cost belief
     # national wonders and the 200-cost follower buildings, but excludes ideology
     # buildings that are also faith-purchasable at 300+ faith).
     df["is_religious"] = (df["UnlockedByBelief"] == 1) & (df["FaithCost"] <= 250)
 
-    out_df = df[["building", "era", "is_world_wonder", "is_national_wonder", "is_religious"]]
+    out_df = df[
+        [
+            "building",
+            "era",
+            "is_world_wonder",
+            "is_national_wonder",
+            "is_religious",
+            "is_corp_hq",
+            "is_corp_office",
+        ]
+    ]
     out_df.to_csv(out_path, index=False)
-    print(f"Wrote {out_path} ({len(out_df)} buildings)")
+    print(
+        f"Wrote {out_path} ({len(out_df)} buildings, "
+        f"{int(df['is_corp_hq'].sum())} corp HQ, "
+        f"{int(df['is_corp_office'].sum())} corp office)"
+    )
 
 
 def export_unique_buildings(

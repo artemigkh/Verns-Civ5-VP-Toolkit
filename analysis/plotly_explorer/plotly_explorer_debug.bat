@@ -13,8 +13,8 @@ REM --- cd to repo root (two levels up from this script) ----------------
 pushd "%~dp0..\.."
 
 REM --- Configuration (consumed by plotly_explorer.config) -------------
-set "DB_TYPE=sqlite"
-set "DB_PATH=misc/building_yields/stats.db"
+set "DB_TYPE=duckdb"
+set "DB_PATH=misc/building_yields/stats.duckdb"
 set "INTERMEDIATE_DATA_DIR=misc/building_yields/cache"
 set "PUBLISH_DIR=misc/building_yields/public"
 

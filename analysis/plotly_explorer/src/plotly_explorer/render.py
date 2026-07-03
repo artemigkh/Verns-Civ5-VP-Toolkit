@@ -120,13 +120,21 @@ def _building_info_payload(meta: Metadata, buildings: set[str]) -> dict[str, dic
     for name in buildings:
         info = meta.buildings.get(name)
         if info is None:
-            out[name] = {"era": None, "ww": False, "nw": False, "rel": False}
+            out[name] = {
+                "era": None,
+                "ww": False,
+                "nw": False,
+                "rel": False,
+                "corp": False,
+            }
         else:
             out[name] = {
                 "era": info.era,
                 "ww": info.is_world_wonder,
                 "nw": info.is_national_wonder,
                 "rel": info.is_religious,
+                # Corp HQ and office share a single "Corporations" filter chip.
+                "corp": info.is_corp_hq or info.is_corp_office,
             }
     return out
 

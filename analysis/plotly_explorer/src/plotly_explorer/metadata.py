@@ -58,6 +58,8 @@ class BuildingInfo:
     is_world_wonder: bool
     is_national_wonder: bool
     is_religious: bool
+    is_corp_hq: bool = False
+    is_corp_office: bool = False
     is_unique: bool = False
     replaces: str | None = None  # base building this unique replaces
 
@@ -100,6 +102,8 @@ def load_metadata() -> Metadata:
             is_world_wonder=_parse_bool(row["is_world_wonder"]),
             is_national_wonder=_parse_bool(row["is_national_wonder"]),
             is_religious=_parse_bool(row["is_religious"]),
+            is_corp_hq=_parse_bool(row.get("is_corp_hq", "")),
+            is_corp_office=_parse_bool(row.get("is_corp_office", "")),
             is_unique=name in unique_to_base,
             replaces=unique_to_base.get(name),
         )

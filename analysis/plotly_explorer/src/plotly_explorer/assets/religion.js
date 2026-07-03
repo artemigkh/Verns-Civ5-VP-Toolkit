@@ -30,6 +30,42 @@
     return fallbackCache[y];
   }
 
+  // Label color by belief category: Pantheons white, the other four a distinct
+  // dark-theme palette. A belief->type index (inverted from beliefsByType) maps
+  // each x-axis label to its category color.
+  var BELIEF_TYPE_COLORS = {
+    Pantheon: "#ffffff", // white
+    Founder: "#f0a24e", // amber
+    Follower: "#5aa9e6", // blue
+    Enhancer: "#63d471", // green
+    Reformation: "#c084f5", // purple
+  };
+  var BELIEF_TYPE_DEFAULT = "#aab4c4";
+  var beliefToType = {};
+  P.beliefTypes.forEach(function (t) {
+    (P.beliefsByType[t] || []).forEach(function (b) {
+      beliefToType[b] = t;
+    });
+  });
+  function beliefColor(name) {
+    return BELIEF_TYPE_COLORS[beliefToType[name]] || BELIEF_TYPE_DEFAULT;
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function coloredTicks(names) {
+    return names.map(function (name) {
+      return (
+        '<span style="color:' + beliefColor(name) + '">' + esc(name) + "</span>"
+      );
+    });
+  }
+
   // Lighten a color toward white (amt in [0,1]) for the Follower segment.
   function lighten(color, amt) {
     var rgb = toRgb(color);
@@ -169,7 +205,6 @@
           syncSelection();
           buildYieldControls();
           buildBeliefList();
-          buildLegend();
           render();
         })
       );
@@ -205,7 +240,6 @@
           if (state.benefactors.has(o.key)) state.benefactors.delete(o.key);
           else state.benefactors.add(o.key);
           buildBenefactorControls();
-          buildLegend();
           render();
         })
       );
@@ -339,6 +373,37 @@
     });
   }
 
+  function fmt(v, decimals) {
+    if (!v) return "";
+    return v.toFixed(decimals);
+  }
+
+  // Dynamic bar-label precision (same scheme as the other reports): shrink from
+  // 2 decimals to 0 as bars narrow; omit labels once fewer than 3 characters
+  // (or the integer part) would fit.
+  var LABEL_CHAR_PX = 6; // approx digit width at the 10px annotation font
+  function labelDecimals(values, barPx) {
+    var maxAbs = 0;
+    values.forEach(function (v) {
+      maxAbs = Math.max(maxAbs, Math.abs(v));
+    });
+    var intDigits = maxAbs >= 1 ? Math.floor(Math.log10(maxAbs)) + 1 : 1;
+    var fits = Math.floor(barPx / LABEL_CHAR_PX);
+    if (fits < 3 || fits < intDigits) return -1; // omit labels entirely
+    if (fits >= intDigits + 3) return 2; // room for "12.34"
+    if (fits >= intDigits + 2) return 1; // room for "12.3"
+    return 0;
+  }
+
+  // Inside-label ink: dark on light bars, light on dark ones (the yield palette
+  // spans white through deep brown/blue), chosen by perceived luminance.
+  function insideTextColor(color) {
+    var rgb = toRgb(color);
+    if (!rgb) return "#0e1117";
+    var lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+    return lum > 150 ? "#0e1117" : "#f2f5fa";
+  }
+
   function makeTrace(y, who, color, beliefs, bucket, era) {
     var vals = beliefs.map(function (b) {
       var cell = cellOf(bucket, y, era, b);
@@ -394,6 +459,34 @@
       }
     });
 
+    // Dynamic value labels: each belief group is split into one side-by-side
+    // slot per selected yield, so a bar is that much narrower than the group.
+    var numYields = yields.length || 1;
+    var avail = Math.max(40, (plot.clientWidth || 380) - 54);
+    var barPx =
+      ((beliefs.length ? avail / beliefs.length : avail) * 0.8) / numYields;
+    var allVals = [];
+    traces.forEach(function (t) {
+      t.y.forEach(function (v) {
+        if (v) allVals.push(v);
+      });
+    });
+    var decimals = labelDecimals(allVals, barPx);
+    if (decimals >= 0) {
+      traces.forEach(function (t) {
+        t.text = t.y.map(function (v) {
+          return fmt(v, decimals);
+        });
+        t.texttemplate = "%{text}";
+        t.textposition = "auto";
+        t.textangle = 0;
+        t.insidetextanchor = "middle";
+        t.constraintext = "none";
+        t.insidetextfont = { size: 10, color: insideTextColor(t.marker.color) };
+        t.outsidetextfont = { size: 10, color: "#d7dde7" };
+      });
+    }
+
     var layout = {
       // "relative" stacks traces that share an offsetgroup (owner+follower of one
       // yield) while placing different offsetgroups (different yields) side by side.
@@ -406,9 +499,17 @@
         type: "category",
         categoryorder: "array",
         categoryarray: beliefs,
+        tickmode: "array",
+        tickvals: beliefs.map(function (_, i) { return i; }),
+        ticktext: coloredTicks(beliefs),
         tickangle: -40,
         automargin: true,
-        gridcolor: "rgba(255,255,255,0.04)",
+        // Draw the vertical grid lines on the category boundaries (between
+        // belief groups) rather than through each label's center, so the bars
+        // of one belief read as a single cluster even when a middle yield is 0.
+        tickson: "boundaries",
+        showgrid: true,
+        gridcolor: "rgba(255,255,255,0.14)",
       },
       yaxis: {
         title: { text: "Yield", font: { size: 11 } },
@@ -456,6 +557,11 @@
     eras.forEach(function (era) {
       buildFacet(era, grid);
     });
+
+    // Rebuild the legend here so its per-belief color key always mirrors the
+    // beliefs currently plotted (they change with selection, filters, eras,
+    // and the top-N cap — paths that only call render()).
+    buildLegend();
   }
 
   function legendItem(color, label, italic) {
@@ -476,6 +582,25 @@
     return item;
   }
 
+  // Beliefs actually plotted across the displayed eras (union, sorted), so the
+  // legend's per-belief color key mirrors the colored x-axis labels.
+  function plottedBeliefs() {
+    var bucket = P.data[state.metric] || {};
+    var seen = {};
+    var out = [];
+    P.eraOrder.forEach(function (era) {
+      if (!state.displayEras.has(era)) return;
+      orderedBeliefs(era, bucket).forEach(function (b) {
+        if (!seen[b]) {
+          seen[b] = 1;
+          out.push(b);
+        }
+      });
+    });
+    out.sort();
+    return out;
+  }
+
   function buildLegend() {
     var host = document.getElementById("rel-legend");
     host.innerHTML = "";
@@ -485,6 +610,24 @@
     if (state.benefactors.has("owner") && state.benefactors.has("follower")) {
       host.appendChild(legendItem(null, "Lighter shade = Follower", true));
     }
+    // Belief-category color key: each category present among the plotted
+    // beliefs, shown once in its label color (Pantheons white; others palette).
+    var present = {};
+    plottedBeliefs().forEach(function (b) {
+      var t = beliefToType[b];
+      if (t) present[t] = 1;
+    });
+    P.beliefTypes.forEach(function (t) {
+      if (!present[t]) return;
+      var item = document.createElement("div");
+      item.className = "legend-item";
+      var lab = document.createElement("span");
+      lab.style.color = BELIEF_TYPE_COLORS[t] || BELIEF_TYPE_DEFAULT;
+      lab.style.fontWeight = "600";
+      lab.textContent = SECTION_LABEL[t] || t;
+      item.appendChild(lab);
+      host.appendChild(item);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -498,7 +641,6 @@
   buildTopNControls();
   buildFilterTypeControls();
   buildBeliefList();
-  buildLegend();
   render();
 
   window.ReligionReport = { render: render };
