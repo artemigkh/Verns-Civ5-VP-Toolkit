@@ -378,6 +378,26 @@
     return v.toFixed(decimals);
   }
 
+  // Compact sample-size formatting for the tooltip "n=…" line: at most 3
+  // significant digits, SI-suffixed (5.21 K, 6.32 M) once past 999.
+  function fmtCount(n) {
+    n = n || 0;
+    if (n < 1000) return String(Math.round(n));
+    var units = [
+      { d: 1e9, s: "B" },
+      { d: 1e6, s: "M" },
+      { d: 1e3, s: "K" },
+    ];
+    for (var i = 0; i < units.length; i++) {
+      if (n >= units[i].d) {
+        var v = n / units[i].d;
+        var str = v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+        return str + " " + units[i].s;
+      }
+    }
+    return String(Math.round(n));
+  }
+
   // Dynamic bar-label precision (same scheme as the other reports): shrink from
   // 2 decimals to 0 as bars narrow; omit labels once fewer than 3 characters
   // (or the integer part) would fit.
@@ -405,23 +425,36 @@
   }
 
   function makeTrace(y, who, color, beliefs, bucket, era) {
+    var nKey = who === "follower" ? "nFollower" : "nOwner";
     var vals = beliefs.map(function (b) {
       var cell = cellOf(bucket, y, era, b);
       return cell ? cell[who] || 0 : 0;
     });
     var suffix = who === "follower" ? " (Follower)" : " (Owner)";
+    // [plain belief name, sample size]. The name is fed through customdata (not
+    // %{x}) so the tooltip renders it in the legible hoverlabel color rather than
+    // the belief-category color baked into the axis ticktext.
+    var custom = beliefs.map(function (b) {
+      var cell = cellOf(bucket, y, era, b);
+      return [b, fmtCount(cell ? cell[nKey] || 0 : 0)];
+    });
     return {
       type: "bar",
       name: y + suffix,
       x: beliefs,
       y: vals,
+      customdata: custom,
       marker: {
         color: color,
         line: { color: "rgba(0,0,0,0.25)", width: who === "follower" ? 0.5 : 0 },
       },
       offsetgroup: y, // same yield → side-by-side slot; owner+follower stack within it
       cliponaxis: false,
-      hovertemplate: "%{x}<br>" + y + suffix + ": %{y:.2f}<extra></extra>",
+      // Legible tooltip ink (black/white on the bar-colored label) instead of
+      // inheriting the belief-category coloring used on the axis labels.
+      hoverlabel: { font: { color: insideTextColor(color) } },
+      hovertemplate:
+        "%{customdata[0]}<br>" + y + suffix + ": %{y:.2f}<br>n=%{customdata[1]}<extra></extra>",
       showlegend: false,
     };
   }
@@ -536,6 +569,10 @@
     document.getElementById("rel-chart-title").textContent =
       "Religious Belief Yields " +
       (state.metric === "turn" ? "(Per-Turn Average)" : "(Era Totals)");
+    document.getElementById("rel-chart-subtitle").textContent =
+      state.metric === "turn"
+        ? "Average per-turn yields produced by a belief across all sources within within each era"
+        : "Average yields produced by a belief across all sources across each era";
 
     var grid = document.getElementById("rel-facet-grid");
     grid.innerHTML = "";
@@ -655,13 +692,22 @@
 
   // report value -> { class on #app, the report module exposing render() }
   var REPORTS = {
+    civs: { cls: "show-civs", mod: "CivsReport" },
     building: { cls: "show-building", mod: "BuildingReport" },
     religion: { cls: "show-religion", mod: "ReligionReport" },
     units: { cls: "show-units", mod: "UnitsReport" },
+    religion_performance: {
+      cls: "show-religion_performance",
+      mod: "ReligionPerformanceReport",
+    },
+    policies_performance: {
+      cls: "show-policies_performance",
+      mod: "PoliciesPerformanceReport",
+    },
   };
 
   function apply() {
-    var target = REPORTS[sel.value] || REPORTS.building;
+    var target = REPORTS[sel.value] || REPORTS.civs;
     Object.keys(REPORTS).forEach(function (key) {
       app.classList.toggle(REPORTS[key].cls, REPORTS[key] === target);
     });

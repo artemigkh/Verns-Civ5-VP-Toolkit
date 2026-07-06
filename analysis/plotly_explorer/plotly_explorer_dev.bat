@@ -43,7 +43,7 @@ uv sync --project analysis/plotly_explorer || (echo uv sync failed & set "ERR=1"
 
 echo [plotly_explorer] DB_PATH=%DB_PATH%
 echo [plotly_explorer] PUBLISH_DIR=%PUBLISH_DIR%
-uv run --project analysis/plotly_explorer python -u -m plotly_explorer%PY_ARGS%
+uv run --project analysis/plotly_explorer python -u -m plotly_explorer --patch 5.3.3 --difficulty Emperor --mapscript "Communitu 3.2.0" --size "Standard"%PY_ARGS%
 set ERR=%ERRORLEVEL%
 
 if "%ERR%"=="0" (

@@ -237,7 +237,12 @@
       var v = bucket[u];
       if (!v) return;
       var info = P.unitInfo[u] || {};
-      rows.push({ name: u, value: v, color: CAT_COLOR[info.category] || "#888888" });
+      rows.push({
+        name: u,
+        value: v.avg || 0,
+        n: v.n || 0,
+        color: CAT_COLOR[info.category] || "#888888",
+      });
     });
     rows.sort(function (a, b) {
       return b.value - a.value;
@@ -249,6 +254,36 @@
   function fmt(v, decimals) {
     if (!v) return "";
     return v.toFixed(decimals);
+  }
+
+  // Compact sample-size formatting for the tooltip "n=…" line: at most 3
+  // significant digits, SI-suffixed (5.21 K, 6.32 M) once past 999.
+  function fmtCount(n) {
+    n = n || 0;
+    if (n < 1000) return String(Math.round(n));
+    var units = [
+      { d: 1e9, s: "B" },
+      { d: 1e6, s: "M" },
+      { d: 1e3, s: "K" },
+    ];
+    for (var i = 0; i < units.length; i++) {
+      if (n >= units[i].d) {
+        var v = n / units[i].d;
+        var str = v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+        return str + " " + units[i].s;
+      }
+    }
+    return String(Math.round(n));
+  }
+
+  // Legible tooltip ink: black on light backgrounds, near-white on dark ones,
+  // chosen by perceived luminance of the hover label's (bar-colored) background.
+  function contrastInk(hex) {
+    var h = String(hex).replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    var lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+    return lum > 150 ? "#0e1117" : "#f2f5fa";
   }
 
   // Dynamic bar-label precision (same scheme as the building report): shrink
@@ -300,6 +335,12 @@
       x: x,
       y: y,
       marker: { color: rows.map(function (r) { return r.color; }) },
+      // [plain unit name, sample size]. The name is fed through customdata (not
+      // %{x}) so the tooltip renders it in the legible per-bar hoverlabel color
+      // rather than the category color baked into the axis ticktext.
+      customdata: rows.map(function (r) {
+        return [r.name, fmtCount(r.n)];
+      }),
       text: showText
         ? y.map(function (v) {
             return fmt(v, decimals);
@@ -313,7 +354,12 @@
       insidetextfont: { size: 10, color: "#0e1117" },
       outsidetextfont: { size: 10, color: "#d7dde7" },
       cliponaxis: false,
-      hovertemplate: "%{x}<br>Avg count: %{y:.2f}<extra></extra>",
+      // Per-bar legible tooltip ink (black/white against each bar's category
+      // color) instead of inheriting the category coloring.
+      hoverlabel: {
+        font: { color: rows.map(function (r) { return contrastInk(r.color); }) },
+      },
+      hovertemplate: "%{customdata[0]}<br>Avg count: %{y:.2f}<br>n=%{customdata[1]}<extra></extra>",
       showlegend: false,
     };
 

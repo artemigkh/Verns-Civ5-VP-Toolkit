@@ -67,6 +67,22 @@ html, body {
   gap: 14px;
 }
 
+/* The Civs Overview and Religion Performance reports are self-contained
+   dashboards with no per-report controls, so hide the right sidebar (and its
+   chrome) entirely while either is active. The left sidebar keeps only the
+   always-visible Report Type dropdown. */
+#app.show-civs #sidebar-right,
+#app.show-civs #resizer-right,
+#app.show-civs #expand-btn-right,
+#app.show-religion_performance #sidebar-right,
+#app.show-religion_performance #resizer-right,
+#app.show-religion_performance #expand-btn-right,
+#app.show-policies_performance #sidebar-right,
+#app.show-policies_performance #resizer-right,
+#app.show-policies_performance #expand-btn-right {
+  display: none;
+}
+
 #app.collapsed #sidebar,
 #app.collapsed #resizer {
   display: none;
@@ -332,6 +348,13 @@ html, body {
   font-weight: 600;
 }
 
+.chart-subtitle {
+  margin: -10px 0 14px;
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
 #facet-grid,
 #rel-facet-grid,
 #unit-facet-grid {
@@ -416,3 +439,281 @@ html, body {
 
 /* Civs with no data in the dataset are dimmed in the civ list. */
 .b-name.no-data { opacity: 0.45; }
+
+/* ---- Civs Overview report ---- */
+.report-civs { display: none; }
+#app.show-civs .report-civs { display: block; }
+#app.show-civs .report-building { display: none; }
+
+/* Dashboard content is tall, so top-align it (overriding #main-inner's
+   vertical centering) and give it a normal document flow that scrolls. */
+#app.show-civs #main-inner { justify-content: flex-start; }
+
+/* ---- Religion Performance report (fixed dashboard, modeled on Civs) ---- */
+.report-religion_performance { display: none; }
+#app.show-religion_performance .report-religion_performance { display: block; }
+#app.show-religion_performance .report-building { display: none; }
+#app.show-religion_performance #main-inner { justify-content: flex-start; }
+
+/* ---- Policies Performance report (fixed dashboard, modeled on Civs) ---- */
+.report-policies_performance { display: none; }
+#app.show-policies_performance .report-policies_performance { display: block; }
+#app.show-policies_performance .report-building { display: none; }
+#app.show-policies_performance #main-inner { justify-content: flex-start; }
+
+#policies-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.policies-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.policies-table-title {
+  margin: 2px 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.policies-plot { width: 100%; height: 520px; }
+.policies-plot.tall { height: 560px; }
+.policies-plot.short { height: 300px; }
+
+/* ---- Branch-opens shaded table ---- */
+#policies-opens-table { overflow-x: auto; }
+
+#policies-opens-table table {
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+#policies-opens-table th,
+#policies-opens-table td {
+  padding: 4px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+/* No border under the last row, so the table has no bottom perimeter edge
+   (only interior row separators). */
+#policies-opens-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Thicker divider every 3 branch columns (the civ-name column and the outer
+   right edge after the last branch are excluded, so the table has no left/right
+   perimeter border either). */
+#policies-opens-table th:not(:first-child):not(:last-child):nth-child(3n+1),
+#policies-opens-table td:not(:first-child):not(:last-child):nth-child(3n+1) {
+  border-right: 2px solid var(--border);
+}
+
+/* Rotated branch column headers keep the 12 columns narrow (as in the mockup).
+   The rotation lives on an inner span (not the <th> itself) so the <th>'s own
+   text-align: center (inherited above) can center that span horizontally over
+   its column, the same way the data cells below it are centered. */
+#policies-opens-table thead th.policies-branch-col {
+  vertical-align: bottom;
+  height: 90px;
+  padding: 8px 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#policies-opens-table thead th.policies-branch-col .policies-branch-label {
+  display: inline-block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+/* First column (civ name) reads left-aligned and sticks while scrolling. */
+#policies-opens-table th:first-child,
+#policies-opens-table td.policies-civ-name {
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+
+#policies-opens-table thead th:first-child {
+  writing-mode: horizontal-tb;
+  transform: none;
+  vertical-align: bottom;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+#relperf-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* Two stacked-bar graphs side by side (founder/follower, enhancer/follower),
+   collapsing to one column on narrow mains. */
+.relperf-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .relperf-row { grid-template-columns: 1fr; }
+}
+
+.relperf-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.relperf-row .relperf-card { margin-bottom: 0; }
+
+.relperf-plot { width: 100%; height: 420px; }
+.relperf-plot.tall { height: 520px; }
+/* The pantheon chart has ~30 beliefs, so give it extra vertical room. */
+.relperf-plot.xtall { height: 900px; }
+
+.relperf-caption {
+  margin: 4px 0 24px;
+  text-align: right;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+#civs-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* KPI card row: business-intelligence style rounded tiles. */
+#civs-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.civs-kpi {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.civs-kpi .kpi-value {
+  margin-top: 8px;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.civs-kpi .kpi-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--text-dim);
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Two graphs side by side (donut + violin), collapsing to one on narrow mains. */
+#civs-mid-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  #civs-mid-row { grid-template-columns: 1fr; }
+}
+
+.civs-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+#civs-mid-row .civs-card { margin-bottom: 0; }
+
+.civs-plot { width: 100%; height: 380px; }
+.civs-plot.tall { height: 480px; }
+
+.civs-table-title {
+  margin: 2px 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---- Civs stats table ---- */
+#civs-table { overflow-x: auto; }
+
+#civs-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+#civs-table th,
+#civs-table td {
+  padding: 6px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+/* First column (civ name) reads left-aligned. */
+#civs-table th:first-child,
+#civs-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+}
+
+#civs-table thead th {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  font-size: 11px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--accent);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+}
+
+#civs-table tbody tr:hover td { background: var(--panel-2); }
+#civs-table tbody tr:hover td:first-child { background: var(--panel-2); }

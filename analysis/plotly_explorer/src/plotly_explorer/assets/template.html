@@ -9,7 +9,7 @@
 </style>
 </head>
 <body>
-<div id="app" class="show-building">
+<div id="app" class="show-civs">
   <button id="expand-btn" class="icon-btn" title="Show controls">&#187;</button>
   <aside id="sidebar">
     <div id="sidebar-head">
@@ -20,7 +20,10 @@
     <section class="panel">
       <h2>Report Type</h2>
       <select id="report-select">
+        <option value="civs">Overview</option>
         <option value="building">Building Yields</option>
+        <option value="policies_performance">Policies Performance</option>
+        <option value="religion_performance">Religion Performance</option>
         <option value="religion">Religion Yields</option>
         <option value="units">Unit Composition</option>
       </select>
@@ -109,14 +112,29 @@
 
   <main id="main">
     <div id="main-inner">
+      <div class="report-civs">
+        <h1 id="civs-title">Overview</h1>
+        <div id="civs-kpi-row"></div>
+        <div id="civs-mid-row">
+          <div class="civs-card"><div id="civs-donut" class="civs-plot"></div></div>
+          <div class="civs-card"><div id="civs-violin" class="civs-plot"></div></div>
+        </div>
+        <div class="civs-card"><div id="civs-winrate" class="civs-plot tall"></div></div>
+        <div class="civs-card">
+          <h2 class="civs-table-title">Civilization Stats</h2>
+          <div id="civs-table"></div>
+        </div>
+      </div>
       <div class="report-building">
         <h1 id="chart-title">Building Production Yield</h1>
+        <p id="chart-subtitle" class="chart-subtitle"></p>
         <div id="legend"></div>
         <div id="facet-grid"></div>
         <p id="empty-msg" hidden>No buildings match the current filters &amp; yield.</p>
       </div>
       <div class="report-religion">
         <h1 id="rel-chart-title">Religious Belief Yield Explorer</h1>
+        <p id="rel-chart-subtitle" class="chart-subtitle"></p>
         <div id="rel-legend"></div>
         <div id="rel-facet-grid"></div>
         <p id="rel-empty-msg" hidden>No beliefs match the current filters &amp; yields.</p>
@@ -126,6 +144,30 @@
         <div id="unit-legend"></div>
         <div id="unit-facet-grid"></div>
         <p id="unit-empty-msg" hidden>No units match the current filters for this civ.</p>
+      </div>
+      <div class="report-religion_performance">
+        <h1 id="relperf-title">Religion Performance</h1>
+        <div class="relperf-card"><div id="relperf-kde" class="relperf-plot tall"></div></div>
+        <div class="relperf-card"><div id="relperf-pantheon" class="relperf-plot xtall"></div></div>
+        <div class="relperf-row">
+          <div class="relperf-card"><div id="relperf-founders" class="relperf-plot"></div></div>
+          <div class="relperf-card"><div id="relperf-followers-found" class="relperf-plot"></div></div>
+        </div>
+        <div class="relperf-row">
+          <div class="relperf-card"><div id="relperf-enhancers" class="relperf-plot"></div></div>
+          <div class="relperf-card"><div id="relperf-followers-enhance" class="relperf-plot"></div></div>
+        </div>
+        <div class="relperf-card"><div id="relperf-reformation" class="relperf-plot tall"></div></div>
+      </div>
+      <div class="report-policies_performance">
+        <h1 id="policies-title">Policies Performance</h1>
+        <div class="policies-card">
+          <h2 class="policies-table-title">Branch Opens by Civilization</h2>
+          <div id="policies-opens-table"></div>
+        </div>
+        <div class="policies-card"><div id="policies-marginal" class="policies-plot short"></div></div>
+        <div class="policies-card"><div id="policies-wins" class="policies-plot tall"></div></div>
+        <div class="policies-card"><div id="policies-winrate" class="policies-plot tall"></div></div>
       </div>
     </div>
   </main>

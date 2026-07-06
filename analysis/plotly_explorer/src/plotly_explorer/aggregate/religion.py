@@ -37,15 +37,17 @@ runs are cheap.
 
 from __future__ import annotations
 
-import os
-
 import pandas as pd
 
 from ..config import CIV_TURN_ERA_TABLE, RELIGION_TABLE, Config
 from ..db import read_table
 from ..metadata import db_era_to_name
+from .cache import ensure_group
 
-# Columns of the emitted CSVs, in order.
+# Columns of the emitted CSVs, in order. ``NOwner`` / ``NFollower`` are the
+# number of (GameId, Civ) player-instances averaged for the owner and follower
+# columns respectively — the sample size behind each, surfaced as the tooltip's
+# "n=…" line.
 OUTPUT_COLUMNS = [
     "Era",
     "BeliefType",
@@ -53,29 +55,9 @@ OUTPUT_COLUMNS = [
     "Yield",
     "YieldTotalForOwner",
     "YieldTotalForFollower",
+    "NOwner",
+    "NFollower",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Caching
-# ---------------------------------------------------------------------------
-
-def _source_mtime(cfg: Config) -> str:
-    return f"{os.path.getmtime(cfg.db_path):.6f}"
-
-
-def _cache_is_fresh(cfg: Config) -> bool:
-    if not (
-        cfg.religion_era_totals_path.exists()
-        and cfg.religion_turn_average_path.exists()
-    ):
-        return False
-    if not cfg.religion_source_mtime_path.exists():
-        return False
-    return (
-        cfg.religion_source_mtime_path.read_text(encoding="utf-8").strip()
-        == _source_mtime(cfg)
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -156,33 +138,40 @@ def _build_summaries(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
     #   * turn_average -> mean per-turn value one benefitting player can expect.
     #   * era_totals   -> mean value across all the turns of the era.
     s3_keys = ["Era", "BeliefType", "Belief", "Yield", "IsReligionOwner"]
-    turn_average = (
-        stage2.groupby(s3_keys, as_index=False)["PlayerPerTurn"]
-        .mean()
-        .rename(columns={"PlayerPerTurn": "PerTurnAvg"})
+    turn_average = stage2.groupby(s3_keys, as_index=False).agg(
+        PerTurnAvg=("PlayerPerTurn", "mean"),
+        N=("PlayerPerTurn", "size"),
     )
-    era_totals = (
-        stage2.groupby(s3_keys, as_index=False)["PlayerEraTotal"]
-        .mean()
-        .rename(columns={"PlayerEraTotal": "PerTurnAvg"})
+    era_totals = stage2.groupby(s3_keys, as_index=False).agg(
+        PerTurnAvg=("PlayerEraTotal", "mean"),
+        N=("PlayerEraTotal", "size"),
     )
 
     return _finalize(era_totals), _finalize(turn_average)
 
 
 def _finalize(df: pd.DataFrame) -> pd.DataFrame:
-    """Pivot owner flag into the two value columns, map era, order rows/cols."""
-    pivot = df.pivot_table(
-        index=["Era", "BeliefType", "Belief", "Yield"],
-        columns="IsReligionOwner",
-        values="PerTurnAvg",
-        fill_value=0.0,
-    ).reset_index()
+    """Pivot owner flag into the value + sample-count columns, map era, order."""
+    index = ["Era", "BeliefType", "Belief", "Yield"]
+    values = df.pivot_table(
+        index=index, columns="IsReligionOwner", values="PerTurnAvg", fill_value=0.0
+    ).rename(columns={1: "YieldTotalForOwner", 0: "YieldTotalForFollower"})
+    counts = df.pivot_table(
+        index=index, columns="IsReligionOwner", values="N", fill_value=0
+    ).rename(columns={1: "NOwner", 0: "NFollower"})
+
+    pivot = values.join(counts).reset_index()
     pivot.columns.name = None
-    pivot = pivot.rename(columns={1: "YieldTotalForOwner", 0: "YieldTotalForFollower"})
-    for col in ("YieldTotalForOwner", "YieldTotalForFollower"):
+    for col, default in (
+        ("YieldTotalForOwner", 0.0),
+        ("YieldTotalForFollower", 0.0),
+        ("NOwner", 0),
+        ("NFollower", 0),
+    ):
         if col not in pivot.columns:
-            pivot[col] = 0.0
+            pivot[col] = default
+    pivot["NOwner"] = pivot["NOwner"].astype(int)
+    pivot["NFollower"] = pivot["NFollower"].astype(int)
 
     pivot["Era"] = pivot["Era"].map(db_era_to_name)
     pivot = pivot.dropna(subset=["Era"])
@@ -197,19 +186,10 @@ def _finalize(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def ensure_religion_summaries(cfg: Config, *, force: bool = False) -> None:
-    """Generate the two religion summary CSVs if the cache is stale (or ``force``)."""
-    cfg.intermediate_data_dir.mkdir(parents=True, exist_ok=True)
-
-    if not force and _cache_is_fresh(cfg):
-        print(f"[religion] cache fresh, reusing {cfg.intermediate_data_dir}")
-        return
-
-    print(f"[religion] building summaries from {cfg.db_path} ({cfg.db_type})")
-    era_totals, turn_average = _build_summaries(cfg)
-    era_totals.to_csv(cfg.religion_era_totals_path, index=False)
-    turn_average.to_csv(cfg.religion_turn_average_path, index=False)
-    cfg.religion_source_mtime_path.write_text(_source_mtime(cfg), encoding="utf-8")
-    print(
-        f"[religion] wrote {len(era_totals)} era-total rows and "
-        f"{len(turn_average)} turn-average rows"
+    """Generate the two religion summary CSVs if either is stale (or ``force``)."""
+    ensure_group(
+        cfg,
+        [cfg.religion_era_totals_path, cfg.religion_turn_average_path],
+        lambda: _build_summaries(cfg),
+        force=force,
     )

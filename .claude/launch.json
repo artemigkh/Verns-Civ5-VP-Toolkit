@@ -12,6 +12,18 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8753", "--directory", "misc/building_yields/public"],
       "port": 8753
+    },
+    {
+      "name": "explorer-dev-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8777", "--directory", "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"],
+      "port": 8777
+    },
+    {
+      "name": "explorer-beeswarm-check",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8791", "--directory", "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"],
+      "port": 8791
     }
   ]
 }

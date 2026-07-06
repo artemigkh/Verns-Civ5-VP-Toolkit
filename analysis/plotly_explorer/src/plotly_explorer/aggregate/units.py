@@ -18,35 +18,17 @@ a sidecar file), so repeat runs are cheap.
 
 from __future__ import annotations
 
-import os
-
 import pandas as pd
 
 from ..config import Config
 from ..db import read_table
 from ..metadata import db_era_to_name
+from .cache import ensure_csv
 
-# Columns of the emitted CSV, in order.
-OUTPUT_COLUMNS = ["Era", "Civ", "Unit", "AvgCount"]
-
-
-# ---------------------------------------------------------------------------
-# Caching
-# ---------------------------------------------------------------------------
-
-def _source_mtime(cfg: Config) -> str:
-    return f"{os.path.getmtime(cfg.db_path):.6f}"
-
-
-def _cache_is_fresh(cfg: Config) -> bool:
-    if not cfg.unit_summary_path.exists():
-        return False
-    if not cfg.unit_source_mtime_path.exists():
-        return False
-    return (
-        cfg.unit_source_mtime_path.read_text(encoding="utf-8").strip()
-        == _source_mtime(cfg)
-    )
+# Columns of the emitted CSV, in order. ``N`` is the number of underlying data
+# points ``AvgCount`` is averaged over — the distinct snapshot turns the civ
+# spent in the era (the divisor) — and drives the tooltip's "n=…" sample line.
+OUTPUT_COLUMNS = ["Era", "Civ", "Unit", "AvgCount", "N"]
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +65,8 @@ def _build_summary(cfg: Config) -> pd.DataFrame:
 
     merged = counts.merge(turns, on=["Civ", "Era"], how="left")
     merged["AvgCount"] = merged["TotalCount"] / merged["CivTurns"]
+    # Sample size = the divisor (snapshot turns the average is taken over).
+    merged["N"] = merged["CivTurns"].fillna(0).astype(int)
 
     return _finalize(merged)
 
@@ -101,15 +85,5 @@ def _finalize(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def ensure_unit_summaries(cfg: Config, *, force: bool = False) -> None:
-    """Generate the unit-composition summary CSV if the cache is stale (or ``force``)."""
-    cfg.intermediate_data_dir.mkdir(parents=True, exist_ok=True)
-
-    if not force and _cache_is_fresh(cfg):
-        print(f"[units] cache fresh, reusing {cfg.intermediate_data_dir}")
-        return
-
-    print(f"[units] building summary from {cfg.db_path} ({cfg.db_type})")
-    summary = _build_summary(cfg)
-    summary.to_csv(cfg.unit_summary_path, index=False)
-    cfg.unit_source_mtime_path.write_text(_source_mtime(cfg), encoding="utf-8")
-    print(f"[units] wrote {len(summary)} rows")
+    """Generate the unit-composition summary CSV if it is stale (or ``force``)."""
+    ensure_csv(cfg, cfg.unit_summary_path, lambda: _build_summary(cfg), force=force)

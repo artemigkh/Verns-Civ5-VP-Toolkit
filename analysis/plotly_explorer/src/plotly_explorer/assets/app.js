@@ -294,7 +294,7 @@
       if (!v) return;
       var total = (v.base || 0) + (v.bonus || 0) + (v.instant || 0);
       if (total === 0) return;
-      rows.push({ name: b, base: v.base || 0, bonus: v.bonus || 0, instant: v.instant || 0, total: total });
+      rows.push({ name: b, base: v.base || 0, bonus: v.bonus || 0, instant: v.instant || 0, total: total, n: v.n || 0 });
     });
     rows.sort(function (a, b) {
       return b.total - a.total;
@@ -306,6 +306,36 @@
   function fmt(v, decimals) {
     if (!v) return "";
     return v.toFixed(decimals);
+  }
+
+  // Compact sample-size formatting for the tooltip "n=…" line: at most 3
+  // significant digits, SI-suffixed (5.21 K, 6.32 M) once past 999.
+  function fmtCount(n) {
+    n = n || 0;
+    if (n < 1000) return String(Math.round(n));
+    var units = [
+      { d: 1e9, s: "B" },
+      { d: 1e6, s: "M" },
+      { d: 1e3, s: "K" },
+    ];
+    for (var i = 0; i < units.length; i++) {
+      if (n >= units[i].d) {
+        var v = n / units[i].d;
+        var str = v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+        return str + " " + units[i].s;
+      }
+    }
+    return String(Math.round(n));
+  }
+
+  // Legible tooltip ink: black on light backgrounds, near-white on dark ones,
+  // chosen by perceived luminance of the hover label's (bar-colored) background.
+  function contrastInk(hex) {
+    var h = String(hex).replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    var lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+    return lum > 150 ? "#0e1117" : "#f2f5fa";
   }
 
   // -------------------------------------------------------------------------
@@ -410,6 +440,12 @@
         x: x,
         y: vals,
         marker: { color: seg.color },
+        // [plain building name, sample size]. The name is fed through customdata
+        // (not %{x}) so the tooltip renders it in the legible hoverlabel color
+        // rather than the blue/orange category color baked into the axis ticktext.
+        customdata: rows.map(function (r) {
+          return [r.name, fmtCount(r.n)];
+        }),
         text: showText
           ? vals.map(function (v) {
               return fmt(v, decimals);
@@ -424,7 +460,11 @@
         insidetextfont: { size: 10, color: "#0e1117" },
         outsidetextfont: { size: 10, color: "#d7dde7" },
         cliponaxis: false,
-        hovertemplate: "%{x}<br>" + seg.label + ": %{y:.2f}<extra></extra>",
+        // Tooltip text stays legible (black/white on the bar-colored label)
+        // instead of inheriting the category coloring used on the axis labels.
+        hoverlabel: { font: { color: contrastInk(seg.color) } },
+        hovertemplate:
+          "%{customdata[0]}<br>" + seg.label + ": %{y:.2f}<br>n=%{customdata[1]}<extra></extra>",
         showlegend: false,
       };
     });
@@ -466,6 +506,10 @@
       state.yield +
       " Yield " +
       (state.metric === "turn" ? "(Per-Turn Average)" : "(Era Totals)");
+    document.getElementById("chart-subtitle").textContent =
+      state.metric === "turn"
+        ? "Average per-turn yields produced by an individual building copy within each era"
+        : "Average yields produced by an individual building copy across each era";
 
     var grid = document.getElementById("facet-grid");
     grid.innerHTML = "";
@@ -536,6 +580,12 @@
     var app = document.getElementById("app");
     if (app && app.classList.contains("show-units") && window.UnitsReport) {
       window.UnitsReport.render();
+    } else if (
+      app &&
+      app.classList.contains("show-civs") &&
+      window.CivsReport
+    ) {
+      window.CivsReport.render();
     } else if (
       app &&
       app.classList.contains("show-religion") &&
