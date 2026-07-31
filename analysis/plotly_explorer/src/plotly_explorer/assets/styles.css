@@ -273,6 +273,20 @@ html, body {
   cursor: pointer;
 }
 
+/* The inactive half of a pair of mutually exclusive controls (Displayed Eras vs
+   Turn Bucket): dimmed to show it isn't driving the graphs, but deliberately
+   still interactive — touching it is what hands the mode back to it. */
+.control-muted { opacity: .42; }
+
+/* Bucket slider tick labels (first / current / last) under the range input. */
+.tick-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
 .num-suffix {
   font-size: 13px;
   color: var(--text);

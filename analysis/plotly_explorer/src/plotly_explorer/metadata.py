@@ -51,6 +51,24 @@ def db_era_to_name(db_era: int) -> str | None:
     return ERA_LUT.get(int(db_era) + 1)
 
 
+# Turn buckets: the alternative (era-independent) slicing offered by the religion
+# report, so yields can be read against the game clock instead of the
+# variable-length, per-player eras. Turns outside [START, END) are dropped.
+TURN_BUCKET_START = 50  # inclusive lower edge of the first bucket
+TURN_BUCKET_END = 150  # exclusive upper edge of the last bucket
+TURN_BUCKET_WIDTH = 10
+
+
+def turn_bucket_starts() -> list[int]:
+    """Lower edge of each bucket, in order: [50, 60, ..., 140]."""
+    return list(range(TURN_BUCKET_START, TURN_BUCKET_END, TURN_BUCKET_WIDTH))
+
+
+def turn_bucket_label(start: int) -> str:
+    """Display label for a bucket keyed by its lower edge (50 -> '50-59')."""
+    return f"{int(start)}-{int(start) + TURN_BUCKET_WIDTH - 1}"
+
+
 @dataclass
 class BuildingInfo:
     name: str

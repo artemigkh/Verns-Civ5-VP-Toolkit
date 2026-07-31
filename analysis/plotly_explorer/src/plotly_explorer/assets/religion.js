@@ -133,6 +133,11 @@
     yields: new Set(), // multi-select; populated below
     metric: "turn", // 'turn' | 'total'
     benefactors: new Set(["owner"]), // 'owner' | 'follower'
+    // How the graphs are sliced. The two slicings are mutually exclusive: eras
+    // are per-player and variable length, turn buckets are fixed windows of the
+    // game clock, so mixing them in one view would be meaningless.
+    mode: "eras", // 'eras' | 'bucket'
+    bucket: P.defaultBucket, // active bucket label ("90-99") in bucket mode
     displayEras: new Set(P.defaultDisplayEras),
     types: new Set(P.defaultBeliefTypes), // enabled belief types == sections shown
     topN: 15, // max beliefs shown per facet
@@ -216,7 +221,8 @@
     host.innerHTML = "";
     [
       { key: "turn", label: "Per-Turn Avg" },
-      { key: "total", label: "Era Totals" },
+      // What a "total" sums over follows the active slicing.
+      { key: "total", label: state.mode === "bucket" ? "Bucket Totals" : "Era Totals" },
     ].forEach(function (o) {
       host.appendChild(
         chip(o.label, state.metric === o.key, function () {
@@ -268,19 +274,89 @@
     host.appendChild(value);
   }
 
+  // Displayed Eras and the Turn Bucket slider are two mutually exclusive slicings:
+  // whichever one isn't driving the graphs is dimmed (but stays clickable, so
+  // touching it is what hands the mode back to it).
+  function updateSliceChrome() {
+    buildMetricControls(); // "Era Totals" vs "Bucket Totals"
+    document
+      .getElementById("rel-display-era-controls")
+      .classList.toggle("control-muted", state.mode !== "eras");
+    document
+      .getElementById("rel-turn-bucket-controls")
+      .classList.toggle("control-muted", state.mode !== "bucket");
+  }
+
+  function buildSliceControls() {
+    buildDisplayEraControls();
+    buildTurnBucketControls();
+    updateSliceChrome();
+  }
+
   function buildDisplayEraControls() {
     var host = document.getElementById("rel-display-era-controls");
     host.innerHTML = "";
+    host.classList.toggle("control-muted", state.mode !== "eras");
     P.eraOrder.forEach(function (era) {
+      var on = state.mode === "eras" && state.displayEras.has(era);
       host.appendChild(
-        chip(era, state.displayEras.has(era), function () {
-          if (state.displayEras.has(era)) state.displayEras.delete(era);
-          else state.displayEras.add(era);
-          buildDisplayEraControls();
+        chip(era, on, function () {
+          if (state.mode !== "eras") {
+            // Coming back from bucket mode: this click starts a fresh selection.
+            state.mode = "eras";
+            state.displayEras = new Set([era]);
+          } else if (state.displayEras.has(era)) {
+            state.displayEras.delete(era);
+          } else {
+            state.displayEras.add(era);
+          }
+          buildSliceControls();
           render();
         })
       );
     });
+  }
+
+  function buildTurnBucketControls() {
+    var host = document.getElementById("rel-turn-bucket-controls");
+    host.innerHTML = "";
+    host.classList.toggle("control-muted", state.mode !== "bucket");
+
+    var idx = P.bucketOrder.indexOf(state.bucket);
+    if (idx < 0) idx = 0;
+
+    var input = document.createElement("input");
+    input.type = "range";
+    input.min = "0";
+    input.max = String(P.bucketOrder.length - 1);
+    input.step = "1";
+    input.value = idx;
+    input.className = "slider";
+    input.setAttribute("list", "rel-bucket-ticks");
+
+    // Native tick marks, one per bucket.
+    var ticks = document.createElement("datalist");
+    ticks.id = "rel-bucket-ticks";
+    P.bucketOrder.forEach(function (label, i) {
+      var opt = document.createElement("option");
+      opt.value = i;
+      opt.label = label;
+      ticks.appendChild(opt);
+    });
+
+    input.addEventListener("input", function () {
+      state.bucket = P.bucketOrder[parseInt(input.value, 10)];
+      // Taking the slider takes the mode with it. Only the era chips are rebuilt
+      // (this row must survive intact so a drag isn't cut short by its own input).
+      state.mode = "bucket";
+      state.displayEras.clear();
+      buildDisplayEraControls();
+      updateSliceChrome();
+      render();
+    });
+
+    host.appendChild(input);
+    host.appendChild(ticks);
   }
 
   function buildFilterTypeControls() {
@@ -350,6 +426,23 @@
   // ---------------------------------------------------------------------------
   function cellOf(bucket, y, era, belief) {
     return ((bucket[y] || {})[era] || {})[belief];
+  }
+
+  // The dataset the graphs read from: the slicing picks the payload bucket set
+  // (era-keyed vs turn-bucket-keyed), the metric picks totals vs per-turn average.
+  // Both are keyed the same way, so every lookup below is slicing-agnostic.
+  function activeData() {
+    var src = state.mode === "bucket" ? P.bucketData : P.data;
+    return (src || {})[state.metric] || {};
+  }
+
+  // Slices currently plotted, one facet each: every selected era, or the single
+  // selected turn bucket.
+  function activeSlices() {
+    if (state.mode === "bucket") return state.bucket ? [state.bucket] : [];
+    return P.eraOrder.filter(function (e) {
+      return state.displayEras.has(e);
+    });
   }
 
   function orderedBeliefs(era, bucket) {
@@ -460,14 +553,14 @@
   }
 
   function buildFacet(era, container) {
-    var bucket = P.data[state.metric] || {};
+    var bucket = activeData();
     var beliefs = orderedBeliefs(era, bucket);
 
     var wrap = document.createElement("div");
     wrap.className = "facet";
     var title = document.createElement("div");
     title.className = "facet-title";
-    title.textContent = era;
+    title.textContent = state.mode === "bucket" ? "Turns: " + era : era;
     var plot = document.createElement("div");
     plot.className = "plot";
     wrap.appendChild(title);
@@ -566,20 +659,24 @@
   }
 
   function render() {
+    var window_ = state.mode === "bucket" ? "turn bucket" : "era";
     document.getElementById("rel-chart-title").textContent =
       "Religious Belief Yields " +
-      (state.metric === "turn" ? "(Per-Turn Average)" : "(Era Totals)");
+      (state.metric === "turn"
+        ? "(Per-Turn Average)"
+        : state.mode === "bucket"
+          ? "(Turn Bucket Totals)"
+          : "(Era Totals)");
     document.getElementById("rel-chart-subtitle").textContent =
       state.metric === "turn"
-        ? "Average per-turn yields produced by a belief across all sources within within each era"
-        : "Average yields produced by a belief across all sources across each era";
+        ? "Average per-turn yields produced by a belief across all sources within each " +
+          window_
+        : "Average yields produced by a belief across all sources across each " + window_;
 
     var grid = document.getElementById("rel-facet-grid");
     grid.innerHTML = "";
 
-    var eras = P.eraOrder.filter(function (e) {
-      return state.displayEras.has(e);
-    });
+    var eras = activeSlices();
 
     var hasAny =
       state.selected.size > 0 &&
@@ -622,11 +719,10 @@
   // Beliefs actually plotted across the displayed eras (union, sorted), so the
   // legend's per-belief color key mirrors the colored x-axis labels.
   function plottedBeliefs() {
-    var bucket = P.data[state.metric] || {};
+    var bucket = activeData();
     var seen = {};
     var out = [];
-    P.eraOrder.forEach(function (era) {
-      if (!state.displayEras.has(era)) return;
+    activeSlices().forEach(function (era) {
       orderedBeliefs(era, bucket).forEach(function (b) {
         if (!seen[b]) {
           seen[b] = 1;
@@ -674,7 +770,7 @@
   buildYieldControls();
   buildMetricControls();
   buildBenefactorControls();
-  buildDisplayEraControls();
+  buildSliceControls();
   buildTopNControls();
   buildFilterTypeControls();
   buildBeliefList();

@@ -36,6 +36,9 @@ RELIGION_TABLE = "ReligionBeliefYields"
 CIV_TURN_ERA_TABLE = "civ_turn_era"
 RELIGION_ERA_TOTALS_CSV = "religion_yields_era_totals_summary.csv"
 RELIGION_TURN_AVERAGE_CSV = "religion_yields_turn_average_summary.csv"
+# Same two summaries sliced by 10-turn bucket instead of era (see metadata.py).
+RELIGION_BUCKET_TOTALS_CSV = "religion_yields_turn_bucket_totals_summary.csv"
+RELIGION_BUCKET_AVERAGE_CSV = "religion_yields_turn_bucket_average_summary.csv"
 
 # Unit-composition report.
 UNIT_SUMMARY_CSV = "unit_composition_summary.csv"
@@ -84,6 +87,14 @@ class Config:
     @property
     def religion_turn_average_path(self) -> Path:
         return self.intermediate_data_dir / RELIGION_TURN_AVERAGE_CSV
+
+    @property
+    def religion_bucket_totals_path(self) -> Path:
+        return self.intermediate_data_dir / RELIGION_BUCKET_TOTALS_CSV
+
+    @property
+    def religion_bucket_average_path(self) -> Path:
+        return self.intermediate_data_dir / RELIGION_BUCKET_AVERAGE_CSV
 
     @property
     def unit_summary_path(self) -> Path:

@@ -26,6 +26,8 @@ from .metadata import (
     load_civ_list,
     load_metadata,
     load_unit_metadata,
+    turn_bucket_label,
+    turn_bucket_starts,
 )
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
@@ -210,24 +212,43 @@ def _belief_yields(df: pd.DataFrame) -> dict[str, list[str]]:
     return out
 
 
+def _relabel_buckets(df: pd.DataFrame) -> pd.DataFrame:
+    """Bucket lower edge -> the ``"50-59"`` label, under the shared ``Era`` key.
+
+    Lets the bucket frames reuse ``_religion_nested_data`` (and the client's
+    era-keyed lookup) unchanged — the slice is just keyed by a bucket label.
+    """
+    return df.assign(Era=df["Bucket"].map(turn_bucket_label)).drop(columns=["Bucket"])
+
+
 def build_religion_payload(cfg: Config) -> dict:
     turn_df = pd.read_csv(cfg.religion_turn_average_path)
     total_df = pd.read_csv(cfg.religion_era_totals_path)
-    combined = pd.concat([turn_df, total_df], ignore_index=True)
+    bucket_turn_df = _relabel_buckets(pd.read_csv(cfg.religion_bucket_average_path))
+    bucket_total_df = _relabel_buckets(pd.read_csv(cfg.religion_bucket_totals_path))
+    frames = [turn_df, total_df, bucket_turn_df, bucket_total_df]
+    combined = pd.concat(frames, ignore_index=True)
 
-    present_yields = set(turn_df["Yield"]) | set(total_df["Yield"])
+    bucket_order = [turn_bucket_label(s) for s in turn_bucket_starts()]
 
     return {
-        "yields": _order_yields(present_yields, RELIGION_PREFERRED_YIELD_ORDER),
+        "yields": _order_yields(set(combined["Yield"]), RELIGION_PREFERRED_YIELD_ORDER),
         "beliefTypes": RELIGION_BELIEF_TYPE_ORDER,
         "defaultBeliefTypes": RELIGION_DEFAULT_BELIEF_TYPES,
         "eraOrder": list(ERA_LUT.values()),
         "defaultDisplayEras": DEFAULT_DISPLAY_ERAS,
+        # Alternative (era-independent) slicing: one 10-turn bucket at a time.
+        "bucketOrder": bucket_order,
+        "defaultBucket": bucket_order[len(bucket_order) // 2],
         "beliefsByType": _beliefs_by_type(combined),
         "beliefYields": _belief_yields(combined),
         "data": {
             "turn": _religion_nested_data(turn_df),
             "total": _religion_nested_data(total_df),
+        },
+        "bucketData": {
+            "turn": _religion_nested_data(bucket_turn_df),
+            "total": _religion_nested_data(bucket_total_df),
         },
     }
 
