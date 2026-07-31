@@ -11,6 +11,7 @@ import argparse
 
 from .aggregate import (
     ensure_game_summaries,
+    ensure_instant_yields_summaries,
     ensure_policies_performance_summaries,
     ensure_religion_performance_summaries,
     ensure_religion_summaries,
@@ -45,6 +46,7 @@ def main() -> None:
     ensure_game_summaries(cfg, force=args.force)
     ensure_religion_performance_summaries(cfg, force=args.force)
     ensure_policies_performance_summaries(cfg, force=args.force)
+    ensure_instant_yields_summaries(cfg, force=args.force)
     out = render(
         cfg,
         patch=args.patch,

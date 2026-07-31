@@ -704,6 +704,7 @@
       cls: "show-policies_performance",
       mod: "PoliciesPerformanceReport",
     },
+    instant_yields: { cls: "show-instant_yields", mod: "InstantYieldsReport" },
   };
 
   function apply() {

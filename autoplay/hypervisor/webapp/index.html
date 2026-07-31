@@ -197,6 +197,7 @@
     .btn:hover:not(:disabled) { filter: brightness(1.08); }
     .btn:disabled             { opacity: 0.5; cursor: default; }
     .btn-start   { background: #22c55e; }
+    .btn-resume  { background: #0ea5e9; }
     .btn-stop    { background: #ef4444; }
     .btn-install { background: #6366f1; }
     .btn-sm {
@@ -234,6 +235,7 @@
 
   <section class="controls">
     <button id="btn-start" class="btn btn-start">Start All</button>
+    <button id="btn-resume" class="btn btn-resume">Resume All</button>
     <button id="btn-stop" class="btn btn-stop">Stop All</button>
     <button id="btn-install" class="btn btn-install">Mass Install Modpack…</button>
     <input id="modpack-file" type="file" accept=".zip" hidden />
@@ -489,6 +491,7 @@ function renderRowHtml(r) {
   const recoveries = r.recoveryCount ?? 0;
   const actions = `
     <button class="btn btn-start btn-sm"   data-action="start"   data-uuid="${u}">Start</button>
+    <button class="btn btn-resume btn-sm"  data-action="resume"  data-uuid="${u}">Resume</button>
     <button class="btn btn-stop  btn-sm"   data-action="stop"    data-uuid="${u}">Stop</button>
     <button class="btn btn-install btn-sm" data-action="install" data-uuid="${u}">Install Modpack</button>
   `;
@@ -580,6 +583,7 @@ function renderRunnersGrouped(rows) {
         <h3>${heading} <span class="count">(${list.length} runner${list.length === 1 ? "" : "s"})</span>${turnLabel}</h3>
         <div class="runner-group-controls">
           <button class="btn btn-start btn-sm"   data-group-action="start"   data-uuids="${uuids}">Start All</button>
+          <button class="btn btn-resume btn-sm"  data-group-action="resume"  data-uuids="${uuids}">Resume All</button>
           <button class="btn btn-stop  btn-sm"   data-group-action="stop"    data-uuids="${uuids}">Stop All</button>
           <button class="btn btn-install btn-sm" data-group-action="install" data-uuids="${uuids}">Mass Install Modpack…</button>
         </div>
@@ -817,12 +821,13 @@ groupToggle.addEventListener("change", () => {
 
 const statusEl = document.getElementById("control-status");
 const btnStart = document.getElementById("btn-start");
+const btnResume = document.getElementById("btn-resume");
 const btnStop = document.getElementById("btn-stop");
 const btnInstall = document.getElementById("btn-install");
 const fileInput = document.getElementById("modpack-file");
 
 function setBusy(busy, msg) {
-  [btnStart, btnStop, btnInstall].forEach(b => b.disabled = busy);
+  [btnStart, btnResume, btnStop, btnInstall].forEach(b => b.disabled = busy);
   if (msg !== undefined) statusEl.textContent = msg;
 }
 
@@ -855,6 +860,7 @@ async function broadcast(path, init) {
 }
 
 btnStart.addEventListener("click", () => broadcast("/control/start-all"));
+btnResume.addEventListener("click", () => broadcast("/control/resume-all"));
 btnStop.addEventListener("click", () => broadcast("/control/stop-all"));
 btnInstall.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", async () => {
@@ -893,6 +899,7 @@ function handleRowAction(ev) {
   const uuid = btn.dataset.uuid;
   const action = btn.dataset.action;
   if (action === "start") perRunner(`/control/start/${uuid}`, uuid);
+  else if (action === "resume") perRunner(`/control/resume/${uuid}`, uuid);
   else if (action === "stop") perRunner(`/control/stop/${uuid}`, uuid);
   else if (action === "install") { pendingInstallUuid = uuid; rowFileInput.click(); }
 }
@@ -907,6 +914,7 @@ async function fanOutGroup(label, uuids, makeInit) {
     try {
       const init = makeInit ? makeInit() : { method: "POST" };
       const path = label === "start"   ? `/control/start/${u}`
+                 : label === "resume"  ? `/control/resume/${u}`
                  : label === "stop"    ? `/control/stop/${u}`
                  :                       `/control/install-modpack/${u}`;
       const resp = await fetch(path, init);
@@ -923,6 +931,7 @@ document.getElementById("runners-grouped").addEventListener("click", (ev) => {
   const uuids = (btn.dataset.uuids || "").split(",").filter(Boolean);
   const action = btn.dataset.groupAction;
   if (action === "start") fanOutGroup("start", uuids);
+  else if (action === "resume") fanOutGroup("resume", uuids);
   else if (action === "stop") fanOutGroup("stop", uuids);
   else if (action === "install") { pendingGroupUuids = uuids; groupFileInput.click(); }
 });

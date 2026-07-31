@@ -14,7 +14,7 @@ pushd "%~dp0..\.."
 
 REM --- Configuration (consumed by plotly_explorer.config) -------------
 set "DB_TYPE=duckdb"
-set "DB_PATH=data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/stats.duckdb"
+set "DB_PATH=data/MP_AUTOPLAY_VP_WARLORD_533/stats.duckdb"
 set "INTERMEDIATE_DATA_DIR=data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_cache"
 set "PUBLISH_DIR=docs"
 
@@ -45,7 +45,7 @@ uv sync --project analysis/plotly_explorer || (echo uv sync failed & set "ERR=1"
 
 echo [plotly_explorer] DB_PATH=%DB_PATH%
 echo [plotly_explorer] PUBLISH_DIR=%PUBLISH_DIR%
-uv run --project analysis/plotly_explorer python -u -m plotly_explorer --patch 5.3.3 --difficulty Emperor --mapscript "Communitu 3.2.0" --size "Standard"%PY_ARGS%
+uv run --project analysis/plotly_explorer python -u -m plotly_explorer --patch 5.3.3 --difficulty Warlord --mapscript "Communitu 3.2.0" --size "Standard"%PY_ARGS%
 set ERR=%ERRORLEVEL%
 
 if "%ERR%"=="0" (

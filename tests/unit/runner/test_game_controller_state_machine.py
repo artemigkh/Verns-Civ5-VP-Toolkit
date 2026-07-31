@@ -114,6 +114,107 @@ async def test_start_calls_set_load_on_start_false(
 
 
 # --------------------------------------------------------------------------
+# .resume()
+# --------------------------------------------------------------------------
+
+
+def _make_autosave(user_dir: Path, name: str = "auto_save.Civ5Save") -> Path:
+    save = user_dir / "Saves" / "single" / "auto" / name
+    save.write_bytes(b"fake-save")
+    return save
+
+
+async def test_resume_noop_when_no_autosave(
+    runner_config, state, patched, monkeypatch
+) -> None:
+    # tmp_user_dir creates an empty Saves/single/auto dir -> no autosave.
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    ctrl = GameController(runner_config, state)
+    result = await ctrl.resume()
+    assert result is None
+    assert state.state == RunnerState.idle
+    assert ctrl.is_running is False
+    # Nothing was launched.
+    subprocess.Popen.assert_not_called()
+
+
+async def test_resume_happy_path(runner_config, state, patched, monkeypatch) -> None:
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    _make_autosave(runner_config.user_dir)
+    ctrl = GameController(runner_config, state)
+    game_id = await ctrl.resume()
+    try:
+        assert game_id is not None
+        assert state.state in {RunnerState.starting, RunnerState.running}
+        assert state.current_game_id == game_id
+        assert state.current_game_start_time is not None
+        assert ctrl.is_running
+    finally:
+        await ctrl.stop()
+
+
+async def test_resume_launches_without_automation_and_loads_save(
+    runner_config, state, patched, monkeypatch
+) -> None:
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    _make_autosave(runner_config.user_dir)
+    ctrl = GameController(runner_config, state)
+    await ctrl.resume()
+    try:
+        # loadOnStart must be enabled so the game auto-loads the newest save.
+        gc.set_load_on_start.assert_called()
+        assert gc.set_load_on_start.call_args.kwargs.get("enabled") is True
+        # The exe was launched with NO -Automation argument.
+        cmd = subprocess.Popen.call_args.args[0]
+        assert "-Automation" not in cmd
+    finally:
+        await ctrl.stop()
+
+
+async def test_resume_preserves_logs_and_stats(
+    runner_config, state, patched, monkeypatch
+) -> None:
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    _make_autosave(runner_config.user_dir)
+    # Pre-populate logs + a segment snapshot; resume must NOT wipe them.
+    logs = runner_config.user_dir / "Logs"
+    (logs / "WorldState_Log.csv").write_text("Turn\n42\n")
+    seg_root = runner_config.user_dir / "AutoplayLogSegments" / "prior_game"
+    seg_root.mkdir(parents=True)
+    (seg_root / "x.csv").write_text("y")
+
+    ctrl = GameController(runner_config, state)
+    await ctrl.resume()
+    try:
+        assert (logs / "WorldState_Log.csv").read_text() == "Turn\n42\n"
+        assert (seg_root / "x.csv").exists()
+    finally:
+        await ctrl.stop()
+
+
+async def test_resume_raises_when_already_running(
+    runner_config, state, patched, monkeypatch
+) -> None:
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    _make_autosave(runner_config.user_dir)
+    ctrl = GameController(runner_config, state)
+    await ctrl.start()
+    try:
+        with pytest.raises(GameAlreadyRunningError):
+            await ctrl.resume()
+    finally:
+        await ctrl.stop()
+
+
+async def test_resume_raises_when_no_modpack(runner_config, state, patched) -> None:
+    state.modpack = None
+    _make_autosave(runner_config.user_dir)
+    ctrl = GameController(runner_config, state)
+    with pytest.raises(NoModpackError):
+        await ctrl.resume()
+
+
+# --------------------------------------------------------------------------
 # .stop()
 # --------------------------------------------------------------------------
 

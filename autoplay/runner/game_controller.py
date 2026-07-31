@@ -4,6 +4,7 @@ Owns a single ``GameController`` instance bound to the runner's global state. Th
 public API is:
 
 * ``start()`` — launch the game and spawn an async monitor task
+* ``resume()`` — relaunch from the most recent autosave (no-op if none exists)
 * ``stop()`` — kill the running game tree and clean the logs directory
 
 The monitor task updates turn state, detects completion / process death /
@@ -759,6 +760,70 @@ class GameController:
 
         self._monitor_task = asyncio.create_task(self._monitor(logs_dir, game_id), name="game-monitor")
         logger.info("Game started: gameId=%s modpack=%s", game_id, self._state.modpack)
+        return game_id
+
+    async def resume(self) -> str | None:
+        """Resume the most recent autosave instead of starting a fresh game.
+
+        Mirrors :meth:`start` but, crucially, does **not** wipe the game's
+        ``Logs`` directory / CSV segment snapshots / SQLite ``stats.db``: the
+        autosave being reloaded is a continuation of that same game, and its
+        accumulated stats are what the monitor uses for turn detection and the
+        final completion harvest.
+
+        The launch itself is exactly what crash recovery does — flip the patched
+        ``MainMenu.lua`` ``loadOnStart`` flag to ``True`` and spawn the exe with
+        no ``-Automation`` argument — so the game auto-loads the newest save.
+
+        Returns the new ``game_id`` on launch, or ``None`` when there is no
+        autosave to resume from (a no-op). Callers are expected to have set
+        ``is_scheduling_games`` so the runner returns to normal continuous
+        operation once the resumed game completes.
+        """
+        if self.is_running:
+            raise GameAlreadyRunningError("A game is already in progress.")
+        if not self._cfg.install_dir.is_dir():
+            raise NoInstallError(f"INSTALL_DIR does not exist: {self._cfg.install_dir}")
+        if not self._state.modpack:
+            raise NoModpackError("No modpack installed on this runner.")
+
+        save = await asyncio.to_thread(find_most_recent_autosave, self._cfg.user_dir)
+        if save is None:
+            logger.info(
+                "Resume requested but no autosave found under %s; no-op.", self._cfg.user_dir
+            )
+            return None
+
+        # Unlike start(), do NOT clear Logs / CSV segments / reset stats.db: the
+        # autosave continues the same game and the monitor relies on that
+        # accumulated state for turn detection and the completion harvest.
+        logs_dir = self._cfg.user_dir / "Logs"
+
+        game_id = _make_game_id()
+        await self._log_exe_state_async("resume:before-wait")
+        exe = await self._wait_for_exe()
+        logger.info("Resuming autosave %s (gameId=%s, exists=%s)", save.name, game_id, exe.is_file())
+
+        # Resume launches must auto-load the most recent autosave; flip the
+        # patched MainMenu.lua's ``loadOnStart`` flag to true and launch with no
+        # -Automation argument, exactly like crash recovery.
+        await asyncio.to_thread(set_load_on_start, self._cfg.install_dir, enabled=True)
+        self._proc = await asyncio.to_thread(self._spawn_civ5, exe, [])
+        asyncio.create_task(
+            self._await_process_started(self._proc, _PROC_START_WAIT_SEC),
+            name="proc-startup-watch",
+        )
+
+        with self._state.lock:
+            self._state.state = RunnerState.starting
+            self._state.current_game_id = game_id
+            self._state.current_game_start_time = time.time()
+            self._state.current_game_turn = None
+
+        self._monitor_task = asyncio.create_task(self._monitor(logs_dir, game_id), name="game-monitor")
+        logger.info(
+            "Game resumed: gameId=%s modpack=%s save=%s", game_id, self._state.modpack, save.name
+        )
         return game_id
 
     async def stop(self) -> bool:

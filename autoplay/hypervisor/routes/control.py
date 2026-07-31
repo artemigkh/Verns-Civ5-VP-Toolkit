@@ -92,6 +92,18 @@ async def start_one(request: Request, uuid: str) -> dict[str, object]:
     return {"status": "scheduled", "uuid": uuid}
 
 
+@router.post("/resume/{uuid}", status_code=status.HTTP_202_ACCEPTED)
+async def resume_one(request: Request, uuid: str) -> dict[str, object]:
+    runner = _find_runner(request, uuid)
+
+    async def _do() -> None:
+        async with httpx.AsyncClient() as client:
+            await _post_to_runner(client, runner, "/resume-game")
+
+    _spawn_bg(_do(), name=f"resume-{uuid}")
+    return {"status": "scheduled", "uuid": uuid}
+
+
 @router.post("/stop/{uuid}", status_code=status.HTTP_202_ACCEPTED)
 async def stop_one(request: Request, uuid: str) -> dict[str, object]:
     runner = _find_runner(request, uuid)
@@ -151,6 +163,24 @@ async def start_all(request: Request) -> dict[str, object]:
                 logger.info("start-all -> %s: %s", uuid, result)
 
     _spawn_bg(_do(), name="start-all")
+    return {"status": "scheduled", "count": len(runners)}
+
+
+@router.post("/resume-all", status_code=status.HTTP_202_ACCEPTED)
+async def resume_all(request: Request) -> dict[str, object]:
+    runners = _db(request).list_live_runners(_timeout(request))
+
+    async def _do() -> None:
+        # Fan out concurrently: unlike start-all there is no need to stagger,
+        # since resuming an existing save doesn't seed a fresh game RNG.
+        async with httpx.AsyncClient() as client:
+            results = await asyncio.gather(
+                *(_post_to_runner(client, r, "/resume-game") for r in runners)
+            )
+        for uuid, result in results:
+            logger.info("resume-all -> %s: %s", uuid, result)
+
+    _spawn_bg(_do(), name="resume-all")
     return {"status": "scheduled", "count": len(runners)}
 
 

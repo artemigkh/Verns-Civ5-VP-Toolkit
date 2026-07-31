@@ -40,6 +40,11 @@ RELIGION_TURN_AVERAGE_CSV = "religion_yields_turn_average_summary.csv"
 # Unit-composition report.
 UNIT_SUMMARY_CSV = "unit_composition_summary.csv"
 
+# Instant-yields report. Per-(GameId, Turn, Civ) instant yields grouped by trigger
+# Type; era is taken from civ_turn_era (see aggregate/instant_yields.py).
+INSTANT_YIELDS_TABLE = "InstantYields"
+INSTANT_YIELDS_SUMMARY_CSV = "instant_yields_summary.csv"
+
 # Game-stats reports (analogous to the Scala Spark aggregator's outputs).
 GAME_RESULT_CSV = "game_result.csv"
 POWER_RANKING_CSV = "power_ranking.csv"
@@ -83,6 +88,10 @@ class Config:
     @property
     def unit_summary_path(self) -> Path:
         return self.intermediate_data_dir / UNIT_SUMMARY_CSV
+
+    @property
+    def instant_yields_summary_path(self) -> Path:
+        return self.intermediate_data_dir / INSTANT_YIELDS_SUMMARY_CSV
 
     @property
     def game_result_path(self) -> Path:

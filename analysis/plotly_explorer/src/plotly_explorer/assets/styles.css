@@ -61,7 +61,8 @@ html, body {
    report so it doesn't override the report-hiding rules below. */
 #app.show-building #sidebar .report-building,
 #app.show-religion #sidebar .report-religion,
-#app.show-units #sidebar .report-units {
+#app.show-units #sidebar .report-units,
+#app.show-instant_yields #sidebar .report-instant_yields {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -79,7 +80,10 @@ html, body {
 #app.show-religion_performance #expand-btn-right,
 #app.show-policies_performance #sidebar-right,
 #app.show-policies_performance #resizer-right,
-#app.show-policies_performance #expand-btn-right {
+#app.show-policies_performance #expand-btn-right,
+#app.show-instant_yields #sidebar-right,
+#app.show-instant_yields #resizer-right,
+#app.show-instant_yields #expand-btn-right {
   display: none;
 }
 
@@ -460,6 +464,92 @@ html, body {
 #app.show-policies_performance .report-policies_performance { display: block; }
 #app.show-policies_performance .report-building { display: none; }
 #app.show-policies_performance #main-inner { justify-content: flex-start; }
+
+/* ---- Instant Yields report (sortable, per-column-shaded heatmap table) ---- */
+.report-instant_yields { display: none; }
+#app.show-instant_yields .report-instant_yields { display: block; }
+#app.show-instant_yields .report-building { display: none; }
+#app.show-instant_yields #main-inner { justify-content: flex-start; }
+
+#iy-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.iy-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+#iy-heatmap { overflow-x: auto; }
+
+#iy-heatmap table {
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+  width: 100%;
+}
+
+#iy-heatmap th,
+#iy-heatmap td {
+  padding: 5px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+#iy-heatmap tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Clickable era column headers (sortable). */
+#iy-heatmap thead th.iy-era-col {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#iy-heatmap thead th.iy-era-col:hover { color: var(--text); }
+#iy-heatmap thead th.iy-era-col.iy-sorted { color: var(--accent); }
+
+#iy-heatmap thead th.iy-era-col .iy-sort-arrow {
+  font-size: 9px;
+  margin-left: 3px;
+}
+
+/* Idle sort affordance: faint until the header is hovered. */
+#iy-heatmap thead th.iy-era-col .iy-sort-arrow.iy-sort-idle {
+  opacity: 0.35;
+  font-size: 10px;
+}
+#iy-heatmap thead th.iy-era-col:hover .iy-sort-arrow.iy-sort-idle {
+  opacity: 0.7;
+}
+
+/* First column (trigger type) reads left-aligned and sticks while scrolling. */
+#iy-heatmap th:first-child,
+#iy-heatmap td.iy-type-name {
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+
+#iy-heatmap thead th:first-child {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
 
 #policies-title {
   margin: 0 0 16px;

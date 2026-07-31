@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 
-from autoplay.runner.civ_io import detect_installed_modpack
+from autoplay.runner.civ_io import detect_installed_modpack, find_most_recent_autosave
 from autoplay.runner.config import RunnerConfig, load_config
 from autoplay.runner.fatal import fatal_permission_error, warn_if_low_disk_space
 from autoplay.runner.game_controller import (
@@ -231,6 +231,72 @@ def create_app(config: RunnerConfig | None = None) -> FastAPI:
 
         asyncio.create_task(_launch_in_background(), name="start-game-bg")
         return {"status": "starting"}
+
+    @app.post("/resume-game", status_code=status.HTTP_202_ACCEPTED)
+    async def resume_game_endpoint() -> dict[str, str]:
+        # Resume the most recent autosave (crash-recovery style relaunch) rather
+        # than starting a fresh game. Same cheap synchronous validation as
+        # /start-game; if there is no autosave on disk this is a deliberate
+        # no-op so an operator can safely fire Resume at every runner.
+        from autoplay.common import RunnerState as _RS
+
+        if not cfg.install_dir.is_dir():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"INSTALL_DIR does not exist: {cfg.install_dir}",
+            )
+        with state.lock:
+            if not state.modpack:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No modpack installed on this runner.",
+                )
+            if state.state not in {_RS.idle, _RS.failed}:
+                # Something is already in flight; honor scheduling intent but
+                # don't disturb the running game.
+                state.is_scheduling_games = True
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot resume: runner state is {state.state.value!r}.",
+                )
+
+        # No autosave -> no-op. Check before claiming state so the runner stays
+        # idle and the operator gets a clear signal.
+        if await asyncio.to_thread(find_most_recent_autosave, cfg.user_dir) is None:
+            logger.info("Resume requested but no autosave found; no-op.")
+            return {"status": "no-save"}
+
+        with state.lock:
+            state.state = _RS.starting
+            state.is_scheduling_games = True
+
+        async def _resume_in_background() -> None:
+            try:
+                game_id = await controller.resume()
+                if game_id is None:
+                    # Autosave vanished between the check above and launch;
+                    # revert to idle so the runner isn't stuck in ``starting``.
+                    logger.info("Background resume skipped: no autosave to resume from.")
+                    with state.lock:
+                        if state.state == _RS.starting:
+                            state.state = _RS.idle
+                else:
+                    logger.info("Background resume complete: gameId=%s", game_id)
+            except GameAlreadyRunningError:
+                logger.info("Background resume skipped: game already running.")
+            except (NoInstallError, NoModpackError) as exc:
+                logger.warning("Background resume aborted: %s", exc)
+                with state.lock:
+                    if state.state == _RS.starting:
+                        state.state = _RS.idle
+            except Exception:  # noqa: BLE001
+                logger.exception("Background resume failed")
+                with state.lock:
+                    if state.state == _RS.starting:
+                        state.state = _RS.failed
+
+        asyncio.create_task(_resume_in_background(), name="resume-game-bg")
+        return {"status": "resuming"}
 
     @app.post("/stop-game", status_code=status.HTTP_202_ACCEPTED)
     async def stop_game_endpoint() -> dict[str, str]:

@@ -22,6 +22,7 @@
       <select id="report-select">
         <option value="civs">Overview</option>
         <option value="building">Building Yields</option>
+        <option value="instant_yields">Instant Yields</option>
         <option value="policies_performance">Policies Performance</option>
         <option value="religion_performance">Religion Performance</option>
         <option value="religion">Religion Yields</option>
@@ -106,6 +107,17 @@
       </section>
     </div>
 
+    <!-- ===================== Instant Yields report controls ===================== -->
+    <div class="report-instant_yields">
+      <section class="panel">
+        <h2>Graph Controls</h2>
+        <h3>Yield Type</h3>
+        <div id="iy-yield-controls" class="chip-grid"></div>
+        <h3>Trigger Types Displayed</h3>
+        <div id="iy-topn-controls" class="topn-row"></div>
+      </section>
+    </div>
+
   </aside>
 
   <div id="resizer" title="Drag to resize"></div>
@@ -168,6 +180,12 @@
         <div class="policies-card"><div id="policies-marginal" class="policies-plot short"></div></div>
         <div class="policies-card"><div id="policies-wins" class="policies-plot tall"></div></div>
         <div class="policies-card"><div id="policies-winrate" class="policies-plot tall"></div></div>
+      </div>
+      <div class="report-instant_yields">
+        <h1 id="iy-title">Average Yields by Trigger per Era</h1>
+        <div class="iy-card">
+          <div id="iy-heatmap"></div>
+        </div>
       </div>
     </div>
   </main>

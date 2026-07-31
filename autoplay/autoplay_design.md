@@ -136,11 +136,13 @@ This can be cached in `STORAGE_ROOT/file-status.json` and updated by the hypervi
 
 * `POST /control/start-all`: Fan-out helper that POSTs `/start-game` to every registered runner that is currently idle. Returns a JSON summary `{ uuid: {status, detail} }`.
 
+* `POST /control/resume-all`: Fan-out helper that POSTs `/resume-game` to every registered runner. Each runner resumes its most recent autosave, or no-ops if it has none. Fans out concurrently (no start-all-style stagger, since resuming an existing save does not seed a fresh game RNG). Returns the same summary shape.
+
 * `POST /control/stop-all`: Fan-out helper that POSTs `/stop-game` to every registered runner. Returns the same summary shape.
 
 * `POST /control/install-modpack`: Accepts a modpack zip upload (same layout as the runner's `/update-modpack`). The hypervisor inspects the zip's top-level `MP_AUTOPLAY_VP_<version>/` folder to determine the target version, then streams the zip to `/update-modpack` on every registered runner whose currently-installed modpack differs from that version. Returns a per-runner summary.
 
-* `POST /control/start/{uuid}`, `POST /control/stop/{uuid}`, `POST /control/install-modpack/{uuid}`: Per-runner versions of the above fan-out helpers; proxy to just the one runner matching `uuid`.
+* `POST /control/start/{uuid}`, `POST /control/resume/{uuid}`, `POST /control/stop/{uuid}`, `POST /control/install-modpack/{uuid}`: Per-runner versions of the above fan-out helpers; proxy to just the one runner matching `uuid`.
 
 * `GET /runner-names`: Returns a JSON dict `{host: name}` of operator-supplied display tags keyed by host (IP/hostname without port). Backed by `STORAGE_ROOT/runner_names.sqlite` (durable across hypervisor restarts and machine moves) with schema `runner_names(host TEXT PRIMARY KEY, name TEXT NOT NULL, updated_ts REAL NOT NULL)`.
 
@@ -153,14 +155,15 @@ The hypervisor serves a single self-contained `webapp/index.html` (CSS and JS em
 
 All user-configurable UI state is bookmarkable in the URL via `URLSearchParams` and mirrored to one-year cookies (`hv_<key>`, `SameSite=Lax`) as a fallback for direct visits. URL writes use `history.replaceState` (no back-button pollution) and only emit non-default values. State keys: `group` (group-by-runner toggle), `sort`/`dir` (flat-table sort), `groupSort`/`groupSortDir` (per-IP grouped-table sort), `layout` (`comfortable`/`compact` — `compact` shrinks padding/font sizes via `body[data-layout=...]`), `pollSec` (runner-status poll interval). On boot, each key resolves URL → cookie → default.
 
-The webapp includes a control row above the runners table with three fan-out buttons:
+The webapp includes a control row above the runners table with these fan-out buttons:
 * **Start All** — calls `POST /control/start-all`
+* **Resume All** — calls `POST /control/resume-all`
 * **Stop All** — calls `POST /control/stop-all`
 * **Mass Install Modpack** — opens a file picker for a `.zip`, then uploads it via `POST /control/install-modpack`
 
-Each row in the runners table also includes per-runner **Start** / **Stop** / **Install Modpack** buttons that target only that runner via the `/control/{action}/{uuid}` endpoints. Column headers are clickable to sort the table by any column (Runner UUID, Address, Modpack, State, Turn, Game Time, Game ID, Successes, Failures); clicking the same header again toggles ascending/descending. Default sort: Runner UUID ascending.
+Each row in the runners table also includes per-runner **Start** / **Resume** / **Stop** / **Install Modpack** buttons that target only that runner via the `/control/{action}/{uuid}` endpoints. Column headers are clickable to sort the table by any column (Runner UUID, Address, Modpack, State, Turn, Game Time, Game ID, Successes, Failures); clicking the same header again toggles ascending/descending. Default sort: Runner UUID ascending.
 
-A **Group By Runner** toggle is rendered right-justified next to the "Runners" section header. When off, the flat sortable table is shown. When on, runners are grouped by the IP portion of their `url` (port stripped) and rendered as one mini-table per IP, each with its own **Start All** / **Stop All** / **Mass Install Modpack** buttons that fan out client-side over only the UUIDs in that IP group, hitting the existing `/control/{action}/{uuid}` endpoints. No new backend endpoints are required for the group fan-outs. Each group header also shows an aggregate average turn time (with per-100-turns buckets in a tooltip) sourced from `GET /turn-times/by-runner`, polled separately every 15s. Each grouped mini-table has its own sortable column headers (sort state shared across all groups, persisted via the `groupSort`/`groupSortDir` URL keys).
+A **Group By Runner** toggle is rendered right-justified next to the "Runners" section header. When off, the flat sortable table is shown. When on, runners are grouped by the IP portion of their `url` (port stripped) and rendered as one mini-table per IP, each with its own **Start All** / **Resume All** / **Stop All** / **Mass Install Modpack** buttons that fan out client-side over only the UUIDs in that IP group, hitting the existing `/control/{action}/{uuid}` endpoints. No new backend endpoints are required for the group fan-outs. Each group header also shows an aggregate average turn time (with per-100-turns buckets in a tooltip) sourced from `GET /turn-times/by-runner`, polled separately every 15s. Each grouped mini-table has its own sortable column headers (sort state shared across all groups, persisted via the `groupSort`/`groupSortDir` URL keys).
 
 Each group header renders the host's display tag (or the IP if no tag is set). **Double-clicking the host name** turns it into a `contentEditable` field; pressing Enter commits via `PUT /runner-names/{host}`, Escape reverts. When a tag is set, the IP is shown as a parenthesized suffix and a small `clear` link issues `DELETE /runner-names/{host}`.
 
@@ -279,6 +282,8 @@ The runner is designed to survive a hypervisor that goes down, restarts, or is b
 #### HTTP Endpoints
 
 * `POST /start-game`. If a game is currently running, returns a 400 with an error message. Otherwise, starts a new autoplay game by launching the Civ 5 executable. `gameId` is the ISO-timestamp string of the launch time (e.g. `2024-10-11T23.09.45.167468`). Also sets the runner's `is_scheduling_games` flag to True so the runner automatically starts a new game after each completion or crash (once all artifacts are uploaded).
+
+* `POST /resume-game`. Resumes the most recent autosave instead of starting a fresh game — the same crash-recovery relaunch (patched `MainMenu.lua` `loadOnStart=true`, exe launched with no `-Automation` argument, so the game auto-loads the newest save). Unlike `/start-game` it does **not** clear `USER_DIR/Logs` / CSV segments / reset `stats.db`, since the reloaded save continues the same game and depends on that accumulated state for turn detection and the completion harvest. If there is no autosave on disk (`Saves/single/auto/*.Civ5Save`), it is a no-op that returns `200 {"status": "no-save"}` and leaves the runner idle. Otherwise it behaves like `/start-game` — same 400 preconditions (install dir present, modpack installed, runner idle/failed) and it sets `is_scheduling_games` to True so normal continuous operation resumes after the loaded game completes. A fresh `gameId` is assigned to the resumed run.
 
 * `POST /stop-game`. Clears `is_scheduling_games`, then terminates any running Civ 5 process tree (recursively via `psutil`) and clears the `USER_DIR/Logs` directory (and, in SQLite-stats mode, deletes the local `stats.db`). Returns 200 even if no game is active (idempotent). No log, stats, or crash bundle is uploaded.
 

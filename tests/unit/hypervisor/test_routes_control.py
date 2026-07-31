@@ -50,6 +50,33 @@ def test_start_one_returns_202(client: TestClient) -> None:
         assert body == {"status": "scheduled", "uuid": "u1"}
 
 
+def test_resume_one_404_when_no_runner(client: TestClient) -> None:
+    r = client.post("/control/resume/missing-uuid")
+    assert r.status_code == 404
+
+
+def test_resume_one_returns_202(client: TestClient) -> None:
+    _register(client, "u1", "http://r1.test")
+    with respx.mock(assert_all_called=False) as mock:
+        mock.post("http://r1.test/resume-game").mock(
+            return_value=httpx.Response(202, json={"status": "resuming"})
+        )
+        r = client.post("/control/resume/u1")
+        assert r.status_code == 202
+        assert r.json() == {"status": "scheduled", "uuid": "u1"}
+
+
+def test_resume_all_counts(client: TestClient) -> None:
+    _register(client, "u1", "http://r1.test")
+    _register(client, "u2", "http://r2.test")
+    with respx.mock(assert_all_called=False) as mock:
+        mock.post("http://r1.test/resume-game").mock(return_value=httpx.Response(204))
+        mock.post("http://r2.test/resume-game").mock(return_value=httpx.Response(204))
+        r = client.post("/control/resume-all")
+        assert r.status_code == 202
+        assert r.json() == {"status": "scheduled", "count": 2}
+
+
 def test_stop_one_returns_202(client: TestClient) -> None:
     _register(client, "u1", "http://r1.test")
     with respx.mock(assert_all_called=False) as mock:

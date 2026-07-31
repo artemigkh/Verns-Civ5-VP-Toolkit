@@ -500,6 +500,62 @@ def build_policies_performance_payload(cfg: Config) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Instant Yields report payload
+# ---------------------------------------------------------------------------
+
+# Yield preference for the Instant Yields selector (Food leads: it's the default).
+INSTANT_YIELDS_PREFERRED_ORDER = [
+    "Food",
+    "Production",
+    "Gold",
+    "Science",
+    "Culture",
+    "Faith",
+    "Tourism",
+    "Border Growth Points",
+    "Golden Age Points",
+]
+
+
+def build_instant_yields_payload(cfg: Config) -> dict:
+    """Per-(yield) heatmap of AvgYieldAmount by trigger type x era.
+
+    ``instant_yields_summary.csv`` has one row per (Era, Type, Yield) carrying
+    the three averages. We nest it as yield -> {types, cells{type{era -> y/t/n}}}
+    for the client, which sorts/slices trigger types and shades per column.
+    """
+    df = pd.read_csv(cfg.instant_yields_summary_path)
+
+    present_yields = set(df["Yield"])
+    yields = _order_yields(present_yields, INSTANT_YIELDS_PREFERRED_ORDER)
+
+    data: dict[str, dict] = {}
+    for yld, group in df.groupby("Yield"):
+        cells: dict[str, dict[str, dict[str, float]]] = {}
+        for row in group.itertuples(index=False):
+            cells.setdefault(row.Type, {})[row.Era] = {
+                "y": round(float(row.AvgYieldAmount), 4),
+                "t": round(float(row.AvgTriggerAmount), 4),
+                "n": round(float(row.AvgTimesTriggered), 4),
+            }
+        data[yld] = {"types": sorted(cells.keys()), "cells": cells}
+
+    # Slider ranges 1..(most trigger types any single yield has).
+    max_trigger_types = max((len(v["types"]) for v in data.values()), default=1)
+    default_yield = "Food" if "Food" in present_yields else (yields[0] if yields else None)
+
+    return {
+        "yields": yields,
+        "defaultYield": default_yield,
+        "eraOrder": list(ERA_LUT.values()),
+        "maxTriggerTypes": max_trigger_types,
+        # Default the slider to the maximum so every trigger type shows initially.
+        "defaultTopN": max_trigger_types,
+        "data": data,
+    }
+
+
 def render(
     cfg: Config,
     *,
@@ -518,6 +574,7 @@ def render(
             cfg, patch, difficulty, mapscript, size
         ),
         "policies_performance": build_policies_performance_payload(cfg),
+        "instant_yields": build_instant_yields_payload(cfg),
     }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
@@ -527,6 +584,7 @@ def render(
     units_js = (ASSETS_DIR / "units.js").read_text(encoding="utf-8")
     religion_perf_js = (ASSETS_DIR / "religion_performance.js").read_text(encoding="utf-8")
     policies_perf_js = (ASSETS_DIR / "policies_performance.js").read_text(encoding="utf-8")
+    instant_yields_js = (ASSETS_DIR / "instant_yields.js").read_text(encoding="utf-8")
     # civs.js precedes religion.js because the report switcher (tail of
     # religion.js) runs at load and, since Civs Overview is the default report,
     # must find window.CivsReport already defined. religion_performance.js only
@@ -539,6 +597,7 @@ def render(
         + "\n" + units_js
         + "\n" + religion_perf_js
         + "\n" + policies_perf_js
+        + "\n" + instant_yields_js
     )
     plotly_js = po.get_plotlyjs()
 

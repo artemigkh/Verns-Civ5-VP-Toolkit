@@ -24,6 +24,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8791", "--directory", "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"],
       "port": 8791
+    },
+    {
+      "name": "instant-yields-check",
+      "runtimeExecutable": "C:\\Users\\Art\\AppData\\Roaming\\Python\\Python311\\Scripts\\uv.exe",
+      "runtimeArgs": ["run", "--project", "analysis/plotly_explorer", "python", "-m", "http.server", "8801", "--directory", "data/MP_AUTOPLAY_VP_WARLORD_533/plotly_explorer_public"],
+      "port": 8801
     }
   ]
 }

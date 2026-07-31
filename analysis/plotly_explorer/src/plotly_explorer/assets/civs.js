@@ -120,8 +120,17 @@
   // -------------------------------------------------------------------------
   // Row 2b — Victory Time Spread violin + beeswarm (points overlaid)
   // -------------------------------------------------------------------------
+  // Soft cap for the y-axis: the axis autoranges normally, but its top is clipped
+  // here so turn-limit outliers don't stretch it. Auto maxes below this are left
+  // untouched.
+  var VIOLIN_TURN_CAP = 500;
+
   function renderViolin() {
-    var present = P.victory.present;
+    // Drop the "Time" victory: its game-ending turn is always the turn limit,
+    // so it adds no spread and only stretches the axis.
+    var present = P.victory.present.filter(function (t) {
+      return t !== "Time";
+    });
     var traces = present.map(function (t) {
       var color = VICTORY_COLORS[t] || "#888888";
       var turns = P.victory.turns[t] || [];
@@ -179,6 +188,10 @@
         title: { text: "Game-ending turn", font: { color: TEXT_DIM, size: 12 } },
         gridcolor: GRID,
         zerolinecolor: "rgba(255,255,255,0.12)",
+        // Default (snug) autorange, but soft-cap the top so turn-limit outliers
+        // don't stretch it. Sub-500 auto maxes are left untouched.
+        autorange: true,
+        autorangeoptions: { clipmax: VIOLIN_TURN_CAP },
       },
       showlegend: false,
     };
