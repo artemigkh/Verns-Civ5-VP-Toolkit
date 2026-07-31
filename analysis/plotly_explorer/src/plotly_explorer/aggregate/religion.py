@@ -4,7 +4,7 @@ The belief yields are summarized twice over two alternative slicings of a game:
 
 * by **era** — ``Era, BeliefType, Belief, Yield, YieldTotalForOwner, ...``
 * by **10-turn bucket** — the same, with ``Bucket`` (the bucket's lower turn edge,
-  50/60/.../140) in place of ``Era``. Turns outside ``[50, 150)`` are dropped.
+  0/10/.../290) in place of ``Era``. Turns outside ``[0, 300)`` are dropped.
 
 Eras are per-player and variable length, so the bucket slicing is what lets a
 belief be read against the game clock instead.
@@ -241,4 +241,7 @@ def ensure_religion_summaries(cfg: Config, *, force: bool = False) -> None:
         ],
         lambda: _build_summaries(cfg),
         force=force,
+        # Retuning the bucket window leaves the CSVs newer than the DB but wrong,
+        # which the mtime check alone can't see.
+        fingerprint=f"buckets={TURN_BUCKET_START}-{TURN_BUCKET_END}/{TURN_BUCKET_WIDTH}",
     )

@@ -63,25 +63,41 @@ def ensure_group(
     builder: Callable[[], tuple[pd.DataFrame, ...]],
     *,
     force: bool = False,
+    fingerprint: str | None = None,
 ) -> tuple[pd.DataFrame, ...]:
     """Ensure several CSVs produced by a single build pass.
 
     Freshness is still evaluated per file, but because ``builder`` computes the
     whole set at once, a single missing/stale CSV triggers a rebuild of all of
     them. ``paths`` and the tuple returned by ``builder`` must line up in order.
+
+    ``fingerprint`` covers what mtimes can't: when the *parameters* of an
+    aggregation change (e.g. the religion report's turn-bucket window) the CSVs
+    are stale even though they are newer than the DB. It is stored in a sidecar
+    next to the first path and any change invalidates the group.
     """
     paths = list(paths)
     for path in paths:
         path.parent.mkdir(parents=True, exist_ok=True)
 
-    if not force and all(is_fresh(p, cfg) for p in paths):
+    stamp = paths[0].with_suffix(".fingerprint") if fingerprint is not None else None
+    params_match = stamp is None or (
+        stamp.exists() and stamp.read_text(encoding="utf-8") == fingerprint
+    )
+
+    if not force and params_match and all(is_fresh(p, cfg) for p in paths):
         names = ", ".join(p.name for p in paths)
         print(f"[aggregate] cache fresh, reusing {names}")
         return tuple(pd.read_csv(p) for p in paths)
+
+    if not params_match:
+        print(f"[aggregate] parameters changed ({fingerprint}), rebuilding")
 
     print(f"[aggregate] building {', '.join(p.name for p in paths)} from {cfg.db_path} ({cfg.db_type})")
     frames = builder()
     for path, frame in zip(paths, frames):
         frame.to_csv(path, index=False)
         print(f"[aggregate] wrote {len(frame)} rows to {path.name}")
+    if stamp is not None:
+        stamp.write_text(fingerprint, encoding="utf-8")
     return frames

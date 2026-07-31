@@ -317,10 +317,31 @@
     });
   }
 
+  // Heading describes the buckets actually offered, which is the aggregation window
+  // trimmed to the ones the data covers ("10 Turn Intervals (30 - 300)").
+  function updateTurnBucketTitle() {
+    var title = document.getElementById("rel-turn-bucket-title");
+    if (!P.bucketOrder.length) {
+      title.textContent = "Turn Intervals";
+      return;
+    }
+    var first = P.bucketOrder[0].split("-");
+    var last = P.bucketOrder[P.bucketOrder.length - 1].split("-");
+    var start = parseInt(first[0], 10);
+    var end = parseInt(last[1], 10) + 1; // exclusive upper edge, as in the payload
+    var width = parseInt(last[1], 10) - parseInt(last[0], 10) + 1;
+    title.textContent =
+      width + " Turn Intervals (" + start + " - " + end + ")";
+  }
+
   function buildTurnBucketControls() {
     var host = document.getElementById("rel-turn-bucket-controls");
     host.innerHTML = "";
     host.classList.toggle("control-muted", state.mode !== "bucket");
+    updateTurnBucketTitle();
+    // The payload only lists buckets the data covers; a dataset with none at all
+    // leaves the slider out entirely rather than offering empty graphs.
+    if (!P.bucketOrder.length) return;
 
     var idx = P.bucketOrder.indexOf(state.bucket);
     if (idx < 0) idx = 0;

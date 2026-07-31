@@ -229,7 +229,15 @@ def build_religion_payload(cfg: Config) -> dict:
     frames = [turn_df, total_df, bucket_turn_df, bucket_total_df]
     combined = pd.concat(frames, ignore_index=True)
 
-    bucket_order = [turn_bucket_label(s) for s in turn_bucket_starts()]
+    # Only offer the buckets the data actually covers, so the slider never lands on
+    # an empty graph: the window's edges are typically empty (no belief yields before
+    # a religion exists, and few games run to the last buckets).
+    present_buckets = set(bucket_turn_df["Era"]) | set(bucket_total_df["Era"])
+    bucket_order = [
+        label
+        for label in (turn_bucket_label(s) for s in turn_bucket_starts())
+        if label in present_buckets
+    ]
 
     return {
         "yields": _order_yields(set(combined["Yield"]), RELIGION_PREFERRED_YIELD_ORDER),
@@ -239,7 +247,7 @@ def build_religion_payload(cfg: Config) -> dict:
         "defaultDisplayEras": DEFAULT_DISPLAY_ERAS,
         # Alternative (era-independent) slicing: one 10-turn bucket at a time.
         "bucketOrder": bucket_order,
-        "defaultBucket": bucket_order[len(bucket_order) // 2],
+        "defaultBucket": bucket_order[len(bucket_order) // 2] if bucket_order else None,
         "beliefsByType": _beliefs_by_type(combined),
         "beliefYields": _belief_yields(combined),
         "data": {
