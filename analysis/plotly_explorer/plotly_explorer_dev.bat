@@ -18,6 +18,12 @@ set "DB_PATH=data/MP_AUTOPLAY_VP_WARLORD_533/stats.duckdb"
 set "INTERMEDIATE_DATA_DIR=data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_cache"
 set "PUBLISH_DIR=data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"
 
+REM  Hard ceiling on DuckDB's working set. The aggregations stream and spill to
+REM  INTERMEDIATE_DATA_DIR\duckdb_spill above this, so it caps peak memory rather
+REM  than limiting how big a DB can be processed. Lower it on a small machine
+REM  (the build just spills more and takes a little longer).
+set "DB_MEMORY_LIMIT=4GB"
+
 set "PYTHONUNBUFFERED=1"
 
 set "NOPAUSE=0"

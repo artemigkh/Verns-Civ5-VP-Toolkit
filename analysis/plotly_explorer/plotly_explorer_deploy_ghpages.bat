@@ -18,6 +18,10 @@ set "DB_PATH=data/MP_AUTOPLAY_VP_WARLORD_533/stats.duckdb"
 set "INTERMEDIATE_DATA_DIR=data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_cache"
 set "PUBLISH_DIR=docs"
 
+REM  Hard ceiling on DuckDB's working set; it spills to
+REM  INTERMEDIATE_DATA_DIR\duckdb_spill above this. See plotly_explorer_dev.bat.
+set "DB_MEMORY_LIMIT=4GB"
+
 set "PYTHONUNBUFFERED=1"
 
 set "NOPAUSE=0"

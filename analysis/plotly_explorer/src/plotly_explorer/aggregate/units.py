@@ -12,7 +12,11 @@ average turn within an era::
         / (# distinct (GameId, Turn) snapshots that Civ spent in that Era)
 
 Era comes from ``civ_turn_era`` (the game-state era of the snapshot turn), not
-the unit's unlock era. The DB is only re-read when its mtime changes (tracked in
+the unit's unlock era.
+
+The join and both counts run in the DB — ``MapUnitsState`` is ~36M rows, far too
+large to read whole (see :mod:`plotly_explorer.db`) — and only the per-(Civ, Era,
+Unit) counts come back. The DB is only re-read when its mtime changes (tracked in
 a sidecar file), so repeat runs are cheap.
 """
 
@@ -20,8 +24,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..config import Config
-from ..db import read_table
+from ..config import CIV_TURN_ERA_TABLE, Config
+from ..db import read_query
 from ..metadata import db_era_to_name
 from .cache import ensure_csv
 
@@ -35,35 +39,42 @@ OUTPUT_COLUMNS = ["Era", "Civ", "Unit", "AvgCount", "N"]
 # Aggregation
 # ---------------------------------------------------------------------------
 
+# ``joined`` attaches the game-state era to each unit snapshot via
+# (GameId, Turn, civ); ``counts`` is the numerator (how many of each unit the civ
+# had, summed over all its era turns) and ``turns`` the denominator (distinct
+# snapshot turns the civ spent in the era). Both derive from the same join, so a
+# civ-turn with no matching era row contributes to neither.
+_SUMMARY_SQL = f"""
+WITH joined AS (
+    SELECT u."GameId" AS GameId,
+           u."Turn"   AS Turn,
+           u."owner"  AS Civ,
+           u."unitName" AS Unit,
+           e."era"    AS Era
+    FROM "MapUnitsState" u
+    JOIN "{CIV_TURN_ERA_TABLE}" e
+      ON u."GameId" = e."GameId"
+     AND u."Turn"   = e."Turn"
+     AND u."owner"  = e."civ"
+),
+counts AS (
+    SELECT Civ, Era, Unit, CAST(COUNT(*) AS BIGINT) AS TotalCount
+    FROM joined
+    GROUP BY Civ, Era, Unit
+),
+turns AS (
+    SELECT Civ, Era, CAST(COUNT(*) AS BIGINT) AS CivTurns
+    FROM (SELECT DISTINCT Civ, Era, GameId, Turn FROM joined) d
+    GROUP BY Civ, Era
+)
+SELECT c.Civ, c.Era, c.Unit, c.TotalCount, t.CivTurns
+FROM counts c
+LEFT JOIN turns t ON t.Civ = c.Civ AND t.Era = c.Era
+"""
+
+
 def _build_summary(cfg: Config) -> pd.DataFrame:
-    units = read_table(cfg, "MapUnitsState")
-    eras = read_table(cfg, "civ_turn_era")
-
-    # Attach the game-state era to each unit snapshot via (GameId, Turn, civ).
-    joined = units.merge(
-        eras[["GameId", "Turn", "civ", "era"]],
-        left_on=["GameId", "Turn", "owner"],
-        right_on=["GameId", "Turn", "civ"],
-        how="inner",
-    ).rename(columns={"owner": "Civ", "unitName": "Unit", "era": "Era"})
-
-    # Numerator: how many of each unit the civ had, summed over all its era turns.
-    counts = (
-        joined.groupby(["Civ", "Era", "Unit"], as_index=False)
-        .size()
-        .rename(columns={"size": "TotalCount"})
-    )
-
-    # Denominator: distinct snapshot turns the civ spent in the era.
-    turns = (
-        joined[["Civ", "Era", "GameId", "Turn"]]
-        .drop_duplicates()
-        .groupby(["Civ", "Era"], as_index=False)
-        .size()
-        .rename(columns={"size": "CivTurns"})
-    )
-
-    merged = counts.merge(turns, on=["Civ", "Era"], how="left")
+    merged = read_query(cfg, _SUMMARY_SQL)
     merged["AvgCount"] = merged["TotalCount"] / merged["CivTurns"]
     # Sample size = the divisor (snapshot turns the average is taken over).
     merged["N"] = merged["CivTurns"].fillna(0).astype(int)

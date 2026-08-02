@@ -2,7 +2,8 @@
 
 All knobs are supplied through environment variables (see
 ``plotly_explorer_debug.bat``) using the exact names from the design doc:
-``DB_TYPE``, ``DB_PATH``, ``INTERMEDIATE_DATA_DIR``, ``PUBLISH_DIR``.
+``DB_TYPE``, ``DB_PATH``, ``INTERMEDIATE_DATA_DIR``, ``PUBLISH_DIR``, plus the
+optional ``DB_MEMORY_LIMIT`` (see :mod:`plotly_explorer.db`).
 
 Paths are resolved against the current working directory, which the launcher
 sets to the repo root, so repo-relative values like ``misc/building_yields/...``
@@ -65,12 +66,18 @@ POLICY_BRANCH_OPENS_CSV = "policy_branch_opens.csv"
 POLICY_BRANCH_WINS_CSV = "policy_branch_wins.csv"
 
 
+# Default ceiling on the DB engine's working set (see db.DEFAULT_MEMORY_LIMIT).
+DEFAULT_DB_MEMORY_LIMIT = "4GB"
+
+
 @dataclass(frozen=True)
 class Config:
     db_type: str
     db_path: Path
     intermediate_data_dir: Path
     publish_dir: Path
+    # Hard cap on DuckDB's memory use; it spills to disk beyond this.
+    db_memory_limit: str = DEFAULT_DB_MEMORY_LIMIT
 
     @property
     def era_totals_path(self) -> Path:
@@ -173,4 +180,5 @@ def load_config() -> Config:
         db_path=_resolve(_require("DB_PATH")),
         intermediate_data_dir=_resolve(_require("INTERMEDIATE_DATA_DIR")),
         publish_dir=_resolve(_require("PUBLISH_DIR")),
+        db_memory_limit=os.environ.get("DB_MEMORY_LIMIT", DEFAULT_DB_MEMORY_LIMIT).strip(),
     )
