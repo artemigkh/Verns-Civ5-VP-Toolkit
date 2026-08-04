@@ -247,7 +247,7 @@
     types.forEach(function (type) {
       var tr = document.createElement("tr");
       var name = document.createElement("td");
-      name.textContent = type;
+      name.textContent = type === "Instant" ? type + "*" : type;
       name.className = "iy-type-name";
       tr.appendChild(name);
       eras.forEach(function (era) {
