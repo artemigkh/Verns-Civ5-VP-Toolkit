@@ -613,6 +613,7 @@ def render(
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
     app_js = (ASSETS_DIR / "app.js").read_text(encoding="utf-8")
+    building_grouped_js = (ASSETS_DIR / "building_grouped.js").read_text(encoding="utf-8")
     civs_js = (ASSETS_DIR / "civs.js").read_text(encoding="utf-8")
     religion_js = (ASSETS_DIR / "religion.js").read_text(encoding="utf-8")
     units_js = (ASSETS_DIR / "units.js").read_text(encoding="utf-8")
@@ -626,6 +627,7 @@ def render(
     # can follow the switcher.
     app_js = (
         app_js
+        + "\n" + building_grouped_js
         + "\n" + civs_js
         + "\n" + religion_js
         + "\n" + units_js

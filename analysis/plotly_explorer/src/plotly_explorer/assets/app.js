@@ -592,6 +592,12 @@
       window.ReligionReport
     ) {
       window.ReligionReport.render();
+    } else if (
+      app &&
+      app.classList.contains("show-building_grouped") &&
+      window.BuildingGroupedReport
+    ) {
+      window.BuildingGroupedReport.render();
     } else {
       render();
     }

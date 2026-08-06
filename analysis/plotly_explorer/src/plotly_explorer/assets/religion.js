@@ -811,6 +811,10 @@
   var REPORTS = {
     civs: { cls: "show-civs", mod: "CivsReport" },
     building: { cls: "show-building", mod: "BuildingReport" },
+    building_grouped: {
+      cls: "show-building_grouped",
+      mod: "BuildingGroupedReport",
+    },
     religion: { cls: "show-religion", mod: "ReligionReport" },
     units: { cls: "show-units", mod: "UnitsReport" },
     religion_performance: {

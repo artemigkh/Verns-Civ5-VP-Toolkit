@@ -22,6 +22,7 @@
       <select id="report-select">
         <option value="civs">Overview</option>
         <option value="building">Building Yields</option>
+        <option value="building_grouped">Building Yields Grouped (Experimental)</option>
         <option value="instant_yields">Instant Yields</option>
         <option value="policies_performance">Policies Performance</option>
         <option value="religion_performance">Religion Performance</option>
@@ -53,6 +54,32 @@
         <div id="filter-era-controls" class="chip-grid"></div>
         <h3>Building Type</h3>
         <div id="filter-type-controls" class="chip-grid"></div>
+      </section>
+    </div>
+
+    <!-- ============ Building Yields Grouped (Experimental) controls ============ -->
+    <div class="report-building_grouped">
+      <section class="panel">
+        <h2>Yield Selection</h2>
+        <div id="bg-yield-controls" class="chip-grid"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Graph Controls</h2>
+        <h3>Metric</h3>
+        <div id="bg-metric-controls" class="chip-grid"></div>
+        <h3>Displayed Eras</h3>
+        <div id="bg-display-era-controls" class="chip-grid"></div>
+        <h3>Buildings Per Graph</h3>
+        <div id="bg-topn-controls" class="topn-row"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Building Filters</h2>
+        <h3>Building Era</h3>
+        <div id="bg-filter-era-controls" class="chip-grid"></div>
+        <h3>Building Type</h3>
+        <div id="bg-filter-type-controls" class="chip-grid"></div>
       </section>
     </div>
 
@@ -146,6 +173,13 @@
         <div id="facet-grid"></div>
         <p id="empty-msg" hidden>No buildings match the current filters &amp; yield.</p>
       </div>
+      <div class="report-building_grouped">
+        <h1 id="bg-chart-title">Building Yields</h1>
+        <p id="bg-chart-subtitle" class="chart-subtitle"></p>
+        <div id="bg-legend"></div>
+        <div id="bg-facet-grid"></div>
+        <p id="bg-empty-msg" hidden>No buildings match the current filters &amp; yield selection.</p>
+      </div>
       <div class="report-religion">
         <h1 id="rel-chart-title">Religious Belief Yield Explorer</h1>
         <p id="rel-chart-subtitle" class="chart-subtitle"></p>
@@ -198,12 +232,14 @@
   <aside id="sidebar-right">
     <div id="sidebar-head">
       <span class="report-building">Buildings</span>
+      <span class="report-building_grouped">Buildings</span>
       <span class="report-religion">Beliefs</span>
       <span class="report-units">Civilization</span>
       <button id="collapse-btn-right" class="icon-btn" title="Hide list">&#187;</button>
     </div>
     <section class="panel grow">
       <div class="report-building" id="building-list"></div>
+      <div class="report-building_grouped" id="bg-building-list"></div>
       <div class="report-religion" id="belief-list"></div>
       <div class="report-units" id="civ-list"></div>
     </section>

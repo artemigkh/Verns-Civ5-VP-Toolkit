@@ -60,6 +60,7 @@ html, body {
    the same way #sidebar gaps its own direct children. Scoped to the shown
    report so it doesn't override the report-hiding rules below. */
 #app.show-building #sidebar .report-building,
+#app.show-building_grouped #sidebar .report-building_grouped,
 #app.show-religion #sidebar .report-religion,
 #app.show-units #sidebar .report-units,
 #app.show-instant_yields #sidebar .report-instant_yields {
@@ -365,6 +366,7 @@ html, body {
 }
 
 #facet-grid,
+#bg-facet-grid,
 #rel-facet-grid,
 #unit-facet-grid {
   display: grid;
@@ -390,6 +392,7 @@ html, body {
 
 /* ---- Shared legend ---- */
 #legend,
+#bg-legend,
 #rel-legend,
 #unit-legend {
   display: flex;
@@ -415,6 +418,7 @@ html, body {
 }
 
 #empty-msg,
+#bg-empty-msg,
 #rel-empty-msg,
 #unit-empty-msg {
   text-align: center;
@@ -438,6 +442,14 @@ html, body {
 #report-select:hover { border-color: var(--accent); }
 
 /* Show only the active report's sections (default = building). */
+
+/* Building Yields Grouped (Experimental): the multi-select variant of the
+   building report. Hidden by default like every non-building report, and it
+   hides the building report when active. */
+.report-building_grouped { display: none; }
+#app.show-building_grouped .report-building_grouped { display: block; }
+#app.show-building_grouped .report-building { display: none; }
+
 .report-religion { display: none; }
 #app.show-religion .report-religion { display: block; }
 #app.show-religion .report-building { display: none; }
