@@ -13,6 +13,10 @@
 
   var P = window.PAYLOAD.civs;
 
+  // Table sort state: sortCol is a column key or null (default = server order,
+  // i.e. win rate desc); sortDir is 'desc' | 'asc' when sortCol is set.
+  var tableState = { sortCol: null, sortDir: null };
+
   // Dark victory palette (matches common.R's vtc_lut_b).
   var VICTORY_COLORS = {
     Cultural: "#E700E7",
@@ -341,6 +345,7 @@
   // -------------------------------------------------------------------------
   function prettyHeader(col) {
     if (col === "count_games") return "# Games";
+    if (col === "avg_rank_at_game_end") return "Avg Rank at Game End";
     return col
       .split("_")
       .map(function (w) {
@@ -351,10 +356,14 @@
       .join(" ");
   }
 
-  // Integer-valued columns: the game count and the raw victory counts (but not
-  // the pct_* shares, which stay 2-dp).
+  // Integer-valued columns: the table position, the game count and the raw
+  // victory counts (but not the pct_* shares, which stay 2-dp).
   function isIntCol(col) {
-    return col === "count_games" || (/_victories$/.test(col) && !/^pct_/.test(col));
+    return (
+      col === "count_games" ||
+      col === "rank" ||
+      (/_victories$/.test(col) && !/^pct_/.test(col))
+    );
   }
 
   function fmtCell(v, col) {
@@ -364,6 +373,37 @@
       return isIntCol(col) ? String(Math.round(v)) : v.toFixed(2);
     }
     return String(v);
+  }
+
+  // Cycle the sort for a column header: desc -> asc -> default (clear).
+  function cycleSort(col) {
+    if (tableState.sortCol !== col) {
+      tableState.sortCol = col;
+      tableState.sortDir = "desc";
+    } else if (tableState.sortDir === "desc") {
+      tableState.sortDir = "asc";
+    } else {
+      tableState.sortCol = null;
+      tableState.sortDir = null;
+    }
+    renderTable();
+  }
+
+  function sortedRows(col) {
+    if (!col) return P.table.rows;
+    var dir = tableState.sortDir === "asc" ? 1 : -1;
+    var rows = P.table.rows.slice();
+    rows.sort(function (a, b) {
+      var av = a[col];
+      var bv = b[col];
+      if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1;
+      if (bv === null || bv === undefined) return -1;
+      if (typeof av === "number" && typeof bv === "number") {
+        return dir * (av - bv);
+      }
+      return dir * String(av).localeCompare(String(bv));
+    });
+    return rows;
   }
 
   function renderTable() {
@@ -380,14 +420,27 @@
     var htr = document.createElement("tr");
     cols.forEach(function (c) {
       var th = document.createElement("th");
-      th.textContent = prettyHeader(c);
+      th.className = "civs-sortable" + (tableState.sortCol === c ? " civs-sorted" : "");
+      th.appendChild(document.createTextNode(prettyHeader(c)));
+      var arrow = document.createElement("span");
+      if (tableState.sortCol === c) {
+        arrow.className = "civs-sort-arrow";
+        arrow.textContent = tableState.sortDir === "asc" ? "▲" : "▼";
+      } else {
+        arrow.className = "civs-sort-arrow civs-sort-idle";
+        arrow.textContent = "⇅";
+      }
+      th.appendChild(arrow);
+      th.addEventListener("click", function () {
+        cycleSort(c);
+      });
       htr.appendChild(th);
     });
     thead.appendChild(htr);
     table.appendChild(thead);
 
     var tbody = document.createElement("tbody");
-    P.table.rows.forEach(function (r) {
+    sortedRows(tableState.sortCol).forEach(function (r) {
       var tr = document.createElement("tr");
       cols.forEach(function (c) {
         var td = document.createElement("td");

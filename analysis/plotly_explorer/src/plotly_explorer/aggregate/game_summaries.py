@@ -4,7 +4,7 @@ Reproduces five intermediate CSVs from the stats DB:
 
 * ``game_result``     — one row per game: winner and one-hot victory flags.
 * ``power_ranking``   — per-civ performance across all games (win rates, victory
-  mix, end-of-game map ownership, average score).
+  mix, end-of-game map ownership, average score, average finishing place).
 * ``religion_choices``— every belief a civ adopted, with a normalized ``type``.
 * ``religion_stats``  — per-(type, belief) adoption stats and how often the
   adopting civ won.
@@ -179,6 +179,65 @@ def _ownership_percentages(cfg: Config) -> pd.DataFrame:
     return read_query(cfg, _OWNERSHIP_SQL)
 
 
+_GAME_END_RANK_SQL = """
+WITH ends AS (
+    SELECT GameId, MAX(Turn) AS end_turn, COUNT(*) AS n_civs
+    FROM GameResult GROUP BY GameId
+),
+last_seen AS (
+    SELECT GameId, civ, MAX(Turn) AS last_turn FROM civ_turn_era GROUP BY GameId, civ
+),
+flagged AS (
+    SELECT g.GameId AS game_id, g.Civ AS civ, g.Score AS score, e.n_civs,
+           COALESCE(l.last_turn, -1) AS death_turn,
+           CASE WHEN g.Score = 0 OR COALESCE(l.last_turn, -1) < e.end_turn - 1
+                THEN 1 ELSE 0 END AS is_dead
+    FROM GameResult g
+    JOIN ends e ON g.GameId = e.GameId
+    LEFT JOIN last_seen l ON l.GameId = g.GameId AND l.civ = g.Civ
+),
+ordered AS (
+    SELECT game_id, civ, n_civs, is_dead, death_turn, score,
+           ROW_NUMBER() OVER (PARTITION BY game_id, is_dead
+                              ORDER BY CASE WHEN is_dead = 1 THEN death_turn END ASC,
+                                       CASE WHEN is_dead = 0 THEN score END DESC,
+                                       civ) AS pos
+    FROM flagged
+),
+ranked AS (
+    SELECT game_id, civ, is_dead, death_turn, score,
+           CASE WHEN is_dead = 1 THEN n_civs - pos + 1 ELSE pos END AS raw_rank
+    FROM ordered
+)
+SELECT game_id, civ,
+       AVG(raw_rank) OVER (PARTITION BY game_id, is_dead,
+            CASE WHEN is_dead = 1 THEN death_turn ELSE score END) AS game_end_rank
+FROM ranked
+"""
+
+
+def _game_end_ranks(cfg: Config) -> pd.DataFrame:
+    """Finishing place (1 = best) for every (game, civ).
+
+    ``GameResult`` alone cannot rank a game: conquered civs all end on ``Score = 0``,
+    so roughly a sixth of civ-games are mutually untied. Death *order* breaks that
+    tie. ``civ_turn_era`` carries one row per civ per turn and simply stops emitting
+    rows once a civ is eliminated, so ``MAX(Turn)`` per (game, civ) is the turn it
+    died — far cheaper than inferring it from the 161M-row ``MapPlotsState``.
+
+    Neither death signal is complete on its own (a civ eliminated on the final turn
+    still logs to the end; a rare few stop logging but keep a non-zero score), and
+    the two agree on 99.8% of civ-games, so a civ counts as dead when *either* fires.
+    The dead then fill the bottom places in death order — first to die takes place
+    ``N``, next ``N-1`` — and the survivors take ``1..N-m`` by end-game score.
+
+    Ranks tied on the same death turn (or the same score) are averaged, so two civs
+    dying together each get 7.5 rather than an arbitrary 7 and 8. Dev test completions
+    are not excluded here; :func:`build_power_ranking` filters them before merging.
+    """
+    return read_query(cfg, _GAME_END_RANK_SQL)
+
+
 def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.DataFrame:
     gr = read("GameResult")  # one row per (game, civ)
     df = gr.rename(columns={"GameId": "game_id", "Civ": "civ", "Score": "score"}).copy()
@@ -201,6 +260,7 @@ def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.
 
     own = _ownership_percentages(cfg)
     df = df.merge(own, on=["game_id", "civ"], how="left")
+    df = df.merge(_game_end_ranks(cfg), on=["game_id", "civ"], how="left")
 
     grp = df.groupby("civ")
     out = pd.DataFrame({"count_games": grp.size(), "winrate": grp["won"].mean()})
@@ -212,13 +272,19 @@ def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.
     out["avg_tiles_owned_percentage"] = grp["tiles_owned_percentage"].mean()
     out["avg_cities_owned_percentage"] = grp["cities_owned_percentage"].mean()
     out["avg_score"] = grp["score"].mean()
+    out["avg_rank_at_game_end"] = grp["game_end_rank"].mean()
 
     out = out.reset_index()  # civ column first
     columns = (
         ["civ", "count_games", "winrate"]
         + [f"{stem}_victories" for stem, _ in VICTORY_TYPES]
         + [f"pct_{stem}_victories" for stem, _ in VICTORY_TYPES]
-        + ["avg_tiles_owned_percentage", "avg_cities_owned_percentage", "avg_score"]
+        + [
+            "avg_tiles_owned_percentage",
+            "avg_cities_owned_percentage",
+            "avg_score",
+            "avg_rank_at_game_end",
+        ]
     )
     return out[columns].sort_values("civ").reset_index(drop=True)
 

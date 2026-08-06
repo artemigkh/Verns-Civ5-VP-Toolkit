@@ -375,7 +375,12 @@ def build_civs_payload(
     avg_winrate = _avg_winrate(gr)
 
     # Full per-civ table, sorted by win rate descending (JS formats to 2 dp).
-    pr_sorted = pr.sort_values("winrate", ascending=False, kind="mergesort")
+    # ``rank`` is the row's 1-based position in that order, so it belongs to the
+    # presentation rather than to power_ranking.csv, and sits next to ``civ``.
+    pr_sorted = pr.sort_values(
+        "winrate", ascending=False, kind="mergesort"
+    ).reset_index(drop=True)
+    pr_sorted.insert(1, "rank", pr_sorted.index + 1)
     rows = pr_sorted.to_dict("records")
     for row in rows:
         for key, value in row.items():
@@ -398,7 +403,7 @@ def build_civs_payload(
             "victors": victors,
         },
         "avgWinrate": avg_winrate,
-        "table": {"columns": list(pr.columns), "rows": rows},
+        "table": {"columns": list(pr_sorted.columns), "rows": rows},
     }
 
 
