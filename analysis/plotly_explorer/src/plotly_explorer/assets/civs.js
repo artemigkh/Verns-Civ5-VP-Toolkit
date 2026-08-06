@@ -356,6 +356,12 @@
       .join(" ");
   }
 
+  // Column-header tooltips, keyed by raw column name.
+  var HEADER_TOOLTIPS = {
+    avg_rank_at_game_end:
+      "When 0, calculated by death order, otherwise by score at game end",
+  };
+
   // Integer-valued columns: the table position, the game count and the raw
   // victory counts (but not the pct_* shares, which stay 2-dp).
   function isIntCol(col) {
@@ -421,6 +427,7 @@
     cols.forEach(function (c) {
       var th = document.createElement("th");
       th.className = "civs-sortable" + (tableState.sortCol === c ? " civs-sorted" : "");
+      if (HEADER_TOOLTIPS[c]) th.title = HEADER_TOOLTIPS[c];
       th.appendChild(document.createTextNode(prettyHeader(c)));
       var arrow = document.createElement("span");
       if (tableState.sortCol === c) {
