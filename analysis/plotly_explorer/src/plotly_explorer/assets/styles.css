@@ -63,7 +63,8 @@ html, body {
 #app.show-building_grouped #sidebar .report-building_grouped,
 #app.show-religion #sidebar .report-religion,
 #app.show-units #sidebar .report-units,
-#app.show-instant_yields #sidebar .report-instant_yields {
+#app.show-instant_yields #sidebar .report-instant_yields,
+#app.show-wonders #sidebar .report-wonders {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -84,7 +85,10 @@ html, body {
 #app.show-policies_performance #expand-btn-right,
 #app.show-instant_yields #sidebar-right,
 #app.show-instant_yields #resizer-right,
-#app.show-instant_yields #expand-btn-right {
+#app.show-instant_yields #expand-btn-right,
+#app.show-wonders #sidebar-right,
+#app.show-wonders #resizer-right,
+#app.show-wonders #expand-btn-right {
   display: none;
 }
 
@@ -427,8 +431,9 @@ html, body {
   font-style: italic;
 }
 
-/* ---- Report Type dropdown + report switching ---- */
-#report-select {
+/* ---- Sidebar dropdowns (Report Type + any report's own selects) ---- */
+#report-select,
+.select-control {
   width: 100%;
   background: var(--chip);
   color: var(--text);
@@ -439,7 +444,8 @@ html, body {
   cursor: pointer;
 }
 
-#report-select:hover { border-color: var(--accent); }
+#report-select:hover,
+.select-control:hover { border-color: var(--accent); }
 
 /* Show only the active report's sections (default = building). */
 
@@ -481,6 +487,77 @@ html, body {
 #app.show-policies_performance .report-policies_performance { display: block; }
 #app.show-policies_performance .report-building { display: none; }
 #app.show-policies_performance #main-inner { justify-content: flex-start; }
+
+/* ---- Wonders report (fixed dashboard, modeled on Religion Performance) ---- */
+.report-wonders { display: none; }
+#app.show-wonders .report-wonders { display: block; }
+#app.show-wonders .report-building { display: none; }
+#app.show-wonders #main-inner { justify-content: flex-start; }
+
+#wonders-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.wonders-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.wonders-section-title {
+  margin: 4px 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* What the active Civilization/Policy Branch filter is showing, so a chart
+   thinned out by a narrow cohort reads as filtered rather than as missing. */
+.wonders-sub {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.wonders-empty {
+  margin: 8px 2px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* Height is set per-chart in wonders.js: the civ bar chart scales with the civ
+   count, each ridgeline facet with the number of wonders in its era. */
+.wonders-plot { width: 100%; }
+
+/* One facet per era, three per row (the R prototype's ncol = 3). Facets are
+   top-aligned so a short era doesn't stretch to its row's tallest neighbour. */
+.wonders-facet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+@media (max-width: 1400px) {
+  .wonders-facet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .wonders-facet-grid { grid-template-columns: 1fr; }
+}
+
+.wonders-facet { width: 100%; }
+
+.wonders-axis-label {
+  margin: 6px 2px 2px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-dim);
+}
 
 /* ---- Instant Yields report (sortable, per-column-shaded heatmap table) ---- */
 .report-instant_yields { display: none; }

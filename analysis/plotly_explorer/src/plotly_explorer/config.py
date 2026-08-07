@@ -26,6 +26,9 @@ BUILDING_INFO_CSV = METADATA_DIR / "building_info.csv"
 UNIQUE_BUILDINGS_JSON = METADATA_DIR / "unique_buildings.json"
 UNIT_INFO_CSV = METADATA_DIR / "unit_info.csv"
 CIV_COLORS_CSV = METADATA_DIR / "civ_colors.csv"
+# World wonder -> unlock era (Name,Era). Narrower than building_info.csv's
+# is_world_wonder flag; see metadata.load_wonder_eras.
+WONDER_ERAS_CSV = METADATA_DIR / "wonder_eras.csv"
 
 ERA_TOTALS_CSV = "building_yields_era_totals_summary.csv"
 TURN_AVERAGE_CSV = "building_yields_turn_average_summary.csv"
@@ -64,6 +67,11 @@ RELIGION_PICK_PERF_CSV = "religion_pick_performance.csv"
 # Policies Performance report (branch opens + wins by victory type).
 POLICY_BRANCH_OPENS_CSV = "policy_branch_opens.csv"
 POLICY_BRANCH_WINS_CSV = "policy_branch_wins.csv"
+
+# Wonders report. Fact tables rather than summaries: the frontend filters by civ
+# and policy-branch cohort, so both charts are aggregated client-side.
+WONDER_BUILDS_CSV = "wonder_builds.csv"
+WONDER_GAME_CIVS_CSV = "wonder_game_civs.csv"
 
 
 # Default ceiling on the DB engine's working set (see db.DEFAULT_MEMORY_LIMIT).
@@ -150,6 +158,14 @@ class Config:
     @property
     def policy_branch_wins_path(self) -> Path:
         return self.intermediate_data_dir / POLICY_BRANCH_WINS_CSV
+
+    @property
+    def wonder_builds_path(self) -> Path:
+        return self.intermediate_data_dir / WONDER_BUILDS_CSV
+
+    @property
+    def wonder_game_civs_path(self) -> Path:
+        return self.intermediate_data_dir / WONDER_GAME_CIVS_CSV
 
     @property
     def index_html_path(self) -> Path:

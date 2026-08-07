@@ -15,8 +15,9 @@ import pandas as pd
 from .config import (
     BUILDING_INFO_CSV,
     CIV_COLORS_CSV,
-    UNIT_INFO_CSV,
     UNIQUE_BUILDINGS_JSON,
+    UNIT_INFO_CSV,
+    WONDER_ERAS_CSV,
 )
 
 # 1-indexed era numbers (matches the design; DB era is 0-indexed, so DB era n
@@ -131,6 +132,57 @@ def load_metadata() -> Metadata:
         unique_groups=unique_groups,
         unique_to_base=unique_to_base,
     )
+
+
+# ===========================================================================
+# Wonders report metadata
+# ===========================================================================
+
+# Era display order for the wonders report (Ancient through Information); world
+# wonders never unlock in the Future era.
+WONDER_ERAS: list[str] = list(BUILDING_FILTER_ERAS)
+
+# Era per era-segment color, sampled from the ``inferno`` colormap over
+# [0.05, 0.95] — the palette the R prototype used
+# (analysis/r_scripts/14b_wonders_stacked_bar.R, variant "b").
+ERA_COLORS: dict[str, str] = {
+    "Ancient": "#0C051F",
+    "Classical": "#380C5B",
+    "Medieval": "#6D186D",
+    "Renaissance": "#A12B61",
+    "Industrial": "#D14743",
+    "Modern": "#F0751E",
+    "Atomic": "#F9B01C",
+    "Information": "#FAEA76",
+}
+
+# Unlock era for the six world wonders missing from wonder_eras.csv. That export
+# inner-joins Buildings -> Technologies (db_util/db_export.py:export_wonder_eras),
+# so wonders with no PrereqTech — the ones VP gates behind ideologies, policy
+# finishers or the World Congress — drop out entirely. They are too commonly
+# built to discard (Grand Canal and Menin Gate appear in ~80% of games), so their
+# era is pinned here, taken from the modal game-state era (civ_turn_era) of the
+# civ that built them at the turn they completed.
+WONDER_ERA_OVERRIDES: dict[str, str] = {
+    "Grand Canal": "Renaissance",
+    "Crystal Palace": "Modern",
+    "Menin Gate": "Modern",
+    "Olympic Village": "Atomic",
+    "United Nations": "Atomic",
+    "International Space Station": "Information",
+}
+
+
+def load_wonder_eras() -> dict[str, str]:
+    """World wonder name -> unlock era, including :data:`WONDER_ERA_OVERRIDES`."""
+    df = pd.read_csv(WONDER_ERAS_CSV, dtype=str).fillna("")
+    eras = {
+        row["Name"].strip(): row["Era"].strip()
+        for _, row in df.iterrows()
+        if row["Name"].strip() and row["Era"].strip()
+    }
+    eras.update(WONDER_ERA_OVERRIDES)
+    return eras
 
 
 # ===========================================================================

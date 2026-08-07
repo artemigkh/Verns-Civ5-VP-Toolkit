@@ -16,12 +16,15 @@ import pandas as pd
 import plotly.offline as po
 
 from .aggregate.policies_performance import BRANCH_ORDER, SHOWN_VICTORY_TYPES
+from .aggregate.wonders import BRANCH_SEP
 from .config import Config
 from .metadata import (
     BUILDING_FILTER_ERAS,
+    ERA_COLORS,
     ERA_LUT,
     UNIT_CATEGORIES,
     UNIT_FILTER_ERAS,
+    WONDER_ERAS,
     Metadata,
     load_civ_list,
     load_metadata,
@@ -590,6 +593,85 @@ def build_instant_yields_payload(cfg: Config) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Wonders report payload
+# ---------------------------------------------------------------------------
+
+def build_wonders_payload(cfg: Config) -> dict:
+    """The wonder-completion fact table, index-encoded for client-side filtering.
+
+    Unlike the other payload builders this one aggregates nothing: the Wonders
+    report filters by civilization and by policy-branch cohort, and recomputes
+    both its charts per filter (see ``assets/wonders.js``). Precomputing them
+    would take a curve set per (civ x branch subset).
+
+    Everything is emitted as parallel arrays of small integers indexing the
+    ``civs`` / ``branches`` / ``wonders`` tables, which keeps the inlined JSON to
+    roughly what the precomputed curves used to cost and makes the frontend's
+    filter pass a flat scan. A (game, civ) pair is one entry of ``pairCiv`` /
+    ``pairMask``; every build points at the pair that produced it, so a cohort
+    filter narrows builds and games-played together.
+    """
+    builds = pd.read_csv(cfg.wonder_builds_path)
+    game_civs = pd.read_csv(cfg.wonder_game_civs_path).fillna({"branches": ""})
+
+    # Index spaces. Civs and wonders come from the facts (a civ that played no
+    # retained game has nothing to show); branches keep BRANCH_ORDER so the
+    # bitmask bit assignment matches the chip order.
+    civs = sorted(set(game_civs["civ"]) | set(builds["civ"]))
+    civ_index = {c: i for i, c in enumerate(civs)}
+
+    wonder_eras = builds.drop_duplicates("wonder").set_index("wonder")["era"]
+    wonders = sorted(wonder_eras.index)
+    wonder_index = {w: i for i, w in enumerate(wonders)}
+
+    present_branches = set()
+    for packed in game_civs["branches"]:
+        if packed:
+            present_branches.update(packed.split(BRANCH_SEP))
+    branches = [b for b in BRANCH_ORDER if b in present_branches]
+    branch_bit = {b: 1 << i for i, b in enumerate(branches)}
+
+    # (game, civ) pairs, keyed for the build rows to point back at.
+    pair_index = {
+        (row.game_id, row.civ): i for i, row in enumerate(game_civs.itertuples(index=False))
+    }
+    pair_masks = []
+    for packed in game_civs["branches"]:
+        mask = 0
+        for b in packed.split(BRANCH_SEP) if packed else ():
+            mask |= branch_bit.get(b, 0)
+        pair_masks.append(mask)
+
+    # A build whose (game, civ) has no pair row cannot be normalized, so it is
+    # dropped rather than counted against an unknown number of games.
+    build_pair, build_wonder, build_turn = [], [], []
+    for row in builds.itertuples(index=False):
+        pair = pair_index.get((row.game_id, row.civ))
+        if pair is None:
+            continue
+        build_pair.append(pair)
+        build_wonder.append(wonder_index[row.wonder])
+        build_turn.append(int(row.turn))
+
+    present_eras = set(wonder_eras)
+    return {
+        "civs": civs,
+        "branches": branches,
+        "eraOrder": [e for e in WONDER_ERAS if e in present_eras],
+        "eraColors": {e: ERA_COLORS[e] for e in WONDER_ERAS if e in ERA_COLORS},
+        "wonders": [{"name": w, "era": wonder_eras[w]} for w in wonders],
+        # The ridge fill gradient spans every facet, matching the R prototype's
+        # shared `limits`, so a Modern wonder reads as "late" even in its own facet.
+        "turnRange": [int(min(build_turn)), int(max(build_turn))] if build_turn else [0, 1],
+        "pairCiv": [civ_index[c] for c in game_civs["civ"]],
+        "pairMask": pair_masks,
+        "buildPair": build_pair,
+        "buildWonder": build_wonder,
+        "buildTurn": build_turn,
+    }
+
+
 def render(
     cfg: Config,
     *,
@@ -609,6 +691,7 @@ def render(
         ),
         "policies_performance": build_policies_performance_payload(cfg),
         "instant_yields": build_instant_yields_payload(cfg),
+        "wonders": build_wonders_payload(cfg),
     }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
@@ -620,6 +703,7 @@ def render(
     religion_perf_js = (ASSETS_DIR / "religion_performance.js").read_text(encoding="utf-8")
     policies_perf_js = (ASSETS_DIR / "policies_performance.js").read_text(encoding="utf-8")
     instant_yields_js = (ASSETS_DIR / "instant_yields.js").read_text(encoding="utf-8")
+    wonders_js = (ASSETS_DIR / "wonders.js").read_text(encoding="utf-8")
     # civs.js precedes religion.js because the report switcher (tail of
     # religion.js) runs at load and, since Civs Overview is the default report,
     # must find window.CivsReport already defined. religion_performance.js only
@@ -634,6 +718,7 @@ def render(
         + "\n" + religion_perf_js
         + "\n" + policies_perf_js
         + "\n" + instant_yields_js
+        + "\n" + wonders_js
     )
     plotly_js = po.get_plotlyjs()
 

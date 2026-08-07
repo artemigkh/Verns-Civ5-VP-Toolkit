@@ -598,6 +598,12 @@
       window.BuildingGroupedReport
     ) {
       window.BuildingGroupedReport.render();
+    } else if (
+      app &&
+      app.classList.contains("show-wonders") &&
+      window.WondersReport
+    ) {
+      window.WondersReport.render();
     } else {
       render();
     }

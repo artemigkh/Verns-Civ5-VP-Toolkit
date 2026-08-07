@@ -28,6 +28,7 @@
         <option value="religion_performance">Religion Performance</option>
         <option value="religion">Religion Yields</option>
         <option value="units">Unit Composition</option>
+        <option value="wonders">Wonders</option>
       </select>
     </section>
 
@@ -136,6 +137,20 @@
       </section>
     </div>
 
+    <!-- ===================== Wonders report controls ===================== -->
+    <div class="report-wonders">
+      <section class="panel">
+        <h2>Civilization</h2>
+        <select id="wonders-civ-select" class="select-control"></select>
+      </section>
+
+      <section class="panel">
+        <h2>Policy Branch</h2>
+        <h3>Civ opened any of</h3>
+        <div id="wonders-branch-controls" class="chip-grid"></div>
+      </section>
+    </div>
+
     <!-- ===================== Instant Yields report controls ===================== -->
     <div class="report-instant_yields">
       <section class="panel">
@@ -223,6 +238,17 @@
           <div id="iy-heatmap"></div>
         </div>
         <p class="iy-footnote">*Instant is a catch-all category that currently includes yields tied to completing a building, choosing a policy, and some UA traits. In future versions this data gathering oversight will be rectified.</p>
+      </div>
+      <div class="report-wonders">
+        <h1 id="wonders-title">Wonders</h1>
+        <div class="wonders-card"><div id="wonders-by-civ" class="wonders-plot"></div></div>
+        <div class="wonders-card">
+          <h2 class="wonders-section-title">Wonder Completion Turn Distributions</h2>
+          <p id="wonders-kde-sub" class="wonders-sub"></p>
+          <div id="wonders-kde-grid" class="wonders-facet-grid"></div>
+          <p id="wonders-kde-empty" class="wonders-empty" hidden>No wonder was completed more than once under this filter, so there is nothing to fit a distribution to.</p>
+          <p class="wonders-axis-label">Turn</p>
+        </div>
       </div>
     </div>
   </main>

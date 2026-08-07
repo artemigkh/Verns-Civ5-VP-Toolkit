@@ -17,6 +17,7 @@ from .aggregate import (
     ensure_religion_summaries,
     ensure_summaries,
     ensure_unit_summaries,
+    ensure_wonders_summaries,
 )
 from .config import load_config
 from .render import render
@@ -47,6 +48,7 @@ def main() -> None:
     ensure_religion_performance_summaries(cfg, force=args.force)
     ensure_policies_performance_summaries(cfg, force=args.force)
     ensure_instant_yields_summaries(cfg, force=args.force)
+    ensure_wonders_summaries(cfg, force=args.force)
     out = render(
         cfg,
         patch=args.patch,

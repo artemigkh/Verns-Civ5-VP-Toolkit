@@ -12,9 +12,15 @@ Three CSVs, built in one pass from the game-stats intermediates
 
 The win join is identical to :func:`.game_summaries.build_religion_stats`: a belief
 pick counts as a win when the picking ``(game_id, civ)`` matches a game's winner.
-Founder/enhancer vs follower beliefs are separated by *belief category*, inferred
-from the set of ``type`` values a belief ever appears under (mirrors the R report's
-``load_religion_data`` in ``analysis/r_scripts/common.R``).
+Founder/enhancer vs follower beliefs are separated by the ``belief_type`` the DB
+records on every pick (see :func:`.game_summaries.build_religion_choices`).
+
+Note this deliberately diverges from the R report's ``load_religion_data`` in
+``analysis/r_scripts/common.R``, which infers the category from the set of ``type``
+values a belief was *observed* under. Follower beliefs are pickable both at founding
+and at enhancing, so that inference silently relabels any follower the sample only
+ever caught at one of the two — Mosques and Creativity landed in the Enhancers chart
+that way. The DB's own label has no such sample-size dependence.
 """
 
 from __future__ import annotations
@@ -38,14 +44,27 @@ ATTAINMENT_EVENTS = [
 # Number of points on the shared KDE x-grid (0 -> max attainment turn).
 KDE_GRID_POINTS = 300
 
-# Belief category from the frozenset of ``type`` values a belief appears under.
-_CATEGORY_BY_TYPES = {
-    frozenset({"pantheon"}): "PANTHEON",
-    frozenset({"religion_reformed"}): "REFORMATION",
-    frozenset({"religion_founded"}): "FOUNDER",
-    frozenset({"religion_enhanced"}): "ENHANCER",
-    frozenset({"religion_founded", "religion_enhanced"}): "FOLLOWER",
+# Report section per belief category, for every category that occupies a section of
+# its own. FOLLOWER is absent because it splits across two sections by pick moment
+# (see _section_for).
+_SECTION_BY_CATEGORY = {
+    "PANTHEON": "pantheon",
+    "REFORMATION": "reformation",
+    "FOUNDER": "founder",
+    "ENHANCER": "enhancer",
 }
+
+# The two follower sections, keyed by the ``type`` of the pick. Follower beliefs are
+# the only ones offered at two different moments, so this is the one place the pick
+# type — rather than the belief's category — decides the section.
+_FOLLOWER_SECTION_BY_TYPE = {
+    "religion_founded": "follower_found",
+    "religion_enhanced": "follower_enhance",
+}
+
+# Cache-busting version for the belief -> section rules above (see ensure_group's
+# ``fingerprint``). Bump on any change to _SECTION_BY_CATEGORY / _section_for.
+SECTION_RULES_VERSION = 1
 
 OUTPUT_COLUMNS_KDE = ["event_type", "x", "density"]
 OUTPUT_COLUMNS_MOMENTS = ["event_type", "mean", "median", "n"]
@@ -103,23 +122,19 @@ def _build_attainment_moments(samples: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=OUTPUT_COLUMNS_MOMENTS)
 
 
-def _belief_categories(choices: pd.DataFrame) -> pd.Series:
-    """belief -> category, inferred from the set of ``type`` values it appears under."""
-    type_sets = choices.groupby("belief")["type"].agg(lambda s: frozenset(s.unique()))
-    return type_sets.map(lambda ts: _CATEGORY_BY_TYPES.get(ts, "OTHER"))
-
-
 def _section_for(row_type: str, category: str) -> str | None:
-    """Map a (choice type, belief category) pair to one of the six report sections."""
-    if row_type == "pantheon":
-        return "pantheon"
-    if row_type == "religion_reformed":
-        return "reformation"
-    if row_type == "religion_founded":
-        return "follower_found" if category == "FOLLOWER" else "founder"
-    if row_type == "religion_enhanced":
-        return "follower_enhance" if category == "FOLLOWER" else "enhancer"
-    return None
+    """Map a (choice type, belief category) pair to one of the six report sections.
+
+    The category leads: a belief belongs in the section for what it *is*, so a stray
+    pick logged under an unexpected action (a handful of beliefs are recorded with a
+    ``RELIGION_FOUNDED`` action despite being pantheon/enhancer beliefs) still lands
+    with the rest of its kind instead of being misfiled or dropped. Only followers
+    consult ``row_type``, to split their picks across the found/enhance sections.
+    Unknown categories return ``None`` and are dropped by the caller.
+    """
+    if category == "FOLLOWER":
+        return _FOLLOWER_SECTION_BY_TYPE.get(row_type)
+    return _SECTION_BY_CATEGORY.get(category)
 
 
 def _build_pick_performance(
@@ -140,10 +155,9 @@ def _build_pick_performance(
     )
     merged["won"] = merged["won"].fillna(0).astype(int)
 
-    category = _belief_categories(choices)
-    merged["category"] = merged["belief"].map(category)
+    category = merged["belief_type"].fillna("").astype(str).str.strip().str.upper()
     merged["section"] = [
-        _section_for(t, c) for t, c in zip(merged["type"], merged["category"], strict=True)
+        _section_for(t, c) for t, c in zip(merged["type"], category, strict=True)
     ]
     merged = merged[merged["section"].notna()]
 
@@ -190,4 +204,7 @@ def ensure_religion_performance_summaries(cfg: Config, *, force: bool = False) -
         ],
         lambda: _build_summaries(cfg),
         force=force,
+        # Bump whenever the section assignment changes: the CSVs are newer than the
+        # DB, so mtime alone would keep serving bars filed under the old rules.
+        fingerprint=f"sections=belief_type/{SECTION_RULES_VERSION}",
     )

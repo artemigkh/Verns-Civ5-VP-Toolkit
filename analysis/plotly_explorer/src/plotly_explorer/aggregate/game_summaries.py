@@ -5,7 +5,8 @@ Reproduces five intermediate CSVs from the stats DB:
 * ``game_result``     — one row per game: winner and one-hot victory flags.
 * ``power_ranking``   — per-civ performance across all games (win rates, victory
   mix, end-of-game map ownership, average score, average finishing place).
-* ``religion_choices``— every belief a civ adopted, with a normalized ``type``.
+* ``religion_choices``— every belief a civ adopted, with a normalized ``type``
+  (the pick moment) and ``belief_type`` (the belief's own category, from the DB).
 * ``religion_stats``  — per-(type, belief) adoption stats and how often the
   adopting civ won.
 * ``policy_choices``  — every social-policy pick with its per-civ pick order.
@@ -131,10 +132,17 @@ def build_religion_choices(read: Callable[[str], pd.DataFrame]) -> pd.DataFrame:
     rc["type"] = rc["Action"].map(ACTION_TO_TYPE)
     rc = rc[rc["type"].notna() & (_clean_str(rc["Belief"]) != "")]
 
+    # The DB labels every row with the belief's own category; carry it through
+    # rather than letting consumers re-derive it from the actions a belief was
+    # observed under. Follower beliefs are pickable both at founding and at
+    # enhancing, so that inference mislabels any follower the sample only ever
+    # caught on one of the two (see aggregate/religion_performance.py).
+    rc["belief_type"] = _clean_str(rc["BeliefType"]).str.upper()
+
     out = rc.rename(
         columns={"GameId": "game_id", "Civ": "civ", "Turn": "turn", "Belief": "belief"}
     )
-    out = out[["game_id", "civ", "type", "turn", "belief"]]
+    out = out[["game_id", "civ", "type", "turn", "belief", "belief_type"]]
     return out.sort_values(["game_id", "turn", "civ"]).reset_index(drop=True)
 
 
@@ -354,7 +362,11 @@ def ensure_game_summaries(cfg: Config, *, force: bool = False) -> None:
         cfg, cfg.game_result_path, lambda: build_game_result(read), force=force
     )
     religion_choices_df = ensure_csv(
-        cfg, cfg.religion_choices_path, lambda: build_religion_choices(read), force=force
+        cfg,
+        cfg.religion_choices_path,
+        lambda: build_religion_choices(read),
+        force=force,
+        required_columns=("belief_type",),
     )
     ensure_csv(
         cfg, cfg.power_ranking_path, lambda: build_power_ranking(cfg, read), force=force

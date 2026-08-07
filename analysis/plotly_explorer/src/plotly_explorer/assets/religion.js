@@ -826,6 +826,7 @@
       mod: "PoliciesPerformanceReport",
     },
     instant_yields: { cls: "show-instant_yields", mod: "InstantYieldsReport" },
+    wonders: { cls: "show-wonders", mod: "WondersReport" },
   };
 
   function apply() {

@@ -7,6 +7,7 @@ from .policies_performance import ensure_policies_performance_summaries
 from .religion import ensure_religion_summaries
 from .religion_performance import ensure_religion_performance_summaries
 from .units import ensure_unit_summaries
+from .wonders import ensure_wonders_summaries
 
 __all__ = [
     "ensure_summaries",
@@ -16,4 +17,5 @@ __all__ = [
     "ensure_religion_performance_summaries",
     "ensure_policies_performance_summaries",
     "ensure_instant_yields_summaries",
+    "ensure_wonders_summaries",
 ]

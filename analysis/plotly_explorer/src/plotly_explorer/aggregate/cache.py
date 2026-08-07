@@ -37,18 +37,28 @@ def ensure_csv(
     builder: Callable[[], pd.DataFrame],
     *,
     force: bool = False,
+    required_columns: Iterable[str] = (),
 ) -> pd.DataFrame:
     """Return the CSV at ``path``, rebuilding it if stale (or ``force``).
 
     On a cache hit the CSV is read back from disk; on a miss ``builder`` is
     called, its result written to ``path`` and returned. Either way the caller
     gets a DataFrame it can pass on to a dependent aggregation.
+
+    ``required_columns`` covers what mtimes can't: a CSV written before a column
+    was added to the schema is newer than the DB but missing data a downstream
+    aggregation needs. Naming those columns makes the cache self-healing rather
+    than requiring a manual ``--force``.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if not force and is_fresh(path, cfg):
-        print(f"[aggregate] cache fresh, reusing {path.name}")
-        return pd.read_csv(path)
+        cached = pd.read_csv(path)
+        missing = [c for c in required_columns if c not in cached.columns]
+        if not missing:
+            print(f"[aggregate] cache fresh, reusing {path.name}")
+            return cached
+        print(f"[aggregate] {path.name} predates columns {missing}, rebuilding")
 
     print(f"[aggregate] building {path.name} from {cfg.db_path} ({cfg.db_type})")
     df = builder()
