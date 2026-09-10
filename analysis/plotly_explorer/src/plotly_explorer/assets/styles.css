@@ -88,7 +88,10 @@ html, body {
 #app.show-instant_yields #expand-btn-right,
 #app.show-wonders #sidebar-right,
 #app.show-wonders #resizer-right,
-#app.show-wonders #expand-btn-right {
+#app.show-wonders #expand-btn-right,
+#app.show-leaders #sidebar-right,
+#app.show-leaders #resizer-right,
+#app.show-leaders #expand-btn-right {
   display: none;
 }
 
@@ -930,3 +933,226 @@ html, body {
 
 #civs-table tbody tr:hover td { background: var(--panel-2); }
 #civs-table tbody tr:hover td:first-child { background: var(--panel-2); }
+
+
+/* ---- Leaders report (green-shaded civ x attribute tables) ---- */
+.report-leaders { display: none; }
+#app.show-leaders .report-leaders { display: block; }
+#app.show-leaders .report-building { display: none; }
+#app.show-leaders #main-inner { justify-content: flex-start; }
+
+#ldr-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.ldr-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.ldr-card-note {
+  margin: 10px 2px 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ldr-scroll { overflow-x: auto; }
+
+/* Stretched to the card so the value columns spread across the pane instead of
+   hugging their digits and leaving the right half of a wide window empty. */
+.ldr-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+  width: 100%;
+}
+
+/* Text columns take their content width and no more. width: 1px reads as "as
+   narrow as the content allows" here: nowrap makes min-content the full string,
+   which the browser can never go below. */
+.ldr-table th.ldr-corner,
+.ldr-table td.ldr-civ-name,
+.ldr-table th.ldr-text-col,
+.ldr-table td.ldr-leader-name,
+.ldr-table td.ldr-pursuit {
+  width: 1px;
+}
+
+/* The cell is the swatch: a background covers its padding, so neighbours in a
+   block sit flush and the shading reads as one continuous grid.
+
+   The width is the one leaders.js fits (see fitTiles), so every swatch in a
+   table comes out the same size — auto layout on its own sizes columns by their
+   content and left them ranging from 17px to 42px. content-box overrides the
+   sheet-wide border-box so the property is the swatch alone, which keeps the
+   seam border outside it and every swatch equal. */
+.ldr-table td.ldr-value {
+  box-sizing: content-box;
+  width: var(--ldr-tile-w, 28px);
+  padding: 4px 2px;
+}
+
+.ldr-table th,
+.ldr-table td {
+  padding: 4px 2px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.ldr-table tbody tr:last-child td { border-bottom: none; }
+
+/* Block headings: the spanning row that names each attribute group. These are
+   the card's titles, so no card carries a separate <h2>. */
+.ldr-table thead th.ldr-block-head {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  padding: 2px 8px 6px;
+  vertical-align: bottom;
+}
+
+/* The seam between two blocks, as a border in the card's own colour on the
+   opening column of the next one — a narrow gap rather than a drawn line.
+
+   It has to be a border rather than padding now that the cells are the
+   swatches: a cell's background paints over its padding, so padding here would
+   simply be coloured in and the blocks would run together. A border sits
+   outside the background, so it reads as a break. */
+.ldr-table td.ldr-block-start,
+.ldr-table th.ldr-block-start {
+  border-left: 7px solid var(--panel);
+}
+
+/* A block heading may be wider than the few columns it spans; let it wrap
+   rather than force those columns past one square wide. */
+.ldr-table thead th.ldr-block-head { white-space: normal; }
+
+/* Closes off the first block: with the civ column edged, the leading block
+   needs no divider of its own. */
+.ldr-table th.ldr-corner,
+.ldr-table td.ldr-civ-name { border-right: 1px solid var(--border); }
+
+/* Clickable attribute headers, labels rotated 45 degrees. Rotation is what lets
+   a column shrink to the width of its digits — laid out horizontally, the
+   38-column Flavors table would run several screens wide. Both children are
+   absolutely positioned so the transformed label can't drag the cell's layout
+   around; leaders.js measures the longest label and sets the header height and
+   the table's right margin to match. */
+.ldr-table thead th.ldr-attr-col {
+  position: relative;
+  color: var(--text-dim);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: bottom;
+  padding: 0;
+}
+
+.ldr-table thead th.ldr-attr-col:hover { color: var(--text); }
+.ldr-table thead th.ldr-sorted { color: var(--accent); }
+
+.ldr-attr-label {
+  position: absolute;
+  bottom: 15px; /* clears the upright arrow band (leaders.js: ARROW_BAND) */
+  /* Insets the label so the bottom of the rotated line box, which tips left of
+     the anchor by line-height/sqrt(2), stays inside its own cell instead of
+     sliding under the sticky civ column. leaders.js reads the resolved value
+     back when it measures the header, so the block-start override below is
+     picked up automatically. */
+  left: 9px;
+  transform-origin: 0 100%;
+  transform: rotate(-45deg);
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: .2px;
+  line-height: 1.1;
+}
+
+/* The sort glyph stays out of the rotated label and upright, directly over its
+   own column, so up/down still reads as up/down. */
+.ldr-sort-arrow {
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 9px;
+}
+
+.ldr-sort-arrow.ldr-sort-idle { opacity: 0.35; font-size: 10px; }
+.ldr-table thead th:hover .ldr-sort-arrow.ldr-sort-idle { opacity: 0.7; }
+
+/* Text columns (the Victory Pursuits block) are wide enough to label
+   horizontally, so their arrow sits inline instead of over the column. */
+.ldr-table thead th.ldr-text-col {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.ldr-table thead th.ldr-text-col:hover { color: var(--text); }
+
+.ldr-sort-arrow.ldr-sort-inline {
+  position: static;
+  width: auto;
+  margin-left: 3px;
+}
+
+.ldr-table td.ldr-leader-name,
+.ldr-table td.ldr-pursuit {
+  text-align: left;
+  padding-right: 16px;
+}
+
+.ldr-table td.ldr-leader-name { color: var(--text-dim); }
+.ldr-table td.ldr-pursuit { font-weight: 600; }
+
+/* Civ column reads left-aligned and sticks while the table scrolls sideways.
+   One per card, shared by every block in it. */
+.ldr-table th.ldr-corner,
+.ldr-table td.ldr-civ-name {
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  z-index: 1;
+  padding-right: 12px;
+}
+
+.ldr-table th.ldr-corner {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  vertical-align: bottom;
+}
+
+/* Row hover: trace one civ across every block of the card.
+
+   The value cells carry their heatmap color as an inline background, which a
+   hover background rule could never override, so the tint goes on as a filled
+   inset shadow instead — that composites over whatever green the cell already
+   has. The civ label is the exception: it's the row's identity, so it takes a
+   solid highlight rather than a wash. */
+.ldr-table tbody tr:hover td {
+  box-shadow: inset 0 0 0 9999px rgba(90, 169, 230, 0.15);
+}
+
+.ldr-table tbody tr:hover td.ldr-civ-name {
+  box-shadow: none;
+  background: var(--chip-on);
+  color: #fff;
+}

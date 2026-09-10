@@ -8,6 +8,8 @@ visualization scripts and the analysis notebooks:
     * civ_colors.csv          - civ -> primary RGB color
     * civ_bg_colors.csv       - civ -> secondary RGB color
     * civ_flavors.csv         - civ -> per-flavor pivot + leader personality
+    * leader_attributes.csv   - tidy civ x leader-attribute matrix (4 groups)
+    * leader_info.csv         - civ -> leader name + victory pursuits
     * beliefs.csv             - religion belief metadata
     * unique_buildings.json   - base building -> list of unique replacements
     * building_info.csv       - per-building era / wonder / religious / corp flags
@@ -119,6 +121,126 @@ DOMAIN_TO_TEXT_MAP = {
     "DOMAIN_SEA": "Sea",
     "DOMAIN_AIR": "Air",
 }
+
+
+# ---------------------------------------------------------------------------
+# Leader attributes (leader_attributes.csv / leader_info.csv)
+#
+# Every per-leader tuning value the AI reads lives in one of four places, and
+# each is its own "attribute group" -- the values within a group share a scale
+# and are only meaningfully compared against their own siblings:
+#
+#   Personality           15 integer columns on ``Leaders``
+#   Flavors               ``Leader_Flavors``            (one row per Flavors.Type)
+#   Major Civ Approaches  ``Leader_MajorCivApproachBiases``
+#   City-State Approaches ``Leader_MinorCivApproachBiases``
+#
+# Base Civ5 keeps these on a 1-10 scale; VP widens it (observed range -1..12),
+# so nothing downstream should assume 10 is the ceiling.
+# ---------------------------------------------------------------------------
+
+# The four groups, in display order. Group names are the table headings in the
+# Plotly Explorer's Leaders report.
+LEADER_GROUP_PERSONALITY = "Personality"
+LEADER_GROUP_FLAVORS = "Flavors"
+LEADER_GROUP_MAJOR_APPROACHES = "Major Civ Approaches"
+LEADER_GROUP_MINOR_APPROACHES = "City-State Approaches"
+
+LEADER_GROUP_ORDER = [
+    LEADER_GROUP_PERSONALITY,
+    LEADER_GROUP_FLAVORS,
+    LEADER_GROUP_MAJOR_APPROACHES,
+    LEADER_GROUP_MINOR_APPROACHES,
+]
+
+# Personality: ``Leaders`` column -> display label, ordered competitiveness ->
+# aggression -> diplomacy rather than by column position (which is arbitrary).
+# WorkWith/WorkAgainstWillingness have no Civ5-era equivalent on civdata.com but
+# are read by the VP AI, so they are included.
+LEADER_PERSONALITY_COLUMNS: dict[str, str] = {
+    "VictoryCompetitiveness": "Victory Competitiveness",
+    "WonderCompetitiveness": "Wonder Competitiveness",
+    "MinorCivCompetitiveness": "City-State Competitiveness",
+    "Boldness": "Boldness",
+    "Meanness": "Meanness",
+    "WarmongerHate": "Warmonger Hatred",
+    "DiploBalance": "Diplomatic Balance",
+    "DoFWillingness": "Friendship Willingness",
+    "DenounceWillingness": "Denounce Willingness",
+    "WorkWithWillingness": "Work With Willingness",
+    "WorkAgainstWillingness": "Work Against Willingness",
+    "Loyalty": "Loyalty",
+    "Forgiveness": "Forgiveness",
+    "Neediness": "Neediness",
+    "Chattiness": "Chattiness",
+}
+
+# FLAVOR_* -> display label. Only the entries whose title-cased suffix would be
+# wrong or cryptic need spelling out, but the whole set is listed so an added or
+# renamed VP flavor shows up as a KeyError-free "unlabeled" warning rather than
+# silently rendering as FLAVOR_SOMETHING.
+FLAVOR_TO_TEXT_MAP: dict[str, str] = {
+    "FLAVOR_OFFENSE": "Offense",
+    "FLAVOR_DEFENSE": "Defense",
+    "FLAVOR_CITY_DEFENSE": "City Defense",
+    "FLAVOR_MILITARY_TRAINING": "Military Training",
+    "FLAVOR_RECON": "Recon",
+    "FLAVOR_RANGED": "Ranged",
+    "FLAVOR_MOBILE": "Mobile",
+    "FLAVOR_NAVAL": "Naval",
+    "FLAVOR_NAVAL_RECON": "Naval Recon",
+    "FLAVOR_NAVAL_GROWTH": "Naval Growth",
+    "FLAVOR_NAVAL_TILE_IMPROVEMENT": "Naval Tile Improvement",
+    "FLAVOR_AIR": "Air",
+    "FLAVOR_ANTIAIR": "Anti-Air",
+    "FLAVOR_AIR_CARRIER": "Aircraft Carrier",
+    "FLAVOR_AIRLIFT": "Airlift",
+    "FLAVOR_NUKE": "Build Nuke",
+    "FLAVOR_USE_NUKE": "Use Nuke",
+    "FLAVOR_EXPANSION": "Expansion",
+    "FLAVOR_GROWTH": "Growth",
+    "FLAVOR_TILE_IMPROVEMENT": "Tile Improvement",
+    "FLAVOR_INFRASTRUCTURE": "Infrastructure",
+    "FLAVOR_PRODUCTION": "Production",
+    "FLAVOR_GOLD": "Gold",
+    "FLAVOR_SCIENCE": "Science",
+    "FLAVOR_CULTURE": "Culture",
+    "FLAVOR_HAPPINESS": "Happiness",
+    "FLAVOR_GREAT_PEOPLE": "Great People",
+    "FLAVOR_WONDER": "Wonder",
+    "FLAVOR_RELIGION": "Religion",
+    "FLAVOR_DIPLOMACY": "Diplomacy",
+    "FLAVOR_ESPIONAGE": "Espionage",
+    "FLAVOR_ARCHAEOLOGY": "Archaeology",
+    "FLAVOR_SPACESHIP": "Spaceship",
+    "FLAVOR_WATER_CONNECTION": "Water Connection",
+    "FLAVOR_I_LAND_TRADE_ROUTE": "Land Trade Route",
+    "FLAVOR_I_SEA_TRADE_ROUTE": "Sea Trade Route",
+    "FLAVOR_I_TRADE_ORIGIN": "Trade Origin",
+    "FLAVOR_I_TRADE_DESTINATION": "Trade Destination",
+}
+
+MAJOR_CIV_APPROACH_TO_TEXT_MAP: dict[str, str] = {
+    "MAJOR_CIV_APPROACH_WAR": "War",
+    "MAJOR_CIV_APPROACH_HOSTILE": "Hostile",
+    "MAJOR_CIV_APPROACH_DECEPTIVE": "Deceptive",
+    "MAJOR_CIV_APPROACH_GUARDED": "Guarded",
+    "MAJOR_CIV_APPROACH_AFRAID": "Afraid",
+    "MAJOR_CIV_APPROACH_FRIENDLY": "Friendly",
+    "MAJOR_CIV_APPROACH_NEUTRAL": "Neutral",
+}
+
+MINOR_CIV_APPROACH_TO_TEXT_MAP: dict[str, str] = {
+    "MINOR_CIV_APPROACH_IGNORE": "Ignore",
+    "MINOR_CIV_APPROACH_FRIENDLY": "Friendly",
+    "MINOR_CIV_APPROACH_PROTECTIVE": "Protective",
+    "MINOR_CIV_APPROACH_CONQUEST": "Conquest",
+    "MINOR_CIV_APPROACH_BULLY": "Bully",
+}
+
+# Non-playable "civs" that carry a leader row but no meaningful tuning values
+# (Crom's are all zero), excluded from every leader export.
+NON_MAJOR_CIV_TYPES = ("CIVILIZATION_MINOR", "CIVILIZATION_BARBARIAN")
 
 
 def load_text_lut(loc_db: Path) -> dict[str, str]:
@@ -264,6 +386,190 @@ def export_civ_flavors(cnx: sqlite3.Connection, out_path: Path) -> None:
     ).merge(leader_personality_df, on="civ", how="left")
     pivoted.to_csv(out_path)
     print(f"Wrote {out_path} ({len(pivoted)} civs)")
+
+
+def _leader_rows(cnx: sqlite3.Connection) -> pd.DataFrame:
+    """One row per major civ: its leader Type, display key and victory pursuits.
+
+    ``Civilization_Leaders`` is 1:1 in VP, but the schema allows several leaders
+    per civ, so a civ with more than one is collapsed to its first leader by Type
+    (deterministic) rather than silently duplicating every attribute row.
+    """
+    df = pd.read_sql_query(
+        f"""
+        SELECT cl.CivilizationType,
+               l.Type,
+               l.Description,
+               l.PrimaryVictoryPursuit,
+               l.SecondaryVictoryPursuit
+        FROM Leaders l
+        JOIN Civilization_Leaders cl ON l.Type = cl.LeaderheadType
+        WHERE cl.CivilizationType NOT IN {NON_MAJOR_CIV_TYPES!r}
+        ORDER BY cl.CivilizationType, l.Type
+        """,
+        cnx,
+    )
+    df["civ"] = df["CivilizationType"].map(CIV_TAG_TO_TEXT_MAP)
+    df = df[df["civ"].notna()]
+    return df.groupby("civ", as_index=False).first()
+
+
+def _type_order(cnx: sqlite3.Connection, table: str) -> dict[str, int]:
+    """``Type`` -> ``ID`` for a Civ5 enum table, so exports keep the game's order."""
+    return {row[0]: int(row[1]) for row in cnx.execute(f"SELECT Type, ID FROM {table}")}
+
+
+def _labeled(
+    types: list[str], labels: dict[str, str], group: str
+) -> dict[str, str]:
+    """Resolve display labels, warning about (and passing through) unknown types.
+
+    A VP update that adds a flavor or approach shows up here as a printed warning
+    instead of a KeyError, and the raw tag is used as its own label so the new
+    attribute still renders.
+    """
+    out: dict[str, str] = {}
+    unknown: list[str] = []
+    for t in types:
+        if t in labels:
+            out[t] = labels[t]
+        else:
+            unknown.append(t)
+            out[t] = t
+    if unknown:
+        print(f"  ! {group}: unlabeled type(s) {sorted(unknown)} -- add to db_export.py")
+    return out
+
+
+def export_leader_attributes(
+    cnx: sqlite3.Connection,
+    leaders: pd.DataFrame,
+    txt_lut: dict[str, str],
+    out_path: Path,
+) -> None:
+    """Tidy civ x leader-attribute values across the four attribute groups.
+
+    Columns: ``civ, leader, group, group_order, attribute, attribute_order,
+    value``. Long rather than pivoted because the four groups have different
+    column sets and are always consumed one group at a time (each renders as its
+    own heatmap table in the Plotly Explorer's Leaders report).
+
+    ``attribute_order`` is the game's own ordering -- ``Flavors.ID`` /
+    ``MajorCivApproachTypes.ID`` / ``MinorCivApproachTypes.ID`` for the joined
+    tables, and the declaration order of :data:`LEADER_PERSONALITY_COLUMNS` for
+    the personality columns, whose position in ``Leaders`` is arbitrary.
+    """
+    group_order = {name: i for i, name in enumerate(LEADER_GROUP_ORDER)}
+    frames: list[pd.DataFrame] = []
+
+    # --- Personality: 15 columns on Leaders, melted into attribute rows.
+    personality = pd.read_sql_query(
+        f"""
+        SELECT Type, {', '.join(LEADER_PERSONALITY_COLUMNS)}
+        FROM Leaders
+        """,
+        cnx,
+    )
+    personality = leaders[["civ", "Type", "Description"]].merge(
+        personality, on="Type", how="left"
+    )
+    melted = personality.melt(
+        id_vars=["civ", "Type", "Description"],
+        value_vars=list(LEADER_PERSONALITY_COLUMNS),
+        var_name="column",
+        value_name="value",
+    )
+    melted["group"] = LEADER_GROUP_PERSONALITY
+    melted["attribute"] = melted["column"].map(LEADER_PERSONALITY_COLUMNS)
+    melted["attribute_order"] = melted["column"].map(
+        {col: i for i, col in enumerate(LEADER_PERSONALITY_COLUMNS)}
+    )
+    frames.append(melted.drop(columns=["column"]))
+
+    # --- The three joined bias tables, all shaped (LeaderType, Type, value).
+    joined = [
+        (
+            LEADER_GROUP_FLAVORS,
+            "Leader_Flavors",
+            "FlavorType",
+            "Flavor",
+            "Flavors",
+            FLAVOR_TO_TEXT_MAP,
+        ),
+        (
+            LEADER_GROUP_MAJOR_APPROACHES,
+            "Leader_MajorCivApproachBiases",
+            "MajorCivApproachType",
+            "Bias",
+            "MajorCivApproachTypes",
+            MAJOR_CIV_APPROACH_TO_TEXT_MAP,
+        ),
+        (
+            LEADER_GROUP_MINOR_APPROACHES,
+            "Leader_MinorCivApproachBiases",
+            "MinorCivApproachType",
+            "Bias",
+            "MinorCivApproachTypes",
+            MINOR_CIV_APPROACH_TO_TEXT_MAP,
+        ),
+    ]
+    for group, table, type_col, value_col, enum_table, labels in joined:
+        df = pd.read_sql_query(
+            f"SELECT LeaderType, {type_col} AS tag, {value_col} AS value FROM {table}",
+            cnx,
+        )
+        df = leaders[["civ", "Type", "Description"]].merge(
+            df, left_on="Type", right_on="LeaderType", how="inner"
+        )
+        order = _type_order(cnx, enum_table)
+        label_lut = _labeled(sorted(set(df["tag"])), labels, group)
+        df["group"] = group
+        df["attribute"] = df["tag"].map(label_lut)
+        # Types missing from the enum table (shouldn't happen) sort last.
+        df["attribute_order"] = df["tag"].map(order).fillna(len(order)).astype(int)
+        frames.append(df.drop(columns=["LeaderType", "tag"]))
+
+    out = pd.concat(frames, ignore_index=True)
+    out["leader"] = out["Description"].map(lambda k: txt_lut.get(k, k))
+    out["group_order"] = out["group"].map(group_order)
+    out = out[
+        ["civ", "leader", "group", "group_order", "attribute", "attribute_order", "value"]
+    ].sort_values(["group_order", "attribute_order", "civ"], kind="mergesort")
+    out.to_csv(out_path, index=False)
+    per_group = out.groupby("group")["attribute"].nunique().reindex(LEADER_GROUP_ORDER)
+    breakdown = ", ".join(f"{n} {g}" for g, n in per_group.dropna().astype(int).items())
+    print(
+        f"Wrote {out_path} ({out['civ'].nunique()} civs x "
+        f"{int(per_group.sum())} attributes: {breakdown})"
+    )
+
+
+def export_leader_info(
+    leaders: pd.DataFrame, txt_lut: dict[str, str], out_path: Path
+) -> None:
+    """civ -> leader display name + primary/secondary victory pursuit.
+
+    The victory pursuits are the one leader attribute that isn't a number, so
+    they live here rather than in ``leader_attributes.csv``.
+    """
+    df = pd.DataFrame(
+        {
+            "civ": leaders["civ"],
+            "leader": leaders["Description"].map(lambda k: txt_lut.get(k, k)),
+            "primary_victory_pursuit": leaders["PrimaryVictoryPursuit"],
+            "secondary_victory_pursuit": leaders["SecondaryVictoryPursuit"],
+        }
+    )
+    for col in ("primary_victory_pursuit", "secondary_victory_pursuit"):
+        df[col] = (
+            df[col]
+            .fillna("")
+            .str.replace("VICTORY_PURSUIT_", "", regex=False)
+            .str.title()
+        )
+    df = df.sort_values("civ", kind="mergesort")
+    df.to_csv(out_path, index=False)
+    print(f"Wrote {out_path} ({len(df)} civs)")
 
 
 def export_units(cnx: sqlite3.Connection, out_path: Path) -> None:
@@ -579,6 +885,11 @@ def main() -> None:
         export_civ_colors(cnx, args.output_dir / "civ_colors.csv")
         export_civ_bg_colors(cnx, args.output_dir / "civ_bg_colors.csv")
         export_civ_flavors(cnx, args.output_dir / "civ_flavors.csv")
+        leaders = _leader_rows(cnx)
+        export_leader_attributes(
+            cnx, leaders, txt_lut, args.output_dir / "leader_attributes.csv"
+        )
+        export_leader_info(leaders, txt_lut, args.output_dir / "leader_info.csv")
         export_beliefs(cnx, txt_lut, args.output_dir / "beliefs.csv")
         export_units(cnx, args.output_dir / "units.csv")
         export_unique_buildings(cnx, txt_lut, args.output_dir / "unique_buildings.json")

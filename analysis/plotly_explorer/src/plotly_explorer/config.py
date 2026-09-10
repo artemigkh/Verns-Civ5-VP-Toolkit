@@ -29,6 +29,13 @@ CIV_COLORS_CSV = METADATA_DIR / "civ_colors.csv"
 # World wonder -> unlock era (Name,Era). Narrower than building_info.csv's
 # is_world_wonder flag; see metadata.load_wonder_eras.
 WONDER_ERAS_CSV = METADATA_DIR / "wonder_eras.csv"
+# Leaders report. Tidy civ x attribute values across the four leader-attribute
+# groups, plus the per-civ leader name and victory pursuits. Both are static
+# game-database reference data (no game logs involved), so the Leaders report
+# reads them straight from METADATA_DIR rather than through the aggregate
+# pipeline like every other report.
+LEADER_ATTRIBUTES_CSV = METADATA_DIR / "leader_attributes.csv"
+LEADER_INFO_CSV = METADATA_DIR / "leader_info.csv"
 
 ERA_TOTALS_CSV = "building_yields_era_totals_summary.csv"
 TURN_AVERAGE_CSV = "building_yields_turn_average_summary.csv"

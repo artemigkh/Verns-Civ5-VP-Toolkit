@@ -27,6 +27,7 @@ from .metadata import (
     WONDER_ERAS,
     Metadata,
     load_civ_list,
+    load_leader_attributes,
     load_metadata,
     load_unit_metadata,
     turn_bucket_label,
@@ -672,6 +673,83 @@ def build_wonders_payload(cfg: Config) -> dict:
     }
 
 
+
+# ---------------------------------------------------------------------------
+# Leaders report payload
+# ---------------------------------------------------------------------------
+
+# The value VP writes into a bias it wants the AI to ignore. A column where
+# every leader carries it is a switch VP left off -- as of 5.3.3 the City-State
+# "Friendly" approach is the only one -- so it ranks nothing and shades to one
+# flat color. Those columns are dropped from the report rather than given a
+# column of their own; ``leader_attributes.csv`` keeps them, staying a faithful
+# dump of the game database for anything else reading it.
+DISABLED_BIAS_VALUE = -1
+
+
+def build_leaders_payload() -> dict:
+    """The civ x leader-attribute matrix, grouped by attribute group.
+
+    Purely static game-database reference data (``db_util/out/leader_*.csv``), so
+    unlike every other payload builder this one takes no ``Config`` and never
+    touches the stats DB: the numbers describe how VP tunes each leader's AI, not
+    what happened in the autoplay games.
+
+    Rows are civs (named exactly as the rest of the app names them, via
+    ``CIV_TAG_TO_TEXT_MAP``) and columns are the group's attributes in the game's
+    own order, less any that :data:`DISABLED_BIAS_VALUE` rules out. Each civ's
+    values are emitted as one dense array per group, parallel to
+    ``groups[i].attributes`` -- smaller inlined than a nested object and simpler
+    for the client to sort by column index.
+    """
+    la = load_leader_attributes()
+    civs = la.civs
+
+    def column(group_name: str, attr: str) -> list:
+        return [la.values.get(civ, {}).get(group_name, {}).get(attr) for civ in civs]
+
+    groups = []
+    dropped: list[str] = []
+    for group in la.groups:
+        attributes = []
+        for attr in group.attributes:
+            present = [v for v in column(group.name, attr) if v is not None]
+            if present and all(v == DISABLED_BIAS_VALUE for v in present):
+                dropped.append(f"{group.name}/{attr}")
+                continue
+            attributes.append(attr)
+        if not attributes:
+            # Every column switched off -- the whole group has nothing to show.
+            dropped.append(f"{group.name} (entire group)")
+            continue
+
+        rows = {}
+        for civ in civs:
+            by_attr = la.values.get(civ, {}).get(group.name, {})
+            rows[civ] = [by_attr.get(attr) for attr in attributes]
+        groups.append(
+            {
+                "name": group.name,
+                # Stable slug the client keys its per-card sort and per-block
+                # visibility state off, so those survive a re-render.
+                "key": group.name.lower().replace(" ", "-"),
+                "attributes": attributes,
+                "rows": rows,
+            }
+        )
+
+    if dropped:
+        print(
+            f"[leaders] dropped {len(dropped)} column(s) fixed at "
+            f"{DISABLED_BIAS_VALUE} for every civ: {', '.join(dropped)}"
+        )
+
+    return {
+        "civs": civs,
+        "leaders": {civ: la.leaders.get(civ, {}) for civ in civs},
+        "groups": groups,
+    }
+
 def render(
     cfg: Config,
     *,
@@ -692,6 +770,7 @@ def render(
         "policies_performance": build_policies_performance_payload(cfg),
         "instant_yields": build_instant_yields_payload(cfg),
         "wonders": build_wonders_payload(cfg),
+        "leaders": build_leaders_payload(),
     }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
@@ -704,6 +783,7 @@ def render(
     policies_perf_js = (ASSETS_DIR / "policies_performance.js").read_text(encoding="utf-8")
     instant_yields_js = (ASSETS_DIR / "instant_yields.js").read_text(encoding="utf-8")
     wonders_js = (ASSETS_DIR / "wonders.js").read_text(encoding="utf-8")
+    leaders_js = (ASSETS_DIR / "leaders.js").read_text(encoding="utf-8")
     # civs.js precedes religion.js because the report switcher (tail of
     # religion.js) runs at load and, since Civs Overview is the default report,
     # must find window.CivsReport already defined. religion_performance.js only
@@ -719,6 +799,7 @@ def render(
         + "\n" + policies_perf_js
         + "\n" + instant_yields_js
         + "\n" + wonders_js
+        + "\n" + leaders_js
     )
     plotly_js = po.get_plotlyjs()
 

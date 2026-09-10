@@ -604,6 +604,14 @@
       window.WondersReport
     ) {
       window.WondersReport.render();
+    } else if (
+      app &&
+      app.classList.contains("show-leaders") &&
+      window.LeadersReport
+    ) {
+      // The Leaders tables fit their block seams to the measured pane width, so
+      // they have to re-fit whenever it changes — unlike the CSS-only reports.
+      window.LeadersReport.render();
     } else {
       render();
     }

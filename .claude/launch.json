@@ -4,32 +4,82 @@
     {
       "name": "yield-explorer-preview",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "--project", "analysis/plotly_explorer", "python", "-m", "http.server", "8753", "--directory", "misc/building_yields/public"],
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "analysis/plotly_explorer",
+        "python",
+        "-m",
+        "http.server",
+        "8753",
+        "--directory",
+        "misc/building_yields/public"
+      ],
       "port": 8753
     },
     {
       "name": "yield-explorer-static",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8753", "--directory", "misc/building_yields/public"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8753",
+        "--directory",
+        "misc/building_yields/public"
+      ],
       "port": 8753
     },
     {
       "name": "explorer-dev-static",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8777", "--directory", "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8777",
+        "--directory",
+        "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"
+      ],
       "port": 8777
     },
     {
       "name": "explorer-beeswarm-check",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8791", "--directory", "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8791",
+        "--directory",
+        "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_public"
+      ],
       "port": 8791
     },
     {
       "name": "instant-yields-check",
       "runtimeExecutable": "C:\\Users\\Art\\AppData\\Roaming\\Python\\Python311\\Scripts\\uv.exe",
-      "runtimeArgs": ["run", "--project", "analysis/plotly_explorer", "python", "-m", "http.server", "8801", "--directory", "data/MP_AUTOPLAY_VP_WARLORD_533/plotly_explorer_public"],
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "analysis/plotly_explorer",
+        "python",
+        "-m",
+        "http.server",
+        "8801",
+        "--directory",
+        "data/MP_AUTOPLAY_VP_WARLORD_533/plotly_explorer_public"
+      ],
       "port": 8801
+    },
+    {
+      "name": "docs-ghpages-check",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8815",
+        "--directory",
+        "docs"
+      ],
+      "port": 8815
     }
   ]
 }

@@ -827,6 +827,7 @@
     },
     instant_yields: { cls: "show-instant_yields", mod: "InstantYieldsReport" },
     wonders: { cls: "show-wonders", mod: "WondersReport" },
+    leaders: { cls: "show-leaders", mod: "LeadersReport" },
   };
 
   function apply() {
