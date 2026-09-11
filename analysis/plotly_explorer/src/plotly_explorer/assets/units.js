@@ -23,16 +23,35 @@
     return !!P.data[c];
   });
 
-  var state = {
+  // Chip display order, shared with the URL serializer so a given filter state
+  // always encodes to the same string regardless of click order.
+  var RANGED = ["melee", "ranged"];
+  var MOUNTED = ["notmounted", "mounted"];
+
+  // Defaults in one place: encode() omits any param still equal to its default
+  // (router contract C1). Most of these are "everything on".
+  var DEF = {
     civ: civsWithData.length ? civsWithData[0] : P.civs[0],
-    displayEras: new Set(P.defaultDisplayEras),
-    filterEras: new Set(P.unitFilterEras), // unit unlock eras (all on)
-    unitTypes: new Set(P.combatClasses), // combat classes (all on)
-    nonCombat: false, // civilian/support units off by default
-    domains: new Set(P.domains), // Land / Sea / Air (all on)
-    ranged: new Set(["ranged", "melee"]),
-    mounted: new Set(["mounted", "notmounted"]),
+    displayEras: P.defaultDisplayEras,
+    filterEras: P.unitFilterEras,
+    unitTypes: P.combatClasses,
+    nonCombat: false,
+    domains: P.domains,
+    ranged: RANGED,
+    mounted: MOUNTED,
     topN: 15,
+  };
+
+  var state = {
+    civ: DEF.civ,
+    displayEras: new Set(DEF.displayEras),
+    filterEras: new Set(DEF.filterEras), // unit unlock eras (all on)
+    unitTypes: new Set(DEF.unitTypes), // combat classes (all on)
+    nonCombat: DEF.nonCombat, // civilian/support units off by default
+    domains: new Set(DEF.domains), // Land / Sea / Air (all on)
+    ranged: new Set(DEF.ranged),
+    mounted: new Set(DEF.mounted),
+    topN: DEF.topN,
   };
 
   // -------------------------------------------------------------------------
@@ -412,6 +431,8 @@
     });
 
     document.getElementById("unit-empty-msg").hidden = any && eras.length > 0;
+
+    Explorer.Router.touch("units");
   }
 
   function buildLegend() {
@@ -447,5 +468,51 @@
   buildLegend();
   render();
 
+  function encode() {
+    var p = {};
+    var S = Explorer.Ser;
+    S.put(p, "c", state.civ, DEF.civ);
+    S.putSet(p, "de", state.displayEras, DEF.displayEras, P.eraOrder);
+    S.putSet(p, "fe", state.filterEras, DEF.filterEras, P.unitFilterEras);
+    S.putSet(p, "u", state.unitTypes, DEF.unitTypes, P.combatClasses);
+    // The only boolean in any report, and it shares a chip host with unitTypes.
+    S.put(p, "nc", S.boolOut(state.nonCombat), S.boolOut(DEF.nonCombat));
+    S.putSet(p, "d", state.domains, DEF.domains, P.domains);
+    S.putSet(p, "r", state.ranged, DEF.ranged, RANGED);
+    S.putSet(p, "mt", state.mounted, DEF.mounted, MOUNTED);
+    S.put(p, "n", state.topN, DEF.topN);
+    return p;
+  }
+
+  function decode(p) {
+    var S = Explorer.Ser;
+    state.civ = S.strIn(p.c, P.civs, DEF.civ);
+    state.displayEras = S.setInOr(p.de, P.eraOrder, DEF.displayEras);
+    state.filterEras = S.setInOr(p.fe, P.unitFilterEras, DEF.filterEras);
+    state.unitTypes = S.setInOr(p.u, P.combatClasses, DEF.unitTypes);
+    state.nonCombat = S.boolIn(p.nc, DEF.nonCombat);
+    state.domains = S.setInOr(p.d, P.domains, DEF.domains);
+    state.ranged = S.setInOr(p.r, RANGED, DEF.ranged);
+    state.mounted = S.setInOr(p.mt, MOUNTED, DEF.mounted);
+    state.topN = S.intIn(p.n, 1, 30, DEF.topN);
+    buildDisplayEraControls();
+    buildTopNControls();
+    buildUnitTypeControls();
+    buildDomainControls();
+    buildRangedControls();
+    buildMountedControls();
+    buildFilterEraControls();
+    // Safe to re-call, unlike wonders' buildCivSelect(): this one clears its
+    // host and rebuilds the radio list from scratch.
+    buildCivList();
+  }
+
   window.UnitsReport = { render: render };
+  Explorer.Router.register({
+    key: "units",
+    slug: "UnitComposition",
+    render: render,
+    encode: encode,
+    decode: decode
+  });
 })();

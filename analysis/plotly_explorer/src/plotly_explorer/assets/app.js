@@ -13,13 +13,37 @@
 
   var uniqueToBase = P.uniqueToBase; // unique replacement -> base it replaces
 
-  var state = {
+  // The building-type vocabulary, shared by the chip builder and the URL
+  // serializer so the two cannot drift apart.
+  var TYPE_OPTS = [
+    { key: "regular", label: "Regular Buildings" },
+    { key: "unique", label: "Unique Buildings" },
+    { key: "ww", label: "World Wonders" },
+    { key: "nw", label: "National Wonders" },
+    { key: "rel", label: "Religious" },
+  ];
+  var TYPE_KEYS = TYPE_OPTS.map(function (o) {
+    return o.key;
+  });
+
+  // Defaults in one place: encode() omits any param still equal to its default
+  // (router contract C1), so these have to be the same values state starts at.
+  var DEF = {
     yield: P.yields.indexOf("Production") >= 0 ? "Production" : P.yields[0],
-    metric: "turn", // 'turn' | 'total'
-    displayEras: new Set(P.defaultDisplayEras),
-    filterEras: new Set(["Ancient", "Classical"]), // building-era filter
-    types: new Set(["regular", "unique"]), // regular | ww | nw | rel | unique
-    topN: 15, // max buildings shown per facet
+    metric: "turn",
+    displayEras: P.defaultDisplayEras,
+    filterEras: ["Ancient", "Classical"],
+    types: ["regular", "unique"],
+    topN: 15,
+  };
+
+  var state = {
+    yield: DEF.yield,
+    metric: DEF.metric, // 'turn' | 'total'
+    displayEras: new Set(DEF.displayEras),
+    filterEras: new Set(DEF.filterEras), // building-era filter
+    types: new Set(DEF.types), // regular | ww | nw | rel | unique
+    topN: DEF.topN, // max buildings shown per facet
     selected: new Set(), // checked buildings
   };
 
@@ -207,14 +231,7 @@
   function buildFilterTypeControls() {
     var host = document.getElementById("filter-type-controls");
     host.innerHTML = "";
-    var opts = [
-      { key: "regular", label: "Regular Buildings" },
-      { key: "unique", label: "Unique Buildings" },
-      { key: "ww", label: "World Wonders" },
-      { key: "nw", label: "National Wonders" },
-      { key: "rel", label: "Religious" },
-    ];
-    opts.forEach(function (o) {
+    TYPE_OPTS.forEach(function (o) {
       host.appendChild(
         chip(o.label, state.types.has(o.key), function () {
           if (state.types.has(o.key)) state.types.delete(o.key);
@@ -531,6 +548,8 @@
     // Rebuild the legend so its category key reflects the current type-filter
     // selection (categories are hidden when their filter is toggled off).
     buildLegend();
+
+    Explorer.Router.touch("building");
   }
 
   function buildLegend() {
@@ -576,45 +595,18 @@
 
   // The sidebars (collapse + drag-to-resize) are shared chrome owned by this
   // module, but a width change must reflow whichever report is currently shown.
+  // Some reports need it more than others: the Leaders tables fit their block
+  // seams to the measured pane width, so they have to re-fit on every change,
+  // unlike the CSS-only reports.
+  //
+  // The router owns the key -> module registry, so dispatch goes there. This
+  // used to be a second if/else chain over the show-* classes that had drifted
+  // out of sync with the switcher: it omitted instant_yields,
+  // policies_performance and religion_performance, and fell through to the
+  // Building report's render() for all three -- reflowing a hidden report while
+  // the visible one kept its stale width.
   function renderActive() {
-    var app = document.getElementById("app");
-    if (app && app.classList.contains("show-units") && window.UnitsReport) {
-      window.UnitsReport.render();
-    } else if (
-      app &&
-      app.classList.contains("show-civs") &&
-      window.CivsReport
-    ) {
-      window.CivsReport.render();
-    } else if (
-      app &&
-      app.classList.contains("show-religion") &&
-      window.ReligionReport
-    ) {
-      window.ReligionReport.render();
-    } else if (
-      app &&
-      app.classList.contains("show-building_grouped") &&
-      window.BuildingGroupedReport
-    ) {
-      window.BuildingGroupedReport.render();
-    } else if (
-      app &&
-      app.classList.contains("show-wonders") &&
-      window.WondersReport
-    ) {
-      window.WondersReport.render();
-    } else if (
-      app &&
-      app.classList.contains("show-leaders") &&
-      window.LeadersReport
-    ) {
-      // The Leaders tables fit their block seams to the measured pane width, so
-      // they have to re-fit whenever it changes — unlike the CSS-only reports.
-      window.LeadersReport.render();
-    } else {
-      render();
-    }
+    Explorer.Router.renderActive();
   }
 
   // Wire one collapse/expand pair + drag-to-resize handle.
@@ -717,6 +709,52 @@
   buildBuildingList();
   render();
 
+  function encode() {
+    var p = {};
+    var S = Explorer.Ser;
+    S.put(p, "y", state.yield, DEF.yield);
+    S.put(p, "m", state.metric, DEF.metric);
+    S.putSet(p, "de", state.displayEras, DEF.displayEras, P.eraOrder);
+    S.putSet(p, "fe", state.filterEras, DEF.filterEras, P.buildingFilterEras);
+    S.putSet(p, "t", state.types, DEF.types, TYPE_KEYS);
+    S.put(p, "n", state.topN, DEF.topN);
+    return p;
+  }
+
+  function decode(p) {
+    var S = Explorer.Ser;
+    state.yield = S.strIn(p.y, P.yields, DEF.yield);
+    state.metric = S.enumIn(p.m, ["turn", "total"], DEF.metric);
+    // Both era sets are assigned DIRECTLY. The filter-era chip handler mirrors a
+    // newly-enabled building era into displayEras, which is right for a click
+    // but wrong here: replaying it would union the two sets and make
+    // `de=Ancient&fe=Medieval` unrepresentable, so a link would not survive its
+    // own round trip.
+    state.displayEras = S.setInOr(p.de, P.eraOrder, DEF.displayEras);
+    state.filterEras = S.setInOr(p.fe, P.buildingFilterEras, DEF.filterEras);
+    state.types = S.setInOr(p.t, TYPE_KEYS, DEF.types);
+    state.topN = S.intIn(p.n, 1, 30, DEF.topN);
+    // `selected` is deliberately not serialized -- it would be 200+ building
+    // names in a URL. syncSelection() re-derives it from the filters via the
+    // same delta logic a click goes through, which lands on exactly the
+    // selection a user would reach by setting these filters by hand.
+    syncSelection();
+    buildYieldControls();
+    buildMetricControls();
+    buildDisplayEraControls();
+    buildTopNControls();
+    buildFilterEraControls();
+    buildFilterTypeControls();
+    buildBuildingList();
+  }
+
   // Expose this report's render so the shared chrome + report switcher can reflow it.
   window.BuildingReport = { render: render };
+  Explorer.Router.register({
+    key: "building",
+    slug: "BuildingYields",
+    render: render,
+    encode: encode,
+    decode: decode
+  });
 })();

@@ -129,21 +129,35 @@
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
+  var BENEFACTORS = ["owner", "follower"];
+
+  // Defaults in one place: encode() omits any param still equal to its default
+  // (router contract C1), so these have to be the values state starts at.
+  var DEF = {
+    yields: P.yields.length ? [P.yields[0]] : [],
+    metric: "turn",
+    benefactors: ["owner"],
+    mode: "eras",
+    bucket: P.defaultBucket,
+    displayEras: P.defaultDisplayEras,
+    types: P.defaultBeliefTypes,
+    topN: 15,
+  };
+
   var state = {
-    yields: new Set(), // multi-select; populated below
-    metric: "turn", // 'turn' | 'total'
-    benefactors: new Set(["owner"]), // 'owner' | 'follower'
+    yields: new Set(DEF.yields), // multi-select
+    metric: DEF.metric, // 'turn' | 'total'
+    benefactors: new Set(DEF.benefactors), // 'owner' | 'follower'
     // How the graphs are sliced. The two slicings are mutually exclusive: eras
     // are per-player and variable length, turn buckets are fixed windows of the
     // game clock, so mixing them in one view would be meaningless.
-    mode: "eras", // 'eras' | 'bucket'
-    bucket: P.defaultBucket, // active bucket label ("90-99") in bucket mode
-    displayEras: new Set(P.defaultDisplayEras),
-    types: new Set(P.defaultBeliefTypes), // enabled belief types == sections shown
-    topN: 15, // max beliefs shown per facet
+    mode: DEF.mode, // 'eras' | 'bucket'
+    bucket: DEF.bucket, // active bucket label ("90-99") in bucket mode
+    displayEras: new Set(DEF.displayEras),
+    types: new Set(DEF.types), // enabled belief types == sections shown
+    topN: DEF.topN, // max beliefs shown per facet
     selected: new Set(), // checked beliefs
   };
-  if (P.yields.length) state.yields.add(P.yields[0]); // default-select first yield
 
   var SECTION_LABEL = {
     Pantheon: "Pantheons",
@@ -717,6 +731,8 @@
     // beliefs currently plotted (they change with selection, filters, eras,
     // and the top-N cap — paths that only call render()).
     buildLegend();
+
+    Explorer.Router.touch("religion");
   }
 
   function legendItem(color, label, italic) {
@@ -797,49 +813,71 @@
   buildBeliefList();
   render();
 
-  window.ReligionReport = { render: render };
-})();
-
-/* Report Type switcher — toggles the active report in-page (no reload). */
-(function () {
-  "use strict";
-  var sel = document.getElementById("report-select");
-  var app = document.getElementById("app");
-  if (!sel || !app) return;
-
-  // report value -> { class on #app, the report module exposing render() }
-  var REPORTS = {
-    civs: { cls: "show-civs", mod: "CivsReport" },
-    building: { cls: "show-building", mod: "BuildingReport" },
-    building_grouped: {
-      cls: "show-building_grouped",
-      mod: "BuildingGroupedReport",
-    },
-    religion: { cls: "show-religion", mod: "ReligionReport" },
-    units: { cls: "show-units", mod: "UnitsReport" },
-    religion_performance: {
-      cls: "show-religion_performance",
-      mod: "ReligionPerformanceReport",
-    },
-    policies_performance: {
-      cls: "show-policies_performance",
-      mod: "PoliciesPerformanceReport",
-    },
-    instant_yields: { cls: "show-instant_yields", mod: "InstantYieldsReport" },
-    wonders: { cls: "show-wonders", mod: "WondersReport" },
-    leaders: { cls: "show-leaders", mod: "LeadersReport" },
-  };
-
-  function apply() {
-    var target = REPORTS[sel.value] || REPORTS.civs;
-    Object.keys(REPORTS).forEach(function (key) {
-      app.classList.toggle(REPORTS[key].cls, REPORTS[key] === target);
-    });
-    var mod = window[target.mod];
-    if (mod) mod.render();
+  function encode() {
+    var p = {};
+    var S = Explorer.Ser;
+    S.putSet(p, "y", state.yields, DEF.yields, P.yields);
+    S.put(p, "m", state.metric, DEF.metric);
+    S.putSet(p, "b", state.benefactors, DEF.benefactors, BENEFACTORS);
+    // `mode` is serialized explicitly because it cannot be inferred: bucket mode
+    // has an empty displayEras, but so does era mode with every chip off, and
+    // `bucket` always holds a value whether or not it is driving the graphs.
+    S.put(p, "sl", state.mode, DEF.mode);
+    if (state.mode === "bucket") {
+      // Each slicing emits only its own field. Emitting the bucket in era mode
+      // would put an invisible slider position in every religion URL, and
+      // emitting eras in bucket mode would carry a set the UI has cleared.
+      S.put(p, "tb", state.bucket, null);
+    } else {
+      S.putSet(p, "de", state.displayEras, DEF.displayEras, P.eraOrder);
+    }
+    S.putSet(p, "t", state.types, DEF.types, P.beliefTypes);
+    S.put(p, "n", state.topN, DEF.topN);
+    return p;
   }
 
-  sel.value = (window.PAYLOAD && window.PAYLOAD.defaultReport) || "building";
-  sel.addEventListener("change", apply);
-  apply();
+  function decode(p) {
+    var S = Explorer.Ser;
+    state.yields = S.setInOr(p.y, P.yields, DEF.yields);
+    state.metric = S.enumIn(p.m, ["turn", "total"], DEF.metric);
+    state.benefactors = S.setInOr(p.b, BENEFACTORS, DEF.benefactors);
+    state.types = S.setInOr(p.t, P.beliefTypes, DEF.types);
+    state.topN = S.intIn(p.n, 1, 30, DEF.topN);
+
+    // Slicing. `mode` has no control of its own: the era chips set mode="eras"
+    // and REPLACE displayEras with the one era clicked, and the bucket slider
+    // sets mode="bucket" and CLEARS displayEras. Both are one-way ratchets built
+    // for a click, so replaying either here would destroy the state being
+    // restored. Set mode and its companion field directly instead, then let
+    // buildSliceControls() -> updateSliceChrome() repaint the muted classes and
+    // relabel the metric chip "Era Totals" / "Bucket Totals".
+    state.mode = S.enumIn(p.sl, ["eras", "bucket"], DEF.mode);
+    if (state.mode === "bucket") {
+      state.bucket = S.strIn(p.tb, P.bucketOrder, DEF.bucket);
+      state.displayEras = new Set(); // the invariant bucket mode relies on
+    } else {
+      state.bucket = DEF.bucket; // slider parks at its default
+      state.displayEras = S.setInOr(p.de, P.eraOrder, DEF.displayEras);
+    }
+
+    syncSelection(); // `selected` is filter-derived, not serialized
+    buildYieldControls();
+    buildBenefactorControls();
+    // buildMetricControls() is deliberately not called on its own here:
+    // updateSliceChrome() (via buildSliceControls) already rebuilds it, and
+    // calling it first would paint the wrong totals label.
+    buildSliceControls();
+    buildTopNControls();
+    buildFilterTypeControls();
+    buildBeliefList();
+  }
+
+  window.ReligionReport = { render: render };
+  Explorer.Router.register({
+    key: "religion",
+    slug: "ReligionYields",
+    render: render,
+    encode: encode,
+    decode: decode
+  });
 })();

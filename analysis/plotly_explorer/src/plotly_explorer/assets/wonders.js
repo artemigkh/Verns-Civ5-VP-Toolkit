@@ -804,6 +804,10 @@
   // A timer rather than requestAnimationFrame: rAF never fires while the tab is
   // hidden, which would strand the filter until the tab was looked at again.
   function scheduleRefresh() {
+    // This is the tail of both filter paths (the civ <select> and the branch
+    // chips), so the router is notified here rather than from render(), which is
+    // the resize/show path and must not author the URL.
+    Explorer.Router.touch("wonders");
     setTimeout(refresh, 0);
   }
 
@@ -812,5 +816,40 @@
   buildBranchControls();
   render();
 
+  function encode() {
+    var p = {};
+    var S = Explorer.Ser;
+    if (state.civ) p.c = state.civ; // null = "All Civilizations" = the default
+    // The default here IS the empty set ("no branch constraint"), and putSet
+    // compares before it serializes, so an empty set is omitted rather than
+    // written as the empty-set sentinel.
+    S.putSet(p, "b", state.branches, [], P.branches);
+    return p;
+  }
+
+  function decode(p) {
+    var S = Explorer.Ser;
+    state.civ = S.strIn(p.c, P.civs, null);
+    // Plain setIn, not setInOr: an empty branches set is this module's
+    // legitimate default, not a parse failure to fall back from.
+    state.branches = S.setIn(p.b, P.branches);
+    // buildCivSelect() appends its options and wires its change listener exactly
+    // once; re-calling it would duplicate all 45 options and stack a second
+    // listener. Drive the existing <select> directly instead.
+    var sel = document.getElementById("wonders-civ-select");
+    if (sel) sel.value = state.civ || "";
+    buildBranchControls(); // chip group: clears its host first, safe to re-call
+  }
+
   window.WondersReport = { render: render };
+  Explorer.Router.register({
+    key: "wonders",
+    slug: "Wonders",
+    render: render,
+    // render() reuses a cached derived view; the router must recompute it after
+    // a decode, so this module is the one that needs an explicit refresh.
+    refresh: refresh,
+    encode: encode,
+    decode: decode
+  });
 })();

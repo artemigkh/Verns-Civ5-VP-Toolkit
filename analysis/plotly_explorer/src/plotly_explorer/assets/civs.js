@@ -393,6 +393,10 @@
       tableState.sortDir = null;
     }
     renderTable();
+    // This report's state changes go through renderTable(), not render() (which
+    // only re-lays out the Plotly charts), so the router is notified here rather
+    // than from render() as in every other module.
+    Explorer.Router.touch("civs");
   }
 
   function sortedRows(col) {
@@ -470,9 +474,50 @@
     renderWinrate();
   }
 
+  // The sortable columns are the ones renderTable() actually draws a header
+  // for -- the per-type "% Victories" shares are dropped there, so whitelisting
+  // against the raw P.table.columns would let a hash name a column with no
+  // header to click.
+  var SORTABLE_COLS = P.table.columns.filter(function (c) {
+    return !/^pct_.*_victories$/.test(c);
+  });
+
+  function encode() {
+    var p = {};
+    if (tableState.sortCol) {
+      p.s = tableState.sortCol;
+      p.sd = tableState.sortDir === "asc" ? "a" : "d";
+    }
+    return p;
+  }
+
+  function decode(p) {
+    var S = Explorer.Ser;
+    tableState.sortCol = S.strIn(p.s, SORTABLE_COLS, null);
+    tableState.sortDir = tableState.sortCol
+      ? p.sd === "a"
+        ? "asc"
+        : "desc"
+      : null;
+  }
+
   buildKpis();
   renderTable();
   render();
 
   window.CivsReport = { render: render };
+  Explorer.Router.register({
+    key: "civs",
+    slug: "Overview",
+    render: render,
+    // render() only redraws the charts, but a decode changes the table -- so the
+    // router needs both, and must not leave the charts un-reflowed after the
+    // show-* class flip.
+    refresh: function () {
+      renderTable();
+      render();
+    },
+    encode: encode,
+    decode: decode
+  });
 })();

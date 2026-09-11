@@ -305,4 +305,9 @@
   render();
 
   window.ReligionPerformanceReport = { render: render };
+  Explorer.Router.register({
+    key: "religion_performance",
+    slug: "ReligionPerformance",
+    render: render
+  });
 })();

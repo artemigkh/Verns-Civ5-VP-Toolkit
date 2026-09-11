@@ -774,32 +774,34 @@ def render(
     }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
-    app_js = (ASSETS_DIR / "app.js").read_text(encoding="utf-8")
-    building_grouped_js = (ASSETS_DIR / "building_grouped.js").read_text(encoding="utf-8")
-    civs_js = (ASSETS_DIR / "civs.js").read_text(encoding="utf-8")
-    religion_js = (ASSETS_DIR / "religion.js").read_text(encoding="utf-8")
-    units_js = (ASSETS_DIR / "units.js").read_text(encoding="utf-8")
-    religion_perf_js = (ASSETS_DIR / "religion_performance.js").read_text(encoding="utf-8")
-    policies_perf_js = (ASSETS_DIR / "policies_performance.js").read_text(encoding="utf-8")
-    instant_yields_js = (ASSETS_DIR / "instant_yields.js").read_text(encoding="utf-8")
-    wonders_js = (ASSETS_DIR / "wonders.js").read_text(encoding="utf-8")
-    leaders_js = (ASSETS_DIR / "leaders.js").read_text(encoding="utf-8")
-    # civs.js precedes religion.js because the report switcher (tail of
-    # religion.js) runs at load and, since Civs Overview is the default report,
-    # must find window.CivsReport already defined. religion_performance.js only
-    # needs to have registered its module before the user switches to it, so it
-    # can follow the switcher.
-    app_js = (
-        app_js
-        + "\n" + building_grouped_js
-        + "\n" + civs_js
-        + "\n" + religion_js
-        + "\n" + units_js
-        + "\n" + religion_perf_js
-        + "\n" + policies_perf_js
-        + "\n" + instant_yields_js
-        + "\n" + wonders_js
-        + "\n" + leaders_js
+    # Bundle order. Two hard constraints, both about the router:
+    #   router.js FIRST  - it defines Explorer.Router, and every report module
+    #                      calls Explorer.Router.register() at its IIFE tail.
+    #                      app.js's renderActive() also defers to it.
+    #   switcher.js LAST - Router.start() reads location.hash and renders the
+    #                      report it names, which requires all ten modules to be
+    #                      registered. (Before the router existed the switcher
+    #                      sat at the tail of religion.js and silently skipped
+    #                      the render for the six modules not yet defined.)
+    # The ten report modules in between are order-independent: each only
+    # registers itself and renders its own panes. Keep this list explicit -- a
+    # glob would hide both constraints, and alphabetical order violates both.
+    js_bundle = (
+        "router.js",
+        "app.js",
+        "building_grouped.js",
+        "civs.js",
+        "religion.js",
+        "units.js",
+        "religion_performance.js",
+        "policies_performance.js",
+        "instant_yields.js",
+        "wonders.js",
+        "leaders.js",
+        "switcher.js",
+    )
+    app_js = "\n".join(
+        (ASSETS_DIR / name).read_text(encoding="utf-8") for name in js_bundle
     )
     plotly_js = po.get_plotlyjs()
 

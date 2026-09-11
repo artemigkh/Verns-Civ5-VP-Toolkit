@@ -344,4 +344,9 @@
   render();
 
   window.PoliciesPerformanceReport = { render: render };
+  Explorer.Router.register({
+    key: "policies_performance",
+    slug: "PoliciesPerformance",
+    render: render
+  });
 })();

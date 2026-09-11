@@ -665,9 +665,52 @@
       var cols = cardColumns(card);
       if (cols.length) buildCard(card, cols, host);
     });
+
+    Explorer.Router.touch("leaders");
+  }
+
+  // One term per sorted card, as "<card>:<block>|<index>:<d|a>". At most two
+  // cards carry a sort, so this stays short: #Leaders?s=profile:personality|3:d
+  function encode() {
+    var terms = [];
+    CARDS.forEach(function (card) {
+      var s = sorts[card.id];
+      if (!s || !s.key) return;
+      terms.push(card.id + ":" + s.key + ":" + (s.dir === "asc" ? "a" : "d"));
+    });
+    return terms.length ? { s: terms.join(",") } : {};
+  }
+
+  function decode(p) {
+    // Reset every card first (router contract C2): `p` holds only what the hash
+    // carried, so without this a sort would survive navigating back to #Leaders.
+    CARDS.forEach(function (card) {
+      sorts[card.id] = { key: null, dir: null };
+    });
+    if (!p.s) return;
+    String(p.s)
+      .split(",")
+      .forEach(function (term) {
+        var bits = term.split(":");
+        if (bits.length !== 3) return;
+        var s = sorts[bits[0]];
+        if (!s) return; // unknown card id from a stale link
+        s.key = bits[1];
+        s.dir = bits[2] === "a" ? "asc" : "desc";
+      });
+    // No control DOM to rebuild: render() redraws the headers with their sort
+    // arrows, and the row sort already falls back to civ order when the named
+    // column is not in the card.
   }
 
   render();
 
   window.LeadersReport = { render: render };
+  Explorer.Router.register({
+    key: "leaders",
+    slug: "Leaders",
+    render: render,
+    encode: encode,
+    decode: decode
+  });
 })();

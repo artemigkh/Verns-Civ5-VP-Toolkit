@@ -132,18 +132,43 @@
 
   var uniqueToBase = P.uniqueToBase; // unique replacement -> base it replaces
 
-  var state = {
-    yields: new Set(), // multi-select; seeded below
-    metric: "turn", // 'turn' | 'total'
-    displayEras: new Set(P.defaultDisplayEras),
-    filterEras: new Set(["Ancient", "Classical"]), // building-era filter
-    types: new Set(["regular", "unique"]), // regular | ww | nw | rel | unique
-    topN: 15, // max buildings shown per facet
-    selected: new Set(), // checked buildings
-  };
+  // The building-type vocabulary, shared by the chip builder and the URL
+  // serializer so the two cannot drift apart.
+  var TYPE_OPTS = [
+    { key: "regular", label: "Regular Buildings" },
+    { key: "unique", label: "Unique Buildings" },
+    { key: "ww", label: "World Wonders" },
+    { key: "nw", label: "National Wonders" },
+    { key: "rel", label: "Religious" },
+  ];
+  var TYPE_KEYS = TYPE_OPTS.map(function (o) {
+    return o.key;
+  });
+
   var defaultYield =
     P.yields.indexOf("Production") >= 0 ? "Production" : P.yields[0];
-  if (defaultYield) state.yields.add(defaultYield);
+
+  // Defaults in one place: encode() omits any param still equal to its default
+  // (router contract C1), so these have to be the same values state starts at.
+  // Unlike the ungrouped report, the yield selection here is a multi-select set.
+  var DEF = {
+    yields: defaultYield ? [defaultYield] : [],
+    metric: "turn",
+    displayEras: P.defaultDisplayEras,
+    filterEras: ["Ancient", "Classical"],
+    types: ["regular", "unique"],
+    topN: 15,
+  };
+
+  var state = {
+    yields: new Set(DEF.yields), // multi-select
+    metric: DEF.metric, // 'turn' | 'total'
+    displayEras: new Set(DEF.displayEras),
+    filterEras: new Set(DEF.filterEras), // building-era filter
+    types: new Set(DEF.types), // regular | ww | nw | rel | unique
+    topN: DEF.topN, // max buildings shown per facet
+    selected: new Set(), // checked buildings
+  };
 
   // -------------------------------------------------------------------------
   // Filtering
@@ -332,14 +357,7 @@
   function buildFilterTypeControls() {
     var host = document.getElementById("bg-filter-type-controls");
     host.innerHTML = "";
-    var opts = [
-      { key: "regular", label: "Regular Buildings" },
-      { key: "unique", label: "Unique Buildings" },
-      { key: "ww", label: "World Wonders" },
-      { key: "nw", label: "National Wonders" },
-      { key: "rel", label: "Religious" },
-    ];
-    opts.forEach(function (o) {
+    TYPE_OPTS.forEach(function (o) {
       host.appendChild(
         chip(o.label, state.types.has(o.key), function () {
           if (state.types.has(o.key)) state.types.delete(o.key);
@@ -717,6 +735,8 @@
     // Rebuild the legend so its category key reflects the current type-filter
     // selection (categories are hidden when their filter is toggled off).
     buildLegend();
+
+    Explorer.Router.touch("building_grouped");
   }
 
   function legendItem(color, label, italic) {
@@ -798,7 +818,48 @@
   buildBuildingList();
   render();
 
+  function encode() {
+    var p = {};
+    var S = Explorer.Ser;
+    S.putSet(p, "y", state.yields, DEF.yields, P.yields);
+    S.put(p, "m", state.metric, DEF.metric);
+    S.putSet(p, "de", state.displayEras, DEF.displayEras, P.eraOrder);
+    S.putSet(p, "fe", state.filterEras, DEF.filterEras, P.buildingFilterEras);
+    S.putSet(p, "t", state.types, DEF.types, TYPE_KEYS);
+    S.put(p, "n", state.topN, DEF.topN);
+    return p;
+  }
+
+  function decode(p) {
+    var S = Explorer.Ser;
+    state.yields = S.setInOr(p.y, P.yields, DEF.yields);
+    state.metric = S.enumIn(p.m, ["turn", "total"], DEF.metric);
+    // Both era sets are assigned DIRECTLY -- see the same note in app.js: the
+    // filter-era chip handler mirrors a newly-enabled era into displayEras, and
+    // replaying that here would make `de=Ancient&fe=Medieval` unrepresentable.
+    state.displayEras = S.setInOr(p.de, P.eraOrder, DEF.displayEras);
+    state.filterEras = S.setInOr(p.fe, P.buildingFilterEras, DEF.filterEras);
+    state.types = S.setInOr(p.t, TYPE_KEYS, DEF.types);
+    state.topN = S.intIn(p.n, 1, 30, DEF.topN);
+    // `selected` is filter-derived, not serialized. See app.js.
+    syncSelection();
+    buildYieldControls();
+    buildMetricControls();
+    buildDisplayEraControls();
+    buildTopNControls();
+    buildFilterEraControls();
+    buildFilterTypeControls();
+    buildBuildingList();
+  }
+
   // Expose this report's render so the shared chrome + report switcher can reflow it.
   window.BuildingGroupedReport = { render: render };
+  Explorer.Router.register({
+    key: "building_grouped",
+    slug: "BuildingYieldsGrouped",
+    render: render,
+    encode: encode,
+    decode: decode
+  });
 })();
 

@@ -21,9 +21,16 @@
   // sparse/noisy enough to skew the shares.
   var SORT_EXCLUDED_ERAS = { Information: true, Atomic: true };
 
-  var state = {
+  // Defaults live in one place so encode()'s default-omission (router contract
+  // C1) cannot drift from what the module actually starts with.
+  var DEF = {
     yield: P.defaultYield || (P.yields[0] || null),
     topN: P.defaultTopN || 15,
+  };
+
+  var state = {
+    yield: DEF.yield,
+    topN: DEF.topN,
     sortEra: null, // era name currently sorted by, or null for the default sort
     sortDir: null, // 'desc' | 'asc' when sortEra is set
   };
@@ -270,6 +277,37 @@
     });
     table.appendChild(tbody);
     host.appendChild(table);
+
+    // Last line of render(), never the first: render() self-heals a sortEra
+    // whose column the current yield no longer has (see the guard at the top),
+    // and encoding before that heal would publish a hash the very next render
+    // contradicts.
+    Explorer.Router.touch("instant_yields");
+  }
+
+  function encode() {
+    var p = {};
+    var S = Explorer.Ser;
+    S.put(p, "y", state.yield, DEF.yield);
+    S.put(p, "n", state.topN, DEF.topN);
+    if (state.sortEra) {
+      p.s = state.sortEra;
+      p.sd = state.sortDir === "asc" ? "a" : "d";
+    }
+    return p;
+  }
+
+  function decode(p) {
+    var S = Explorer.Ser;
+    state.yield = S.strIn(p.y, P.yields, DEF.yield);
+    state.topN = S.intIn(p.n, 1, P.maxTriggerTypes || 1, DEF.topN);
+    state.sortEra = S.strIn(p.s, P.eraOrder, null);
+    state.sortDir = state.sortEra ? (p.sd === "a" ? "asc" : "desc") : null;
+    buildYieldControls();
+    buildTopNControls();
+    // No need to check sortEra against the *current yield's* columns here:
+    // render() already drops a sortEra with no column, and because touch() runs
+    // at the end of render() the hash is rewritten after that heal.
   }
 
   buildYieldControls();
@@ -277,4 +315,11 @@
   render();
 
   window.InstantYieldsReport = { render: render };
+  Explorer.Router.register({
+    key: "instant_yields",
+    slug: "InstantYields",
+    render: render,
+    encode: encode,
+    decode: decode
+  });
 })();
