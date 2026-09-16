@@ -341,15 +341,17 @@
   function donut(point) {
     var total = point.space; // the full circle is the whole address space
     var svg = svgEl("svg", { viewBox: "0 0 " + VBW + " " + VBH });
-    // <title> names the chart for AT. No role="img" on the root: that would
-    // hide the children, and every segment carries its own aria-label.
-    var caption = svgEl("title", {});
-    caption.textContent =
+    // The chart's summary for AT. Deliberately NOT an SVG <title>: browsers
+    // render one as a native tooltip, which shows up over the chart alongside
+    // the report's own. It is also not an aria-label with role="img" on the
+    // root, because that role hides the segments, and the segments are the
+    // content — each carries its own aria-label and is reachable by arrow key.
+    var summary = el("p", "pm-sr");
+    summary.textContent =
       point.title + ", " + point.sub + ": the whole " + fmt(total, 0) + " MB address space. " +
       P.owners.map(function (o) {
         return o.name + " " + ((100 * sum(point, o.key)) / total).toFixed(1) + "%";
-      }).join("; ");
-    svg.appendChild(caption);
+      }).join("; ") + ".";
 
     // Hatch for the estimated items. The pattern id has to be unique per donut
     // or the second chart's <defs> wins for both.
@@ -493,6 +495,7 @@
     head.appendChild(el("h3", null, point.title + " · " + point.sub));
     head.appendChild(el("span", "pm-mono", point.meta));
     card.appendChild(head);
+    card.appendChild(summary); // read before the chart, drawn nowhere
     card.appendChild(svg);
     return card;
   }
@@ -517,8 +520,13 @@
   var HEAT_GOOD = "72,188,186";
   var heatMax = 0;
 
-  // +1: the row measures memory held, so a rise is bad.
+  // +1: the row measures memory held, or space gone to waste, so a rise is bad.
   // -1: the row measures room left, so a fall is bad.
+  //
+  // Only Headroom is reversed. Fragmentation takes the default even though it
+  // is made of free space, which is the point of splitting it out: the small
+  // holes rising by 47 MB read as good while they sat under Headroom, and as
+  // bad here, where they are counted as space nothing can use.
   function polarityOf(ownerKey) {
     return ownerKey === "free" ? -1 : 1;
   }
