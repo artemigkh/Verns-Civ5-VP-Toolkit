@@ -267,7 +267,8 @@
         <div class="wonders-card">
           <h2 class="wonders-section-title">Average Winrate by Wonder</h2>
           <p id="wonders-wr-sub" class="wonders-sub"></p>
-          <p class="wonders-note">The dashed line is the average winrate a civ-game gets by default. Bars over fewer than 10 builds are faded.</p>
+          <!-- wonders.js rewrites this: the fade clause only applies with no civ filter. -->
+          <p id="wonders-wr-note" class="wonders-note"></p>
           <!-- wonders.js paints the swatch from the same colorscale the bars use. -->
           <div id="wonders-wr-key" class="wonders-key"></div>
           <div id="wonders-winrate-grid" class="wonders-facet-grid"></div>

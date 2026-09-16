@@ -114,8 +114,22 @@
   // handful of builds is noise — three builds and one win is 33% by accident, and
   // it will outrank a staple. Below this many builds the bar is drawn faded, so
   // it stays visible without reading as a result.
+  //
+  // Suppressed under a civ filter. A civ plays each game at most once, so its
+  // build counts are a fraction of the all-civ ones and essentially every bar
+  // falls under the threshold — the whole facet greys out and the fade stops
+  // distinguishing anything. The thinness is already visible in the hover's
+  // build count.
   var MIN_WINRATE_SAMPLES = 10;
   var THIN_OPACITY = 0.32;
+
+  // A wonder that was built but never won has a zero-length bar: invisible, and
+  // with no area there is nothing to hover. Those rows are drawn instead as a
+  // small mark straddling zero, so the build-rate colour and the tooltip still
+  // land. Half-width, as a fraction of the shared x range — sized so the mark
+  // is a few pixels wide at the narrowest facet, which is small enough to read
+  // as "no wins" but still big enough to put a pointer on.
+  var ZERO_WIN_NUB = 0.012;
 
   var SQRT_2PI = Math.sqrt(2 * Math.PI);
 
@@ -517,9 +531,14 @@
     // also has to clear the baseline, or a filter where nobody won would push the
     // reference line off the plot.
     var top = Math.max(xMax, P.avgWinrate);
+    var span = top > 0 ? top * 1.08 : 1;
+    // The never-won mark is centred on zero, so the range has to open a little
+    // to the left of it or its left half is clipped by the plot edge.
+    var nub = span * ZERO_WIN_NUB;
     return {
       facets: facets,
-      xRange: [0, top > 0 ? top * 1.08 : 1],
+      xRange: [-nub * 1.4, span],
+      nub: nub,
       cMax: cMax > 0 ? cMax : 1,
       denom: denom,
     };
@@ -859,7 +878,7 @@
   // One trace per facet with per-point marker arrays rather than one trace per
   // wonder: the bars share an axis and differ only in color and opacity, and 20
   // single-bar traces would carry 20 legends' worth of layout for nothing.
-  function drawWinrateFacet(facet, xRange, cMax) {
+  function drawWinrateFacet(facet, xRange, cMax, nub) {
     var s = hostSize("wonders-wr-facet-" + facet.era);
     if (!s) return;
 
@@ -867,13 +886,22 @@
     var names = rows.map(function (r) {
       return r.wonder;
     });
+    // See MIN_WINRATE_SAMPLES: under a civ filter every bar would be faded, so
+    // the fade says nothing and is dropped.
+    var fade = state.civ == null;
 
     var trace = {
       type: "bar",
       orientation: "h",
       y: names,
+      // A never-won row is drawn from -nub to +nub instead of 0 to 0. `base` is
+      // where the bar starts and `x` is how far it runs, so the pair straddles
+      // zero; every other row keeps base 0 and its real winrate.
+      base: rows.map(function (r) {
+        return r.wins ? 0 : -nub;
+      }),
       x: rows.map(function (r) {
-        return r.winrate;
+        return r.wins ? r.winrate : 2 * nub;
       }),
       marker: {
         color: rows.map(function (r) {
@@ -885,17 +913,21 @@
         // One shared HTML key sits above the grid; nine Plotly colorbars would
         // each eat a third of their facet's width to say the same thing.
         showscale: false,
-        opacity: rows.map(function (r) {
-          return r.builds >= MIN_WINRATE_SAMPLES ? 1 : THIN_OPACITY;
-        }),
+        opacity: fade
+          ? rows.map(function (r) {
+              return r.builds >= MIN_WINRATE_SAMPLES ? 1 : THIN_OPACITY;
+            })
+          : 1,
         line: { color: BG, width: 0.5 },
       },
+      // The winrate rides in customdata rather than being read back off `x`:
+      // for a never-won row `x` is the width of the mark, not the value.
       customdata: rows.map(function (r) {
-        return [r.wins, r.builds, r.buildRate];
+        return [r.wins, r.builds, r.buildRate, r.winrate];
       }),
       hovertemplate:
         "%{y}" +
-        "<br>%{x:.1%} winrate" +
+        "<br>%{customdata[3]:.1%} winrate" +
         "<br>%{customdata[0]} wins in %{customdata[1]} civ-games" +
         "<br>built in %{customdata[2]:.0%} of games<extra></extra>",
       showlegend: false,
@@ -993,6 +1025,15 @@
   function drawWinrateFacets() {
     var wr = view.winrate;
     setText("wonders-wr-sub", subtitle("civ"));
+    setText(
+      "wonders-wr-note",
+      "The dashed line is the average winrate a civ-game gets by default. " +
+        (state.civ == null
+          ? "Bars over fewer than " + MIN_WINRATE_SAMPLES + " builds are faded. "
+          : "") +
+        "A wonder that was built but never won is drawn as a small mark on zero, " +
+        "so its build-rate colour and tooltip are still there."
+    );
     drawWinrateKey(wr.cMax);
 
     var shown = {};
@@ -1003,7 +1044,7 @@
       el.style.display = "";
       // 22px a bar, on top of the title band and the x axis below the plot.
       el.style.height = Math.max(180, 22 * facet.wonders.length + 84) + "px";
-      drawWinrateFacet(facet, wr.xRange, wr.cMax);
+      drawWinrateFacet(facet, wr.xRange, wr.cMax, wr.nub);
     });
     P.eraOrder.forEach(function (era) {
       if (shown[era]) return;
