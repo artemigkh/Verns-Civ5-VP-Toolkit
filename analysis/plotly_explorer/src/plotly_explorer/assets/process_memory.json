@@ -1,0 +1,425 @@
+{
+  "_comment": [
+    "Static dataset for the Process Memory (dev) report -- the 'Who holds the memory'",
+    "section of 'The Civ 5 Memory Ledger', https://claude.ai/artifact/W8VFcm5haFbuo76kTSW6Ua",
+    "",
+    "Nothing here comes from this repo's autoplay stats DB. The figures are one-off",
+    "measurements of a live CivilizationV_DX11.exe taken in the Community-Patch-DLL",
+    "workspace: the DLL's own allocation hook (MemHookTags), the heap walk and",
+    "address-space walk it writes to the game's cache/stats.db (MemHeapDetail,",
+    "MemHeapSummary, MemAddressSpace), the Lua Tier 2 allocator profile, and a VMMap",
+    "capture of a reference game for the items marked est.",
+    "",
+    "All sizes are MB, and the whole 4,096 MB address space is accounted for: every",
+    "item's value sums to 'space', which is committed + reserved + free. Reserve whose",
+    "owner is known is charged to that owner and counted once (dll.minidump,",
+    "dll.hookreserve, drv.reserve), so the rsv.* family is only the reserve that is",
+    "shared between owners or unclaimed. Headroom (free.*) is drawn unfilled: it is",
+    "the one part of the ring holding nothing."
+  ],
+
+  "owners": [
+    {
+      "key": "dll",
+      "name": "DLL",
+      "desc": "Vox Populi's CvGameCore_Expansion2.dll: everything it allocates, plus its image"
+    },
+    {
+      "key": "lua",
+      "name": "Lua",
+      "desc": "All 69 Lua UI contexts, in Lua's own heap"
+    },
+    {
+      "key": "drv",
+      "name": "Video driver",
+      "desc": "Driver and Direct3D memory inside the game process. Not VRAM"
+    },
+    {
+      "key": "exe",
+      "name": "EXE",
+      "desc": "The EXE and everything else: engine, Windows, Steam, and memory with no known owner"
+    },
+    {
+      "key": "rsv",
+      "name": "Reserved",
+      "desc": "Address space claimed but never committed, and with no owner we can name"
+    },
+    {
+      "key": "free",
+      "name": "Headroom",
+      "desc": "Address space nobody has claimed. The only part of the ring holding nothing — and the part that runs out",
+      "empty": true
+    }
+  ],
+
+  "items": [
+    {
+      "key": "dll.image",
+      "label": "DLL code and static data",
+      "desc": "The loaded CvGameCore_Expansion2.dll image"
+    },
+    {
+      "key": "dll.db",
+      "label": "Game database tables",
+      "desc": "XML info tables loaded at startup (tag XmlDatabaseLoad); identical in both games"
+    },
+    {
+      "key": "dll.mapgen",
+      "label": "Map generation",
+      "desc": "Left over from generating a fresh map (tag MapGeneration)"
+    },
+    {
+      "key": "dll.untagged",
+      "label": "Map, pathfinder pools and statics",
+      "desc": "Allocations outside any tagged scope, mostly made before turn 1"
+    },
+    {
+      "key": "dll.danger",
+      "label": "Danger plots",
+      "desc": "Per-player, per-plot danger maps and the small vectors inside them"
+    },
+    {
+      "key": "dll.save",
+      "label": "Loaded-save data",
+      "desc": "Allocated while reading a save (tag Serialization); a fresh game has none"
+    },
+    {
+      "key": "dll.ai",
+      "label": "AI subsystems",
+      "desc": "Tactical, homeland, economic, military and diplomacy AI, and the tactical analysis map"
+    },
+    {
+      "key": "dll.turn",
+      "label": "Turn processing and pathfinding",
+      "desc": "Player and city turn processing, and the pathfinder"
+    },
+    {
+      "key": "dll.hook",
+      "label": "Diagnostics hook tables",
+      "desc": "The allocation hook's own side table. Instrumented builds only"
+    },
+    {
+      "key": "dll.minidump",
+      "label": "Minidump emergency reserve",
+      "desc": "16 MB reserved at startup so the crash handler can still write a dump when memory has run out. Reserved, never committed"
+    },
+    {
+      "key": "dll.hookreserve",
+      "label": "Hook node pool, unused part",
+      "desc": "The reserved tail of the hook's 32 MB node pool, which commits in 1 MB steps as it fills. Instrumented builds only"
+    },
+
+    {
+      "key": "lua.vpui",
+      "label": "VPUI GameInfo cache",
+      "desc": "VPUI_core.lua, almost all of it line 71: database rows materialised into Lua tables"
+    },
+    {
+      "key": "lua.eui",
+      "label": "EUI table cache",
+      "desc": "EUI_core_library.lua, mostly line 418: a never-evicting copy of database rows"
+    },
+    {
+      "key": "lua.tooltip",
+      "label": "Tooltip builder",
+      "desc": "InfoTooltipInclude.lua"
+    },
+    {
+      "key": "lua.other",
+      "label": "Other UI scripts",
+      "desc": "About 200 other scripts, none above 1.3 MB"
+    },
+    {
+      "key": "lua.noframe",
+      "label": "Objects built by engine code",
+      "desc": "Lua objects created by C code with no script on the stack"
+    },
+    {
+      "key": "lua.unprofiled",
+      "label": "Lua objects, not profiled",
+      "desc": "No per-script profile exists for this game; on the small map two caches held 70%"
+    },
+    {
+      "key": "lua.slack",
+      "label": "Lua heap free lists and overhead",
+      "desc": "Committed in Lua's heap but not holding objects"
+    },
+
+    {
+      "key": "drv.images",
+      "label": "NVIDIA driver code",
+      "desc": "nvgpucomp32, nvd3dum, nvwgf2um and helper DLLs"
+    },
+    {
+      "key": "drv.d3d",
+      "label": "Direct3D and DXGI runtime",
+      "desc": "d3d11, dxgi and related system DLLs"
+    },
+    {
+      "key": "drv.writecombine",
+      "label": "GPU-mapped buffers",
+      "desc": "Write-combined private memory: the driver's CPU-visible GPU buffers. 44–66 MB across the reference captures",
+      "est": true
+    },
+    {
+      "key": "drv.shadercache",
+      "label": "NVIDIA shader cache",
+      "desc": "The memory-mapped .nvph cache file",
+      "est": true
+    },
+    {
+      "key": "drv.reserve",
+      "label": "Driver buffer reserve",
+      "desc": "The reserved part of the driver's write-combined GPU buffer regions",
+      "est": true
+    },
+
+    {
+      "key": "exe.image",
+      "label": "Civ 5 EXE",
+      "desc": "CivilizationV_DX11.exe; 86 MB of it is the .data section"
+    },
+    {
+      "key": "exe.big",
+      "label": "Engine blocks of 1 MB or more",
+      "desc": "Renderer transform buffers, pattern-filled and zeroed buffers, file-read staging"
+    },
+    {
+      "key": "exe.small",
+      "label": "Engine blocks under 1 MB",
+      "desc": "CRT heap blocks the hook did not record. Measured directly: the EXE's, not the DLL's"
+    },
+    {
+      "key": "exe.crtslack",
+      "label": "CRT heap free lists and overhead",
+      "desc": "Shared by the DLL and the engine, so it cannot be split between them"
+    },
+    {
+      "key": "exe.pool",
+      "label": "Engine pool heap",
+      "desc": "One ~58 MB structured block and ~700 small ones"
+    },
+    {
+      "key": "exe.procheap",
+      "label": "Windows process heap",
+      "desc": "Windows, the Direct3D runtime, the driver and Steam, mixed together"
+    },
+    {
+      "key": "exe.otherimages",
+      "label": "Windows, Steam and other DLLs",
+      "desc": "Every loaded image except the EXE, driver, Direct3D and VP DLL. Steam is 24.5 MB of it"
+    },
+    {
+      "key": "exe.private",
+      "label": "Unnamed private memory",
+      "desc": "VirtualAlloc'd memory outside any heap, owner unknown. May include heap bookkeeping the walk misses",
+      "est": true
+    },
+    {
+      "key": "exe.misc",
+      "label": "Small heaps, shared sections, stacks, OS files",
+      "desc": "~25 MB in small heaps, ~30 MB shared sections, ~8 MB thread stacks and TEBs, ~8 MB locale and resource files",
+      "est": true
+    },
+
+    {
+      "key": "rsv.heapcrt",
+      "label": "CRT heap segment reserve",
+      "desc": "Address space the shared CRT heap owns and has not committed. It cannot be split between the DLL and the engine"
+    },
+    {
+      "key": "rsv.heap10",
+      "label": "Heap 10 segment reserve",
+      "desc": "One unidentified Win32 heap reserves ~73 MB in both games to hold ~14 MB of data"
+    },
+    {
+      "key": "rsv.heapother",
+      "label": "Other heap segment reserve",
+      "desc": "The Windows process heap, Lua's heap and a dozen small heaps"
+    },
+    {
+      "key": "rsv.unowned",
+      "label": "Unowned 128 MB reservation",
+      "desc": "A single reservation at 0x10020000 with 0.6 MB committed. Nothing has claimed it",
+      "est": true
+    },
+    {
+      "key": "rsv.stacks",
+      "label": "Thread stack reserve",
+      "desc": "146 stack regions for ~73 threads: 48.6 MB reserved, only 6.4 MB of it ever committed",
+      "est": true
+    },
+    {
+      "key": "rsv.sections",
+      "label": "Shared sections and image tails",
+      "desc": "Reserved parts of shareable sections and of mapped images",
+      "est": true
+    },
+    {
+      "key": "rsv.other",
+      "label": "Unattributed reservations",
+      "desc": "Reserved address space with no owner identified: the residual after everything above"
+    },
+
+    {
+      "key": "free.largest",
+      "label": "Largest free block",
+      "desc": "What a single allocation can still be given"
+    },
+    {
+      "key": "free.rest",
+      "label": "Smaller free holes",
+      "desc": "478 holes at turn 7, 623 at turn 344 — too small for the big allocations"
+    }
+  ],
+
+  "points": [
+    {
+      "key": "t7",
+      "title": "Small map",
+      "sub": "turn 7",
+      "meta": "GameId 77 · 79×53, 4,187 plots",
+      "space": 4095.9,
+      "committed": 2397.3,
+      "reserved": 500.9,
+      "free": 1197.6,
+      "holes": 479,
+      "values": {
+        "dll.image": 20.8,
+        "dll.db": 60.0,
+        "dll.mapgen": 5.7,
+        "dll.untagged": 15.8,
+        "dll.danger": 7.5,
+        "dll.ai": 3.3,
+        "dll.turn": 0.7,
+        "dll.hook": 13.8,
+        "dll.minidump": 16.0,
+        "dll.hookreserve": 26.2,
+        "lua.vpui": 38.9,
+        "lua.eui": 17.1,
+        "lua.tooltip": 3.2,
+        "lua.other": 14.9,
+        "lua.noframe": 7.4,
+        "lua.slack": 18.1,
+        "drv.images": 209.0,
+        "drv.d3d": 8.1,
+        "drv.writecombine": 65.6,
+        "drv.shadercache": 16.0,
+        "drv.reserve": 30.4,
+        "exe.image": 101.1,
+        "exe.big": 643.9,
+        "exe.small": 442.5,
+        "exe.crtslack": 38.0,
+        "exe.pool": 61.3,
+        "exe.procheap": 165.4,
+        "exe.otherimages": 123.2,
+        "exe.private": 224.5,
+        "exe.misc": 71.6,
+        "rsv.heapcrt": 11.9,
+        "rsv.heap10": 72.9,
+        "rsv.heapother": 36.1,
+        "rsv.unowned": 127.4,
+        "rsv.stacks": 42.3,
+        "rsv.sections": 23.5,
+        "rsv.other": 114.2,
+        "free.largest": 1134.2,
+        "free.rest": 63.4
+      }
+    },
+    {
+      "key": "t344",
+      "title": "Huge map",
+      "sub": "turn 344",
+      "meta": "GameId 62 · 180×113, 20,340 plots",
+      "space": 4095.9,
+      "committed": 3294.3,
+      "reserved": 563.6,
+      "free": 238.0,
+      "holes": 624,
+      "values": {
+        "dll.image": 20.8,
+        "dll.db": 60.0,
+        "dll.untagged": 39.0,
+        "dll.danger": 60.4,
+        "dll.save": 43.8,
+        "dll.ai": 21.6,
+        "dll.turn": 11.0,
+        "dll.hook": 38.8,
+        "dll.minidump": 16.0,
+        "dll.hookreserve": 1.2,
+        "lua.unprofiled": 95.9,
+        "lua.slack": 45.3,
+        "drv.images": 209.0,
+        "drv.d3d": 8.1,
+        "drv.writecombine": 65.6,
+        "drv.shadercache": 16.0,
+        "drv.reserve": 30.4,
+        "exe.image": 101.1,
+        "exe.big": 996.3,
+        "exe.small": 614.9,
+        "exe.crtslack": 188.5,
+        "exe.pool": 61.2,
+        "exe.procheap": 178.6,
+        "exe.otherimages": 119.5,
+        "exe.private": 228.3,
+        "exe.misc": 70.6,
+        "rsv.heapcrt": 38.5,
+        "rsv.heap10": 73.2,
+        "rsv.heapother": 30.8,
+        "rsv.unowned": 127.4,
+        "rsv.stacks": 42.3,
+        "rsv.sections": 23.5,
+        "rsv.other": 180.3,
+        "free.largest": 127.6,
+        "free.rest": 110.4
+      }
+    }
+  ],
+
+  "colors": {
+    "cat-dll": "#48A260",
+    "cat-lua": "#5889E6",
+    "cat-drv": "#C74C41",
+    "cat-exe": "#C5A00D",
+    "cat-rsv": "#9E549C",
+    "dll.image": "#03642B",
+    "dll.db": "#6FB27D",
+    "dll.mapgen": "#2A7E44",
+    "dll.untagged": "#8FCD9B",
+    "dll.danger": "#137235",
+    "dll.save": "#5FA56F",
+    "dll.ai": "#B0E8BA",
+    "dll.turn": "#469159",
+    "dll.hook": "#87C694",
+    "dll.minidump": "#34844B",
+    "dll.hookreserve": "#569E67",
+    "lua.vpui": "#2552AA",
+    "lua.eui": "#729BE7",
+    "lua.tooltip": "#416CC0",
+    "lua.other": "#9ABDFC",
+    "lua.noframe": "#5580D1",
+    "lua.unprofiled": "#3662B7",
+    "lua.slack": "#C3D8FE",
+    "drv.images": "#A7322A",
+    "drv.d3d": "#F29286",
+    "drv.writecombine": "#CA5F54",
+    "drv.shadercache": "#FEBFB6",
+    "drv.reserve": "#E37F73",
+    "exe.image": "#7F6604",
+    "exe.big": "#D0B356",
+    "exe.small": "#A28302",
+    "exe.crtslack": "#F0D686",
+    "exe.pool": "#8F740A",
+    "exe.procheap": "#C2A33E",
+    "exe.otherimages": "#FEE7A0",
+    "exe.private": "#B4941E",
+    "exe.misc": "#E0C46E",
+    "rsv.heapcrt": "#722B71",
+    "rsv.heap10": "#B577B3",
+    "rsv.heapother": "#935192",
+    "rsv.unowned": "#DFA6DC",
+    "rsv.stacks": "#823E81",
+    "rsv.sections": "#CA8FC8",
+    "rsv.other": "#FBC7F8"
+  }
+}

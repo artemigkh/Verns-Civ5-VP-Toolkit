@@ -5,7 +5,7 @@ Two CSVs, built in one pass over a single pushed-down query:
 * ``wonder_builds``    — one row per wonder completed: game, builder, wonder,
   unlock era and completion turn.
 * ``wonder_game_civs`` — one row per (game, civ) that played a retained game,
-  carrying the social-policy branches that civ opened in it.
+  carrying the social-policy branches that civ opened in it and whether it won.
 
 Unlike every other report here, this one ships *facts* rather than summaries: the
 frontend filters by civilization and by policy-branch cohort, and both charts —
@@ -66,10 +66,10 @@ BRANCH_SEP = "|"
 # Cache-busting version for the wonder set and the builder rule (see
 # ensure_group's ``fingerprint``). Bump on any change to WONDER_ERA_OVERRIDES,
 # to _BUILDER_SQL, or to the columns below.
-WONDER_RULES_VERSION = 4
+WONDER_RULES_VERSION = 5
 
 OUTPUT_COLUMNS_BUILDS = ["game_id", "civ", "wonder", "era", "turn"]
-OUTPUT_COLUMNS_GAME_CIVS = ["game_id", "civ", "branches"]
+OUTPUT_COLUMNS_GAME_CIVS = ["game_id", "civ", "branches", "won"]
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +166,12 @@ def _build_game_civs(cfg: Config, games: set) -> pd.DataFrame:
     other way around: it carries one open row for a (game, civ) pair with no
     ``GameResult`` entry, which is dropped here rather than inventing a player.
 
+    ``won`` marks the one civ per game that won it. Every retained game has a
+    recorded winner (the turn >= 100 filter drops the dev test completions, which
+    are the only undecided ones), so no game contributes a whole lobby of zeros to
+    a wonder's denominator; a lobby that did would read as "nobody who built this
+    won" rather than as missing data.
+
     A branch open is a ``policy_choices`` row whose ``item`` is a branch name —
     ``build_policy_choices`` writes the branch there for the open row (the one
     with an empty ``Policy``), and no VP policy shares a name with a branch. This
@@ -174,9 +180,15 @@ def _build_game_civs(cfg: Config, games: set) -> pd.DataFrame:
     counts as having a branch for the whole game, so an early wonder still counts
     for a late-opened ideology.
     """
-    pairs = read_table(cfg, "GameResult")[["GameId", "Civ"]].drop_duplicates()
+    pairs = read_table(cfg, "GameResult")[["GameId", "Civ", "VictoryType"]].drop_duplicates()
     pairs = pairs[pairs["GameId"].isin(games)]
     pairs = pairs.rename(columns={"GameId": "game_id", "Civ": "civ"})
+    # A blank VictoryType is every civ but the winner's, so this is the same rule
+    # build_power_ranking uses, applied at the source rather than by joining
+    # game_result.csv back on (game_id, victory_civ).
+    won = pairs["VictoryType"].fillna("").astype(str).str.strip() != ""
+    pairs["won"] = won.astype(int)
+    pairs = pairs.drop(columns=["VictoryType"])
 
     choices = pd.read_csv(cfg.policy_choices_path)
     opens = choices[choices["item"].isin(BRANCH_SET)][["game_id", "civ", "item"]]

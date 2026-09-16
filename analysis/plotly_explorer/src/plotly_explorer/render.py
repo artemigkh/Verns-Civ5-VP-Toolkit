@@ -610,8 +610,13 @@ def build_wonders_payload(cfg: Config) -> dict:
     ``civs`` / ``branches`` / ``wonders`` tables, which keeps the inlined JSON to
     roughly what the precomputed curves used to cost and makes the frontend's
     filter pass a flat scan. A (game, civ) pair is one entry of ``pairCiv`` /
-    ``pairMask``; every build points at the pair that produced it, so a cohort
-    filter narrows builds and games-played together.
+    ``pairMask`` / ``pairWon``; every build points at the pair that produced it, so
+    a cohort filter narrows builds and games-played together.
+
+    ``pairGame`` is the one array carrying game identity, and exists only as a
+    denominator: the winrate chart shades by the share of *games* a wonder was
+    built in, and with no civ filter a game contributes one pair per civ, so the
+    distinct games behind the active pairs have to be counted rather than assumed.
     """
     builds = pd.read_csv(cfg.wonder_builds_path)
     game_civs = pd.read_csv(cfg.wonder_game_civs_path).fillna({"branches": ""})
@@ -637,6 +642,8 @@ def build_wonders_payload(cfg: Config) -> dict:
     pair_index = {
         (row.game_id, row.civ): i for i, row in enumerate(game_civs.itertuples(index=False))
     }
+    game_ids = sorted(set(game_civs["game_id"]))
+    game_index = {g: i for i, g in enumerate(game_ids)}
     pair_masks = []
     for packed in game_civs["branches"]:
         mask = 0
@@ -666,7 +673,13 @@ def build_wonders_payload(cfg: Config) -> dict:
         # shared `limits`, so a Modern wonder reads as "late" even in its own facet.
         "turnRange": [int(min(build_turn)), int(max(build_turn))] if build_turn else [0, 1],
         "pairCiv": [civ_index[c] for c in game_civs["civ"]],
+        "pairGame": [game_index[g] for g in game_civs["game_id"]],
         "pairMask": pair_masks,
+        "pairWon": [int(w) for w in game_civs["won"]],
+        # The winrate chart's reference line: the same 1/N baseline the Overview
+        # and Policies Performance charts draw, so "above average" means the same
+        # thing in all three.
+        "avgWinrate": _avg_winrate(pd.read_csv(cfg.game_result_path)),
         "buildPair": build_pair,
         "buildWonder": build_wonder,
         "buildTurn": build_turn,
@@ -750,6 +763,23 @@ def build_leaders_payload() -> dict:
         "groups": groups,
     }
 
+
+def build_process_memory_payload() -> dict:
+    """Static measurements for the Process Memory (dev) report.
+
+    The one report with no pipeline behind it: the figures are one-off
+    measurements of a live ``CivilizationV_DX11.exe`` taken in the
+    Community-Patch-DLL workspace (the DLL's allocation hook, its heap and
+    address-space walks, the Lua allocator profile, and a VMMap capture), not
+    an aggregation of this repo's autoplay logs. They are checked in verbatim
+    as ``assets/process_memory.json`` and pass straight through to the payload
+    so the report module reads them the same way every other module reads its
+    own slice. ``_comment`` keys carry the provenance and are dropped here.
+    """
+    data = json.loads((ASSETS_DIR / "process_memory.json").read_text(encoding="utf-8"))
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
 def render(
     cfg: Config,
     *,
@@ -771,6 +801,7 @@ def render(
         "instant_yields": build_instant_yields_payload(cfg),
         "wonders": build_wonders_payload(cfg),
         "leaders": build_leaders_payload(),
+        "process_memory": build_process_memory_payload(),
     }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
@@ -779,11 +810,11 @@ def render(
     #                      calls Explorer.Router.register() at its IIFE tail.
     #                      app.js's renderActive() also defers to it.
     #   switcher.js LAST - Router.start() reads location.hash and renders the
-    #                      report it names, which requires all ten modules to be
-    #                      registered. (Before the router existed the switcher
+    #                      report it names, which requires all eleven modules to
+    #                      be registered. (Before the router existed the switcher
     #                      sat at the tail of religion.js and silently skipped
     #                      the render for the six modules not yet defined.)
-    # The ten report modules in between are order-independent: each only
+    # The eleven report modules in between are order-independent: each only
     # registers itself and renders its own panes. Keep this list explicit -- a
     # glob would hide both constraints, and alphabetical order violates both.
     js_bundle = (
@@ -798,6 +829,7 @@ def render(
         "instant_yields.js",
         "wonders.js",
         "leaders.js",
+        "process_memory.js",
         "switcher.js",
     )
     app_js = "\n".join(

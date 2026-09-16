@@ -26,6 +26,7 @@
         <option value="instant_yields">Instant Yields</option>
         <option value="leaders">Leaders</option>
         <option value="policies_performance">Policies Performance</option>
+        <option value="process_memory">Process Memory (dev)</option>
         <option value="religion_performance">Religion Performance</option>
         <option value="religion">Religion Yields</option>
         <option value="units">Unit Composition</option>
@@ -244,6 +245,15 @@
         <h1 id="ldr-title">Leader AI Attributes</h1>
         <div id="ldr-tables"></div>
       </div>
+      <div class="report-process_memory">
+        <h1 id="pm-title">Who Holds the Memory</h1>
+        <p class="chart-subtitle">The whole 4,096 MB address space of a running Civ 5 process, by owner, across two benchmark games</p>
+        <!-- process_memory.js builds the donuts, key, prose and table in here.
+             The tooltip is a sibling: it is position:fixed and follows the
+             pointer, so it must not live inside a scrolling ancestor. -->
+        <div id="pm-body"></div>
+        <div id="pm-tip" hidden></div>
+      </div>
       <div class="report-wonders">
         <h1 id="wonders-title">Wonders</h1>
         <div class="wonders-card"><div id="wonders-by-civ" class="wonders-plot"></div></div>
@@ -253,6 +263,16 @@
           <div id="wonders-kde-grid" class="wonders-facet-grid"></div>
           <p id="wonders-kde-empty" class="wonders-empty" hidden>No wonder was completed more than once under this filter, so there is nothing to fit a distribution to.</p>
           <p class="wonders-axis-label">Turn</p>
+        </div>
+        <div class="wonders-card">
+          <h2 class="wonders-section-title">Average Winrate by Wonder</h2>
+          <p id="wonders-wr-sub" class="wonders-sub"></p>
+          <p class="wonders-note">The dashed line is the average winrate a civ-game gets by default. Bars over fewer than 10 builds are faded.</p>
+          <!-- wonders.js paints the swatch from the same colorscale the bars use. -->
+          <div id="wonders-wr-key" class="wonders-key"></div>
+          <div id="wonders-winrate-grid" class="wonders-facet-grid"></div>
+          <p id="wonders-wr-empty" class="wonders-empty" hidden>No wonder was built under this filter, so there is no winrate to average.</p>
+          <p class="wonders-axis-label">Winrate</p>
         </div>
       </div>
     </div>

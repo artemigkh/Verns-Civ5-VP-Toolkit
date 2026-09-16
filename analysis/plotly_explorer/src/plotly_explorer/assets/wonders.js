@@ -5,6 +5,9 @@
         segment per wonder unlock era, civs ordered by total, total at bar end.
      2. Wonder Completion Turn Distributions — ridgeline (KDE) of completion turn
         per wonder, one facet per era, three facets per row.
+     3. Average Winrate by Wonder — horizontal bars of the winrate of the
+        civ-games that built each wonder, best first, shaded by how often the
+        wonder gets built at all. Same facet grid as section 2.
 
    Unlike the other reports this one is handed facts, not summaries: the payload
    is the raw list of wonder completions plus the (game, civ) pairs that played,
@@ -51,6 +54,49 @@
     [0.889, "#f7d13d"], [1.0, "#fcffa4"],
   ];
 
+  // ---- Colorscale sampling --------------------------------------------------
+  // Plotly wants stops as [fraction, css color]. Section 3's bars and the HTML
+  // key above them both read the one derived array below, so the swatch cannot
+  // drift away from what the bars are actually painted with.
+  function parseHex(hex) {
+    return [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ];
+  }
+
+  // Linear RGB sample of a hex colorscale at `t` in [0, 1].
+  function sampleScale(scale, t) {
+    var i = 1;
+    while (i < scale.length - 1 && scale[i][0] < t) i++;
+    var lo = scale[i - 1];
+    var hi = scale[i];
+    var span = hi[0] - lo[0];
+    var f = span > 0 ? (t - lo[0]) / span : 0;
+    var a = parseHex(lo[1]);
+    var b = parseHex(hi[1]);
+    var out = [];
+    for (var c = 0; c < 3; c++) out.push(Math.round(a[c] + (b[c] - a[c]) * f));
+    return "rgb(" + out.join(",") + ")";
+  }
+
+  // `scale` restricted to [lo, hi] and renormalized back onto [0, 1].
+  function truncateScale(scale, lo, hi, stops) {
+    var out = new Array(stops);
+    for (var i = 0; i < stops; i++) {
+      var t = i / (stops - 1);
+      out[i] = [t, sampleScale(scale, lo + (hi - lo) * t)];
+    }
+    return out;
+  }
+
+  // Inferno's dark end (#000004) is indistinguishable from this panel's
+  // background, so the least-built wonder in a facet would read as an unfilled
+  // bar rather than a dark one. Starting a quarter of the way in keeps the whole
+  // range legible while staying the same ramp the rest of the report uses.
+  var BUILD_RATE_SCALE = truncateScale(INFERNO, 0.25, 1, 12);
+
   // KDE parameters, ported from the aggregator that used to do this server-side
   // so the unfiltered view is unchanged: points on each facet's shared grid, the
   // resolution of the throwaway probe grid that finds the facet window, and the
@@ -63,6 +109,13 @@
   // Fewer samples than this and a density is meaningless, so the ridge is
   // dropped (gaussian_kde is singular below 2 points, or at zero variance).
   var MIN_KDE_SAMPLES = 2;
+
+  // Section 3 keeps every wonder that was built at all, but a winrate over a
+  // handful of builds is noise — three builds and one win is 33% by accident, and
+  // it will outrank a staple. Below this many builds the bar is drawn faded, so
+  // it stays visible without reading as a result.
+  var MIN_WINRATE_SAMPLES = 10;
+  var THIN_OPACITY = 0.32;
 
   var SQRT_2PI = Math.sqrt(2 * Math.PI);
 
@@ -115,6 +168,13 @@
   // afford a string lookup per row.
   var wonderEra = P.wonders.map(function (w) {
     return eraIndex[w.era];
+  });
+
+  // How many distinct games the pairs cover. pairGame indexes a dense 0..n-1
+  // range, so the count is one past the largest index.
+  var nGames = 0;
+  P.pairGame.forEach(function (g) {
+    if (g >= nGames) nGames = g + 1;
   });
 
   // Visible content size of a plot host, or null when it's hidden (clientWidth 0,
@@ -274,14 +334,18 @@
     // filter, unlike the app's other multi-selects where empty matches nothing.
     var pairActive = new Uint8Array(nPairs);
     var gamesByCiv = new Int32Array(nCivs);
+    var gameActive = new Uint8Array(nGames);
     var cohortPairs = 0;
     for (i = 0; i < nPairs; i++) {
       if (mask === 0 || (P.pairMask[i] & mask) !== 0) {
         pairActive[i] = 1;
         gamesByCiv[P.pairCiv[i]]++;
+        gameActive[P.pairGame[i]] = 1;
         cohortPairs++;
       }
     }
+    var cohortGames = 0;
+    for (i = 0; i < nGames; i++) if (gameActive[i]) cohortGames++;
 
     // One scan of the builds feeds both charts: the bars count every cohort
     // build (the civ filter only highlights there), while the ridgelines take
@@ -291,6 +355,8 @@
     var samples = P.wonders.map(function () {
       return [];
     });
+    var wrBuilds = new Int32Array(P.wonders.length);
+    var wrWins = new Int32Array(P.wonders.length);
     var cohortBuilds = 0;
     var civBuilds = 0;
     for (i = 0; i < P.buildPair.length; i++) {
@@ -303,12 +369,21 @@
       if (civFilter < 0 || civ === civFilter) {
         samples[wonder].push(P.buildTurn[i]);
         civBuilds++;
+        wrBuilds[wonder]++;
+        if (P.pairWon[pair]) wrWins[wonder]++;
       }
     }
+
+    // Games the winrate chart measures build frequency against. A civ plays a
+    // game at most once, so under a civ filter its pair count already IS a game
+    // count; without one, a game contributes a pair per civ and the distinct
+    // games have to be counted.
+    var wrGames = civFilter < 0 ? cohortGames : gamesByCiv[civFilter];
 
     return {
       byCiv: buildBarRows(counts, gamesByCiv, nEras),
       facets: buildFacets(samples),
+      winrate: buildWinrateFacets(wrBuilds, wrWins, wrGames),
       cohort: {
         pairs: cohortPairs,
         builds: cohortBuilds,
@@ -390,6 +465,64 @@
       facets.push({ era: P.eraOrder[e], x: grid, xRange: range, wonders: curves });
     });
     return facets;
+  }
+
+  // Per-era winrate rows, best first. `denom` is the games each wonder's build
+  // count is measured against.
+  //
+  // The aggregator keeps only a wonder's first owner per game, dropping the civs
+  // that later captured it, so a wonder appears at most once per game and
+  // `builds` is therefore also the number of distinct games it was built in.
+  // That is what makes "share of games it was built in" a division rather than a
+  // second scan over the facts.
+  function buildWinrateFacets(builds, wins, denom) {
+    var byEra = P.eraOrder.map(function () {
+      return [];
+    });
+    P.wonders.forEach(function (w, i) {
+      if (!builds[i]) return;
+      byEra[wonderEra[i]].push({
+        wonder: w.name,
+        builds: builds[i],
+        wins: wins[i],
+        winrate: wins[i] / builds[i],
+        buildRate: denom ? builds[i] / denom : 0,
+      });
+    });
+
+    var facets = [];
+    var xMax = 0;
+    var cMax = 0;
+    byEra.forEach(function (rows, e) {
+      if (!rows.length) return;
+      // Ties broken by build count then name, so the order is stable rather than
+      // dependent on how the wonders happened to be enumerated.
+      rows.sort(function (a, b) {
+        return (
+          b.winrate - a.winrate ||
+          b.builds - a.builds ||
+          (a.wonder < b.wonder ? -1 : 1)
+        );
+      });
+      rows.forEach(function (r) {
+        if (r.winrate > xMax) xMax = r.winrate;
+        if (r.buildRate > cMax) cMax = r.buildRate;
+      });
+      facets.push({ era: P.eraOrder[e], wonders: rows });
+    });
+
+    // One x range and one color range across every facet: an Ancient wonder has
+    // to be comparable to a Modern one, the same reason the ridgelines' gradient
+    // spans the whole turn range instead of each facet's own window. The range
+    // also has to clear the baseline, or a filter where nobody won would push the
+    // reference line off the plot.
+    var top = Math.max(xMax, P.avgWinrate);
+    return {
+      facets: facets,
+      xRange: [0, top > 0 ? top * 1.08 : 1],
+      cMax: cMax > 0 ? cMax : 1,
+      denom: denom,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -721,6 +854,170 @@
   }
 
   // -------------------------------------------------------------------------
+  // Section 3 — Average Winrate by Wonder (bars per era)
+  // -------------------------------------------------------------------------
+  // One trace per facet with per-point marker arrays rather than one trace per
+  // wonder: the bars share an axis and differ only in color and opacity, and 20
+  // single-bar traces would carry 20 legends' worth of layout for nothing.
+  function drawWinrateFacet(facet, xRange, cMax) {
+    var s = hostSize("wonders-wr-facet-" + facet.era);
+    if (!s) return;
+
+    var rows = facet.wonders;
+    var names = rows.map(function (r) {
+      return r.wonder;
+    });
+
+    var trace = {
+      type: "bar",
+      orientation: "h",
+      y: names,
+      x: rows.map(function (r) {
+        return r.winrate;
+      }),
+      marker: {
+        color: rows.map(function (r) {
+          return r.buildRate;
+        }),
+        colorscale: BUILD_RATE_SCALE,
+        cmin: 0,
+        cmax: cMax,
+        // One shared HTML key sits above the grid; nine Plotly colorbars would
+        // each eat a third of their facet's width to say the same thing.
+        showscale: false,
+        opacity: rows.map(function (r) {
+          return r.builds >= MIN_WINRATE_SAMPLES ? 1 : THIN_OPACITY;
+        }),
+        line: { color: BG, width: 0.5 },
+      },
+      customdata: rows.map(function (r) {
+        return [r.wins, r.builds, r.buildRate];
+      }),
+      hovertemplate:
+        "%{y}" +
+        "<br>%{x:.1%} winrate" +
+        "<br>%{customdata[0]} wins in %{customdata[1]} civ-games" +
+        "<br>built in %{customdata[2]:.0%} of games<extra></extra>",
+      showlegend: false,
+    };
+
+    var layout = {
+      title: {
+        text: facet.era,
+        font: { color: TEXT, size: 15 },
+        x: 0,
+        xanchor: "left",
+      },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      margin: { l: 10, r: 20, t: 46, b: 38 },
+      font: { color: TEXT_DIM, size: 11 },
+      bargap: 0.25,
+      hovermode: "closest",
+      showlegend: false,
+      xaxis: {
+        range: xRange,
+        tickformat: ".0%",
+        gridcolor: GRID,
+        zeroline: false,
+        tickfont: { color: TEXT_DIM, size: 10 },
+      },
+      yaxis: {
+        type: "category",
+        categoryorder: "array",
+        categoryarray: names,
+        // rows arrive best-first; reverse the axis so the best wonder is the top
+        // row, the same idiom drawBar uses for the civ ranking.
+        autorange: "reversed",
+        automargin: true,
+        showgrid: false,
+        zeroline: false,
+        tickfont: { color: TEXT, size: 11 },
+        ticklen: 6,
+        tickcolor: "rgba(0,0,0,0)",
+      },
+      // The average winrate every civ-game gets by default (~1/N civs), so a bar
+      // reads as good or bad rather than just as long or short.
+      shapes: [
+        {
+          type: "line",
+          xref: "x",
+          x0: P.avgWinrate,
+          x1: P.avgWinrate,
+          yref: "paper",
+          y0: 0,
+          y1: 1,
+          line: { color: "rgba(215,221,231,0.45)", width: 1, dash: "dash" },
+        },
+      ],
+      width: s.w,
+      height: s.h,
+      autosize: false,
+    };
+    Plotly.react(s.el, [trace], layout, PLOT_CONFIG);
+  }
+
+  // The bars' colorbar, as one HTML swatch above the grid. Built once; only the
+  // top label moves, since the range depends on the filter.
+  function drawWinrateKey(cMax) {
+    var host = document.getElementById("wonders-wr-key");
+    if (!host) return;
+    if (!host.childElementCount) {
+      host.innerHTML =
+        '<span class="wonders-key-cap">Share of games the wonder was built in</span>' +
+        '<span class="wonders-key-lo">0%</span>' +
+        '<span class="wonders-key-bar"></span>' +
+        '<span class="wonders-key-hi"></span>';
+      var stops = BUILD_RATE_SCALE.map(function (stop) {
+        return stop[1] + " " + (stop[0] * 100).toFixed(1) + "%";
+      });
+      host.querySelector(".wonders-key-bar").style.background =
+        "linear-gradient(to right, " + stops.join(", ") + ")";
+    }
+    host.querySelector(".wonders-key-hi").textContent =
+      (cMax * 100).toFixed(0) + "%";
+  }
+
+  // One host div per era, created once — same lifecycle as the ridgeline facets.
+  function buildWinrateHosts() {
+    var grid = document.getElementById("wonders-winrate-grid");
+    if (!grid || grid.childElementCount) return;
+    P.eraOrder.forEach(function (era) {
+      var div = document.createElement("div");
+      div.id = "wonders-wr-facet-" + era;
+      div.className = "wonders-facet";
+      grid.appendChild(div);
+    });
+  }
+
+  function drawWinrateFacets() {
+    var wr = view.winrate;
+    setText("wonders-wr-sub", subtitle("civ"));
+    drawWinrateKey(wr.cMax);
+
+    var shown = {};
+    wr.facets.forEach(function (facet) {
+      var el = document.getElementById("wonders-wr-facet-" + facet.era);
+      if (!el) return;
+      shown[facet.era] = true;
+      el.style.display = "";
+      // 22px a bar, on top of the title band and the x axis below the plot.
+      el.style.height = Math.max(180, 22 * facet.wonders.length + 84) + "px";
+      drawWinrateFacet(facet, wr.xRange, wr.cMax);
+    });
+    P.eraOrder.forEach(function (era) {
+      if (shown[era]) return;
+      var el = document.getElementById("wonders-wr-facet-" + era);
+      if (!el) return;
+      Plotly.purge(el);
+      el.style.display = "none";
+    });
+
+    var empty = document.getElementById("wonders-wr-empty");
+    if (empty) empty.hidden = wr.facets.length > 0;
+  }
+
+  // -------------------------------------------------------------------------
   // Controls
   // -------------------------------------------------------------------------
   function chip(label, isOn, onClick) {
@@ -785,6 +1082,7 @@
   function draw() {
     drawBar();
     drawFacets();
+    drawWinrateFacets();
   }
 
   function render() {
@@ -797,7 +1095,7 @@
     draw();
   }
 
-  // Recomputing the KDEs and redrawing nine figures takes a few hundred ms, all
+  // Recomputing the KDEs and redrawing eighteen figures takes a few hundred ms, all
   // of it in one blocking task. Ending the click's task first lets the control
   // the user just clicked paint its new state, instead of the whole page
   // appearing to freeze and the chip lighting up only once the charts land.
@@ -812,6 +1110,7 @@
   }
 
   buildFacetHosts();
+  buildWinrateHosts();
   buildCivSelect();
   buildBranchControls();
   render();

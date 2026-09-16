@@ -91,7 +91,10 @@ html, body {
 #app.show-wonders #expand-btn-right,
 #app.show-leaders #sidebar-right,
 #app.show-leaders #resizer-right,
-#app.show-leaders #expand-btn-right {
+#app.show-leaders #expand-btn-right,
+#app.show-process_memory #sidebar-right,
+#app.show-process_memory #resizer-right,
+#app.show-process_memory #expand-btn-right {
   display: none;
 }
 
@@ -530,6 +533,35 @@ html, body {
   margin: 8px 2px;
   font-size: 13px;
   color: var(--text-dim);
+}
+
+/* How to read the winrate facets: what the dashed baseline is, and why some
+   bars are faded. Sits under the filter subtitle, above the colour key. */
+.wonders-note {
+  margin: -8px 0 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Shared colour key for the winrate bars — one swatch for all nine facets, so
+   no facet has to give up a third of its width to a Plotly colorbar. The
+   gradient itself is set from wonders.js, off the colorscale the bars use. */
+.wonders-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 14px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.wonders-key-cap { margin-right: 2px; }
+
+.wonders-key-bar {
+  width: 180px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
 }
 
 /* Height is set per-chart in wonders.js: the civ bar chart scales with the civ
@@ -1156,3 +1188,236 @@ html, body {
   background: var(--chip-on);
   color: #fff;
 }
+
+
+/* ---- Process Memory (dev) report (owner donuts + reconciliation table) ---- */
+.report-process_memory { display: none; }
+#app.show-process_memory .report-process_memory { display: block; }
+#app.show-process_memory .report-building { display: none; }
+#app.show-process_memory #main-inner { justify-content: flex-start; }
+
+/* One column for the whole report, centred in the pane. The donut grid fills
+   this width, so pinning the container rather than each block is what makes the
+   footnotes and the table line up with the two charts above them. */
+.report-process_memory {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+#pm-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* Footnotes to the charts. Everything else the report has to say is in the
+   table, so these stay small and dim rather than reading as body copy. */
+.pm-notes { margin: 0 0 18px; }
+
+.pm-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.pm-note:last-child { margin-bottom: 0; }
+.pm-note strong { color: var(--text); font-weight: 600; }
+
+.pm-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 0;
+}
+
+.pm-donuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 1100px) {
+  .pm-donuts { grid-template-columns: 1fr; }
+}
+
+.pm-donut-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-bottom: 2px;
+}
+
+.pm-donut-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.pm-mono { font-size: 11px; color: var(--text-dim); }
+
+.pm-donut-card svg { width: 100%; height: auto; display: block; }
+
+/* Segment strokes are the card background, so neighbouring slices read as
+   separate wedges rather than one continuous band. */
+.pm-seg {
+  stroke: var(--panel);
+  stroke-width: 2;
+  cursor: default;
+  transition: opacity 120ms ease;
+}
+.pm-seg:focus { outline: none; }
+.pm-seg:focus-visible { stroke: var(--text); stroke-width: 2.5; }
+
+.pm-hatch { pointer-events: none; }
+.pm-hatch-line { stroke: var(--panel); stroke-width: 1.7; opacity: 0.75; }
+
+/* Headroom holds nothing, so it is drawn as an outline over the card rather
+   than as another colour. Same treatment for its swatches. */
+.pm-seg.pm-empty { fill: var(--panel); stroke: var(--text-dim); stroke-width: 1.2; }
+
+/* Tracing dims everything that is not the traced key, in BOTH donuts — that
+   cross-chart dimming is the point of the interaction. */
+#pm-body.pm-tracing .pm-seg:not(.on) { opacity: 0.22; }
+#pm-body.pm-tracing .pm-hatch { opacity: 0.22; }
+
+.pm-lbl-name { font-size: 15px; font-weight: 600; fill: var(--text); }
+.pm-lbl-val { font-size: 12px; fill: var(--text-dim); font-variant-numeric: tabular-nums; }
+.pm-leader { stroke: var(--border); stroke-width: 1; fill: none; }
+.pm-ctr-big { font-size: 32px; font-weight: 700; fill: var(--text); }
+.pm-ctr-small { font-size: 9.5px; letter-spacing: .09em; fill: var(--text-dim); }
+.pm-ctr-note { font-size: 11px; fill: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.pm-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin-bottom: 16px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.pm-key span { display: inline-flex; align-items: center; gap: 8px; }
+
+.pm-k-hatch {
+  display: inline-block;
+  width: 22px;
+  height: 12px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(135deg, var(--text-dim) 0 2px, var(--panel) 2px 4px);
+  box-shadow: inset 0 0 0 1px var(--text-dim);
+}
+
+.pm-k-empty {
+  display: inline-block;
+  width: 22px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--text-dim);
+}
+
+/* ---- Reconciliation table ---- */
+.pm-scroll { overflow-x: auto; }
+
+.pm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.pm-table th {
+  padding: 6px 10px 8px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  vertical-align: bottom;
+}
+
+.pm-table td { padding: 6px 10px; vertical-align: top; }
+.pm-table .pm-n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The label column takes the slack and the five number columns take only what
+   their digits need (width: 1% reads as "as narrow as possible" in auto
+   layout). Its min-width is what stops a narrow pane from crushing the
+   descriptions into a column of single words -- .pm-scroll scrolls instead. */
+.pm-table th:first-child,
+.pm-table td:first-child { min-width: 290px; }
+.pm-table th.pm-n { width: 1%; min-width: 68px; }
+
+.pm-table .pm-sw {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  margin-right: 9px;
+  vertical-align: -1px;
+}
+
+/* The description sits under its label, indented past the swatch so the label
+   column reads as a two-line block rather than a wrapped sentence. */
+.pm-table .pm-sub {
+  display: block;
+  padding-left: 21px;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  max-width: 62ch;
+}
+
+.pm-table tr.pm-cat > td { border-top: 1px solid var(--border); font-weight: 600; padding-top: 12px; }
+.pm-table tr.pm-cat > td:first-child { font-size: 13.5px; }
+.pm-table tr.pm-item > td:first-child { padding-left: 22px; }
+.pm-table tr.pm-item .pm-sub { padding-left: 21px; }
+
+.pm-table tr.pm-total > td {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-weight: 600;
+}
+
+.pm-table .pm-sw-empty { background: var(--panel); box-shadow: inset 0 0 0 1px var(--text-dim); }
+
+/* The three-way split under the Address space total: same numbers as the ring,
+   regrouped by state rather than by owner, so they read as a footnote to it. */
+.pm-table tr.pm-soft > td { color: var(--text-dim); padding-top: 2px; padding-bottom: 2px; }
+.pm-table tr.pm-soft > td:first-child { padding-left: 22px; }
+
+.pm-table tr.on > td { background: var(--panel-2); }
+
+.pm-est {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---- Hover tooltip ---- */
+#pm-tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+}
+
+#pm-tip[hidden] { display: none; }
+#pm-tip b { font-size: 13px; }
+.pm-tip-v { font-variant-numeric: tabular-nums; color: var(--accent); }
+.pm-tip-d { color: var(--text-dim); }
