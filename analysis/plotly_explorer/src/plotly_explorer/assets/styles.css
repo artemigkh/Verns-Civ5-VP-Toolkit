@@ -64,6 +64,7 @@ html, body {
 #app.show-religion #sidebar .report-religion,
 #app.show-units #sidebar .report-units,
 #app.show-instant_yields #sidebar .report-instant_yields,
+#app.show-process_memory #sidebar .report-process_memory,
 #app.show-wonders #sidebar .report-wonders {
   display: flex;
   flex-direction: column;
@@ -1199,7 +1200,7 @@ html, body {
 /* One column for the whole report, centred in the pane. The donut grid fills
    this width, so pinning the container rather than each block is what makes the
    footnotes and the table line up with the two charts above them. */
-.report-process_memory {
+#main .report-process_memory {
   max-width: 1180px;
   margin: 0 auto;
 }
@@ -1345,7 +1346,7 @@ html, body {
    descriptions into a column of single words -- .pm-scroll scrolls instead. */
 .pm-table th:first-child,
 .pm-table td:first-child { min-width: 290px; }
-.pm-table th.pm-n { width: 1%; min-width: 68px; }
+.pm-table th.pm-n { width: 1%; min-width: 120px; }
 
 .pm-table .pm-sw {
   display: inline-block;
@@ -1437,3 +1438,165 @@ html, body {
 #pm-tip b { font-size: 13px; }
 .pm-tip-v { font-variant-numeric: tabular-nums; color: var(--accent); }
 .pm-tip-d { color: var(--text-dim); }
+
+
+/* ---- Process Memory: sticky charts, sort, collapse, change heat ---- */
+
+/* Sticky charts. The scrolling ancestor is #main (nothing between it and
+   .pm-donuts sets overflow), so a plain sticky top works; .pm-scroll below is
+   the only overflow container and the charts are not inside it. The charts get
+   a --bg backdrop so table rows do not show through as they pass under. */
+#pm-body.pm-sticky .pm-donuts {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--bg);
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  box-shadow: 0 10px 14px -10px rgba(0, 0, 0, .85);
+}
+
+/* Shrunk to leave the table most of the pane. An explicit height on a viewBox
+   SVG letterboxes rather than distorts, so the ring just gets smaller. */
+#pm-body.pm-sticky .pm-donut-card { padding: 8px 12px 4px; }
+#pm-body.pm-sticky .pm-donut-card svg { height: clamp(170px, 32vh, 290px); width: 100%; }
+#pm-body.pm-sticky .pm-donut-head h3 { font-size: 13px; }
+#pm-body.pm-sticky .pm-donut-head .pm-mono { display: none; }
+
+/* Compact rows: the descriptions are most of the table's height. */
+#pm-body.pm-compact .pm-table .pm-sub { display: none; }
+#pm-body.pm-compact .pm-table td { padding-top: 3px; padding-bottom: 3px; }
+#pm-body.pm-compact .pm-table tr.pm-cat > td { padding-top: 8px; }
+#pm-body.pm-compact .pm-table tr.pm-rehead > td,
+#pm-body.pm-compact .pm-table tr.pm-rehead > th { padding-top: 18px; }
+#pm-body.pm-compact .pm-table th:first-child,
+#pm-body.pm-compact .pm-table td:first-child { min-width: 220px; }
+
+.pm-table tr[hidden] { display: none; }
+
+/* Sortable headers. The button carries the hit area so keyboard users get it
+   for free; the cell keeps the layout. */
+.pm-table th { padding: 0; }
+.pm-table th:first-child { padding: 6px 10px 8px; }
+
+.pm-sortbtn {
+  display: block;
+  width: 100%;
+  padding: 6px 8px 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: right;
+  cursor: pointer;
+  white-space: normal;
+}
+
+.pm-sortbtn:hover { color: var(--text); }
+.pm-sortbtn.on { color: var(--accent); }
+.pm-sortbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pm-sortarrow { margin-left: 4px; font-size: 9px; }
+
+/* Disclosure on an owner row. Sits before the swatch so names stay aligned. */
+.pm-disc {
+  display: inline-block;
+  width: 16px;
+  margin-right: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: 1px;
+}
+
+.pm-disc::before { content: "\25BE"; }
+.pm-table tr.pm-folded .pm-disc::before { content: "\25B8"; }
+.pm-disc:hover { color: var(--accent); }
+.pm-disc:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+
+/* Change column heat. An inset shadow rather than a background, so the tint
+   composites over the row-hover highlight instead of being replaced by it. */
+.pm-table td.pm-change {
+  box-shadow: inset 0 0 0 9999px var(--pm-heat, transparent);
+}
+
+/* Rows and segments are clickable (pin), so say so. */
+.pm-table tbody tr[data-key] { cursor: pointer; }
+.pm-seg { cursor: pointer; }
+
+/* A pinned trace reads as held rather than hovered: the row keeps the
+   highlight and gains an accent edge. */
+.pm-table tr.pinned > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.pm-seg.pinned { stroke: var(--accent); stroke-width: 2.5; }
+
+.pm-pinchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 9px;
+  border: 1px solid var(--chip-on-border);
+  border-radius: 999px;
+  background: var(--chip-on);
+  color: #fff;
+  font-size: 11px;
+}
+
+.pm-pinchip[hidden] { display: none; }
+
+.pm-unpin {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: .8;
+}
+
+.pm-unpin:hover { opacity: 1; }
+
+.pm-tip-hint {
+  margin-top: 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-dim);
+}
+
+/* The change-column key, above the table. */
+.pm-tablebar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.pm-heatcap { text-transform: uppercase; letter-spacing: .4px; }
+.pm-heatend { font-variant-numeric: tabular-nums; }
+
+.pm-heatramp {
+  width: 130px;
+  height: 11px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.pm-heatnote { font-style: italic; }
+.pm-heathint { margin-left: auto; }
+
+/* Action chips (Clear sort) go dim and inert when they would do nothing. */
+.chip:disabled {
+  opacity: .38;
+  cursor: default;
+  border-color: var(--border);
+}
+
