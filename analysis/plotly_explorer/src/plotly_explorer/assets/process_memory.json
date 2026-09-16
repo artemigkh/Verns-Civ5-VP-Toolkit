@@ -15,9 +15,13 @@
     "owner is known is charged to that owner and counted once (dll.minidump,",
     "dll.hookreserve, drv.reserve), so the rsv.* family is only the reserve that is",
     "shared between owners or unclaimed. Headroom (free.*) is drawn unfilled: it is",
-    "the one part of the ring holding nothing."
+    "the one part of the ring holding nothing.",
+    "",
+    "Fragmentation is a re-partition, not new data: the CRT and Lua heap free lists and the",
+    "small free holes are carved out of EXE, Lua and Headroom respectively. Those three owner",
+    "totals are therefore SMALLER here than in the published artifact, which folds each into",
+    "the owner of the heap. Everything still sums to 'space'."
   ],
-
   "owners": [
     {
       "key": "dll",
@@ -45,13 +49,17 @@
       "desc": "Address space claimed but never committed, and with no owner we can name"
     },
     {
+      "key": "frag",
+      "name": "Fragmentation",
+      "desc": "Address space the process cannot put to work: allocator free lists that hold no data, and free holes too small to serve a real allocation"
+    },
+    {
       "key": "free",
       "name": "Headroom",
       "desc": "Address space nobody has claimed. The only part of the ring holding nothing — and the part that runs out",
       "empty": true
     }
   ],
-
   "items": [
     {
       "key": "dll.image",
@@ -108,7 +116,6 @@
       "label": "Hook node pool, unused part",
       "desc": "The reserved tail of the hook's 32 MB node pool, which commits in 1 MB steps as it fills. Instrumented builds only"
     },
-
     {
       "key": "lua.vpui",
       "label": "VPUI GameInfo cache",
@@ -140,12 +147,6 @@
       "desc": "No per-script profile exists for this game; on the small map two caches held 70%"
     },
     {
-      "key": "lua.slack",
-      "label": "Lua heap free lists and overhead",
-      "desc": "Committed in Lua's heap but not holding objects"
-    },
-
-    {
       "key": "drv.images",
       "label": "NVIDIA driver code",
       "desc": "nvgpucomp32, nvd3dum, nvwgf2um and helper DLLs"
@@ -173,7 +174,6 @@
       "desc": "The reserved part of the driver's write-combined GPU buffer regions",
       "est": true
     },
-
     {
       "key": "exe.image",
       "label": "Civ 5 EXE",
@@ -188,11 +188,6 @@
       "key": "exe.small",
       "label": "Engine blocks under 1 MB",
       "desc": "CRT heap blocks the hook did not record. Measured directly: the EXE's, not the DLL's"
-    },
-    {
-      "key": "exe.crtslack",
-      "label": "CRT heap free lists and overhead",
-      "desc": "Shared by the DLL and the engine, so it cannot be split between them"
     },
     {
       "key": "exe.pool",
@@ -221,7 +216,6 @@
       "desc": "~25 MB in small heaps, ~30 MB shared sections, ~8 MB thread stacks and TEBs, ~8 MB locale and resource files",
       "est": true
     },
-
     {
       "key": "rsv.heapcrt",
       "label": "CRT heap segment reserve",
@@ -260,19 +254,27 @@
       "label": "Unattributed reservations",
       "desc": "Reserved address space with no owner identified: the residual after everything above"
     },
-
+    {
+      "key": "frag.crtslack",
+      "label": "CRT heap free lists and overhead",
+      "desc": "Committed inside the CRT heap the DLL and the engine share, holding no data. Only that heap can reuse it, and only for a matching size"
+    },
+    {
+      "key": "frag.luaslack",
+      "label": "Lua heap free lists and overhead",
+      "desc": "The same, inside Lua's own heap: committed, and not holding objects"
+    },
+    {
+      "key": "frag.holes",
+      "label": "Free holes too small to use",
+      "desc": "478 holes at turn 7, 623 at turn 344, none of them the largest. Free, but not to an allocation of any size that matters"
+    },
     {
       "key": "free.largest",
       "label": "Largest free block",
       "desc": "What a single allocation can still be given"
-    },
-    {
-      "key": "free.rest",
-      "label": "Smaller free holes",
-      "desc": "478 holes at turn 7, 623 at turn 344 — too small for the big allocations"
     }
   ],
-
   "points": [
     {
       "key": "t7",
@@ -300,7 +302,7 @@
         "lua.tooltip": 3.2,
         "lua.other": 14.9,
         "lua.noframe": 7.4,
-        "lua.slack": 18.1,
+        "frag.luaslack": 18.1,
         "drv.images": 209.0,
         "drv.d3d": 8.1,
         "drv.writecombine": 65.6,
@@ -309,7 +311,7 @@
         "exe.image": 101.1,
         "exe.big": 643.9,
         "exe.small": 442.5,
-        "exe.crtslack": 38.0,
+        "frag.crtslack": 38.0,
         "exe.pool": 61.3,
         "exe.procheap": 165.4,
         "exe.otherimages": 123.2,
@@ -323,7 +325,7 @@
         "rsv.sections": 23.5,
         "rsv.other": 114.2,
         "free.largest": 1134.2,
-        "free.rest": 63.4
+        "frag.holes": 63.4
       }
     },
     {
@@ -348,7 +350,7 @@
         "dll.minidump": 16.0,
         "dll.hookreserve": 1.2,
         "lua.unprofiled": 95.9,
-        "lua.slack": 45.3,
+        "frag.luaslack": 45.3,
         "drv.images": 209.0,
         "drv.d3d": 8.1,
         "drv.writecombine": 65.6,
@@ -357,7 +359,7 @@
         "exe.image": 101.1,
         "exe.big": 996.3,
         "exe.small": 614.9,
-        "exe.crtslack": 188.5,
+        "frag.crtslack": 188.5,
         "exe.pool": 61.2,
         "exe.procheap": 178.6,
         "exe.otherimages": 119.5,
@@ -371,11 +373,10 @@
         "rsv.sections": 23.5,
         "rsv.other": 180.3,
         "free.largest": 127.6,
-        "free.rest": 110.4
+        "frag.holes": 110.4
       }
     }
   ],
-
   "colors": {
     "cat-dll": "#48A260",
     "cat-lua": "#5889E6",
@@ -399,7 +400,6 @@
     "lua.other": "#9ABDFC",
     "lua.noframe": "#5580D1",
     "lua.unprofiled": "#3662B7",
-    "lua.slack": "#C3D8FE",
     "drv.images": "#A7322A",
     "drv.d3d": "#F29286",
     "drv.writecombine": "#CA5F54",
@@ -408,7 +408,6 @@
     "exe.image": "#7F6604",
     "exe.big": "#D0B356",
     "exe.small": "#A28302",
-    "exe.crtslack": "#F0D686",
     "exe.pool": "#8F740A",
     "exe.procheap": "#C2A33E",
     "exe.otherimages": "#FEE7A0",
@@ -420,6 +419,10 @@
     "rsv.unowned": "#DFA6DC",
     "rsv.stacks": "#823E81",
     "rsv.sections": "#CA8FC8",
-    "rsv.other": "#FBC7F8"
+    "rsv.other": "#FBC7F8",
+    "cat-frag": "#81878D",
+    "frag.crtslack": "#62686D",
+    "frag.luaslack": "#94999E",
+    "frag.holes": "#CACED3"
   }
 }

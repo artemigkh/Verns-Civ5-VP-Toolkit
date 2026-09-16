@@ -14,12 +14,13 @@
    Reading the chart:
 
      inner ring   the owner — DLL (green), Lua (blue), video driver (red),
-                  EXE and everything else (yellow), Reserved (plum), Headroom
+                  EXE and everything else (yellow), Reserved (plum),
+                  Fragmentation (grey), Headroom
      outer ring   the item within that owner
-     unfilled     Headroom, the only part of the ring holding nothing. It is
-                  split into the largest single free block and the rest,
-                  because a 32-bit process dies when no ONE hole is big
-                  enough, not when the total runs out
+     unfilled     Headroom: the largest free block, which is what a single
+                  allocation can still be given. A 32-bit process dies when no
+                  ONE hole is big enough, not when the total runs out, so this
+                  and not the free total is the number that ends the game
 
    The full circle is the whole 4,096 MB address space rather than committed
    memory, so every percentage on the page — chart labels, tooltips and table
@@ -27,6 +28,14 @@
    owner and counted once (the DLL's minidump reserve and hook node pool, the
    driver's buffer reserve), so the plum slice is only reserve that is shared
    between owners or that nothing has claimed.
+
+   Fragmentation is a RE-PARTITION of the owners above it, not new data: the
+   CRT and Lua heap free lists come out of EXE and Lua, and the small free
+   holes out of Headroom. It cuts by usability rather than by state, so it
+   spans both committed memory (the free lists) and free memory (the holes) —
+   the "of which committed / reserved / free" footer is still the by-state
+   split. Those three owner totals are consequently smaller here than in the
+   published artifact, which folds each into whoever owns the heap.
 
    ---------------------------------------------------------------------------
    Everything the reader can change lives in `state` and round-trips through
@@ -973,6 +982,21 @@
     ]);
   }
 
+  // Without this, an EXE or Lua figure that no longer matches the artifact
+  // reads as an error rather than as a different cut of the same total.
+  function fragNote(a, b) {
+    var fa = sum(a, "frag");
+    var fb = sum(b, "frag");
+    return note([
+      ["Fragmentation is carved out of the owners above it."],
+      " Allocator free lists are counted here rather than under the DLL, Lua or the EXE whose " +
+        "heap they sit in, so those rows are what each is actually holding. It grows from " +
+        fmt(fa, 0) + " to " + fmt(fb, 0) + " MB, " + (fb / fa).toFixed(1) + "×, while the " +
+        "largest block a single allocation can still get falls from " +
+        fmt(a.values["free.largest"], 0) + " to " + fmt(b.values["free.largest"], 0) + " MB."
+    ]);
+  }
+
   // Computed from the data rather than hard-coded, so it cannot drift from the
   // DLL row in the table.
   function dllNote(a, b) {
@@ -1106,6 +1130,7 @@
 
     var notes = el("div", "pm-notes");
     notes.appendChild(reservedNote());
+    notes.appendChild(fragNote(pts[0], pts[1]));
     notes.appendChild(dllNote(pts[0], pts[1]));
     host.appendChild(notes);
 
