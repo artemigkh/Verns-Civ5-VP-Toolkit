@@ -394,15 +394,30 @@
     var b = pts[1];
     var t = el("table", "pm-table");
 
+    // The table runs to ~47 rows, so the column labels are off screen for most
+    // of it. They are repeated above every owner section rather than made
+    // sticky: .pm-scroll carries overflow-x for narrow panes, which makes it a
+    // scroll container on BOTH axes, and a sticky header inside it would anchor
+    // to that container instead of the page.
+    var HEAD = [
+      "Owner and item",
+      a.title + " " + a.sub + " MB",
+      "% of space",
+      b.title + " " + b.sub + " MB",
+      "% of space",
+      "Change MB"
+    ];
+
+    function headerRow(tag, cls) {
+      var tr = el("tr", cls);
+      HEAD.forEach(function (label, i) {
+        tr.appendChild(el(tag, i ? "pm-n" : null, label));
+      });
+      return tr;
+    }
+
     var thead = el("thead");
-    var htr = el("tr");
-    htr.appendChild(el("th", null, "Owner and item"));
-    htr.appendChild(el("th", "pm-n", a.title + " " + a.sub + " MB"));
-    htr.appendChild(el("th", "pm-n", "% of space"));
-    htr.appendChild(el("th", "pm-n", b.title + " " + b.sub + " MB"));
-    htr.appendChild(el("th", "pm-n", "% of space"));
-    htr.appendChild(el("th", "pm-n", "Change MB"));
-    thead.appendChild(htr);
+    thead.appendChild(headerRow("th", null));
     t.appendChild(thead);
 
     var tbody = el("tbody");
@@ -422,7 +437,15 @@
       tr.appendChild(num(va === null || vb === null ? "" : signed(vb - va)));
     }
 
-    P.owners.forEach(function (cat) {
+    P.owners.forEach(function (cat, ci) {
+      // Not before the first section — <thead> is still right above it. The
+      // repeats are decoration over the real header, so they are hidden from
+      // assistive tech rather than announced as a second set of column headers.
+      if (ci) {
+        var rehead = headerRow("td", "pm-rehead");
+        rehead.setAttribute("aria-hidden", "true");
+        tbody.appendChild(rehead);
+      }
       var ctr = el("tr", "pm-cat");
       ctr.setAttribute("data-key", "cat." + cat.key);
       ctr.appendChild(nameCell(swatch("cat-" + cat.key, cat), cat.name, cat.desc, false));
