@@ -6,7 +6,8 @@
    the measurements come from).
 
    No controls and no URL state: one donut per measured scene, faceted side by side,
-   then the cost table and the frame-size bars with their units-that-fit heatmap.
+   then the per-action bars, the frame-size bars with their units-that-fit heatmap
+   and the cost table.
    Modeled on civs.js (Plotly donut) and wonders.js (explicitly sized plots). */
 (function () {
   "use strict";
@@ -147,7 +148,71 @@
   }
 
   // -------------------------------------------------------------------------
-  // Chart 2 — how full each measured frame was, against the 1 MB capacity
+  // Chart 2 — what one player action (a window, a zoom, an icon toggle) adds
+  // -------------------------------------------------------------------------
+  function renderActions() {
+    var rows = P.actions.slice().reverse(); // largest first reads top-down
+    var traces = P.actionGroups.map(function (g) {
+      var mine = rows.filter(function (r) {
+        return r.group === g.key;
+      });
+      return {
+        type: "bar",
+        orientation: "h",
+        name: g.label,
+        y: mine.map(function (r) {
+          return r.label;
+        }),
+        x: mine.map(function (r) {
+          return r.added;
+        }),
+        marker: { color: g.color },
+        text: mine.map(function (r) {
+          return pct(r.added);
+        }),
+        textposition: "outside",
+        textfont: { color: TEXT_DIM, size: 12 },
+        cliponaxis: false,
+        hovertemplate: "%{y}<br>adds %{x:,} B (%{text} of the buffer)<extra></extra>",
+      };
+    });
+    var layout = {
+      barmode: "overlay",
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      margin: { l: FRAME_LABEL_PX, r: 70, t: 40, b: 50 },
+      height: 100 + 30 * rows.length,
+      font: { color: TEXT },
+      xaxis: {
+        title: { text: "Bytes added to one frame", font: { color: TEXT_DIM, size: 12 } },
+        range: [0, P.capacity * 0.56],
+        gridcolor: GRID,
+        zeroline: false,
+        tickformat: ",",
+        tickfont: { color: TEXT_DIM },
+      },
+      yaxis: {
+        tickfont: { color: TEXT, size: 12 },
+        // One shared order for all the traces, not one block per group.
+        categoryorder: "array",
+        categoryarray: rows.map(function (r) {
+          return r.label;
+        }),
+      },
+      legend: {
+        orientation: "h",
+        traceorder: "normal",
+        x: 0,
+        y: 1,
+        yanchor: "bottom",
+        font: { color: TEXT_DIM },
+      },
+    };
+    draw("dlb-actions", traces, layout);
+  }
+
+  // -------------------------------------------------------------------------
+  // Chart 3 — how full each measured frame was, against the 1 MB capacity
   // -------------------------------------------------------------------------
   var STRATEGIC = "#57b36a"; // green: the one frame that does not grow with what is in view
   var FRAME_LABEL_PX = 400; // left margin: the full-settings labels
@@ -248,6 +313,7 @@
       {
         xref: "paper",
         x: heatMid,
+        xanchor: "center",
         yref: "paper",
         y: 1,
         yanchor: "bottom",
@@ -259,6 +325,7 @@
       {
         xref: "paper",
         x: heatMid,
+        xanchor: "center",
         yref: "paper",
         y: 1,
         yanchor: "bottom",
@@ -409,6 +476,7 @@
 
   function render() {
     P.scenes.forEach(renderDonut);
+    renderActions();
     renderFrames();
   }
 

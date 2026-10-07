@@ -23,7 +23,17 @@
     "survey of that view; null where it was not measured). The report's 'units that fit'",
     "table is floor((capacity - (used - flags)) / flagCosts[].bytes): the frame with its",
     "own flags taken out, refilled with flags of one cost. Flag costs: 6 sprites plus one",
-    "per promotion icon, 240 B each (0, 2 and 4 icons measured, 13 calculated)."
+    "per promotion icon, 240 B each (0, 2 and 4 icons measured, 13 calculated).",
+    "",
+    "actions[] is what one player action adds to a frame (the frame after it minus the",
+    "same frame before it): opening a window, zooming out, turning icons on. Two games: the Trade Route Overview",
+    "and InfoAddict rows are from a second live session the same day - an 8-player",
+    "huge-map game at turn 350, human player (13 cities, 7 trade routes, 624 available),",
+    "Vox Populi + EUI + InfoAddict from the MODS folder, base frame 176,704 B. The 'Other",
+    "screens' and 'Map view' rows are the turn-280 game's (zooming out: 237,008 - 105,696,",
+    "icons off; yields and resources: frame with them on minus off at that zoom). The Trade Route Overview draws only the rows",
+    "in view (12 of 624 on the Available tab). InfoAddict's Global Relations view is",
+    "where the 48 B line record was seen."
   ],
   "capacity": 1048576,
   "locator": "[[EXE + 0x29D1D1C] + 0x6F0]",
@@ -33,7 +43,9 @@
     { "key": "text", "label": "Text", "bytes": 144,
       "draws": "One text label, whatever its length" },
     { "key": "panel", "label": "Panel", "bytes": 352,
-      "draws": "One stretchable nine-piece frame: window and box backgrounds" }
+      "draws": "One stretchable nine-piece frame: window and box backgrounds" },
+    { "key": "line", "label": "Line", "bytes": 48,
+      "draws": "One coloured line (seen only in InfoAddict's Global Relations view)" }
   ],
   "users": [
     { "key": "yields", "label": "Yield icons", "color": "#e0a458" },
@@ -121,6 +133,30 @@
     { "key": "four", "label": "4 promotion icons", "bytes": 2400 },
     { "key": "max", "label": "13 promotion icons (EUI's cap)", "bytes": 4560 }
   ],
+  "actionGroups": [
+    { "key": "trade", "label": "Trade Route Overview", "color": "#e0a458" },
+    { "key": "infoaddict", "label": "InfoAddict", "color": "#7c83ff" },
+    { "key": "other", "label": "Other screens (turn-280 game)", "color": "#5aa9e6" },
+    { "key": "map", "label": "Map view (turn-280 game)", "color": "#57b36a" }
+  ],
+  "actions": [
+    { "group": "infoaddict", "label": "InfoAddict: Historical Data (8 civ lines, 350 turns)", "added": 498880 },
+    { "group": "other", "label": "Tech tree", "added": 280800 },
+    { "group": "map", "label": "Turning yield icons on, zoomed out", "added": 249600 },
+    { "group": "trade", "label": "Trade Route Overview: Available (12 of 624 rows in view)", "added": 136048 },
+    { "group": "map", "label": "Zooming out fully (yields and resources off)", "added": 131312 },
+    { "group": "trade", "label": "Trade Route Overview: Your routes (7 rows)", "added": 79104 },
+    { "group": "map", "label": "Turning yield icons on, zoomed in", "added": 64800 },
+    { "group": "infoaddict", "label": "InfoAddict: World Factbook", "added": 42688 },
+    { "group": "map", "label": "Turning resource icons on, zoomed out", "added": 36480 },
+    { "group": "other", "label": "Demographics", "added": 24224 },
+    { "group": "other", "label": "Economic overview", "added": 17632 },
+    { "group": "trade", "label": "Trade Route Overview: Routes with you (no rows)", "added": 15968 },
+    { "group": "other", "label": "Military overview", "added": 14560 },
+    { "group": "infoaddict", "label": "InfoAddict: Global Relations", "added": 11520 },
+    { "group": "map", "label": "Turning resource icons on, zoomed in", "added": 9600 },
+    { "group": "infoaddict", "label": "InfoAddict: Options", "added": 8304 }
+  ],
   "itemCosts": [
     { "item": "Promotion icon on a flag", "bytes": 240, "makeup": "1 sprite", "basis": "measured" },
     { "item": "Yield icons on one plot", "bytes": 480, "makeup": "about 2 sprites", "basis": "average over the view" },
@@ -128,7 +164,9 @@
     { "item": "Unit flag, 2 promotion icons", "bytes": 1920, "makeup": "8 sprites", "basis": "measured" },
     { "item": "Unit flag, 13 promotion icons", "bytes": 4560, "makeup": "19 sprites", "basis": "calculated" },
     { "item": "City banner", "bytes": 8520, "makeup": "about 26 sprites and 15 texts", "basis": "average of about 8 banners" },
+    { "item": "Trade Route Overview, one row in view", "bytes": 9500, "makeup": "about 45 records", "basis": "average of 7 and 12 rows (9,019 and 10,007 B)" },
     { "item": "Demographics screen", "bytes": 24224, "makeup": "", "basis": "measured" },
+    { "item": "InfoAddict history graph, one civ's line", "bytes": 61300, "makeup": "about 255 sprites", "basis": "average of 8 lines over 350 turns" },
     { "item": "Tech tree screen", "bytes": 280800, "makeup": "939 sprites, 99 texts, 117 panels", "basis": "measured" }
   ]
 }

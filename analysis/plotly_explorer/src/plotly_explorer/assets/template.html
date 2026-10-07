@@ -275,6 +275,11 @@
           <div id="dlb-donut-grid" class="dlb-donut-grid"></div>
         </div>
         <div class="dlb-card">
+          <h2 class="dlb-section-title">What Each Action Adds</h2>
+          <p class="dlb-sub">Bytes one action adds to a frame: the frame after it minus the same frame before it. Trade Route Overview and InfoAddict were measured in a second game (8 players, huge map, turn 350); everything else in the turn-280 game. The Trade Route Overview draws only the rows in view. InfoAddict's history graph builds each civ's line from sprites, about 61 KB per civ here.</p>
+          <div id="dlb-actions"></div>
+        </div>
+        <div class="dlb-card">
           <h2 class="dlb-section-title">How Full Each Frame Was</h2>
           <p class="dlb-sub">Every frame measured. Screens are drawn on top of the map interface, which keeps drawing underneath. The heatmap is calculated, not crash-tested: each frame with its own unit flags taken out, refilled with flags of one cost. It is the buffer's limit only &ndash; a zoomed-in view has far fewer plots than that.</p>
           <div id="dlb-frames"></div>
@@ -283,7 +288,7 @@
           <h2 class="dlb-section-title">Cost per Item</h2>
           <div id="dlb-costs-table"></div>
         </div>
-        <p class="dlb-footnote">One paused game (turn-280 huge-map save, Vox Populi + EUI); the crash frame is a different game, read from two crash dumps. Sizes depend on resolution, zoom and what is in view.</p>
+        <p class="dlb-footnote">One paused game (turn-280 huge-map save, Vox Populi + EUI); the crash frame is a different game, read from two crash dumps, and the Trade Route Overview and InfoAddict windows a third. Sizes depend on resolution, zoom and what is in view.</p>
       </div>
       <div class="report-process_memory">
         <h1 id="pm-title">Who Holds the Memory</h1>
