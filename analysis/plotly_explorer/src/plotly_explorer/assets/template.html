@@ -154,15 +154,6 @@
       </section>
     </div>
 
-    <!-- ===================== Interface Draw List Buffer report controls ===================== -->
-    <div class="report-draw_list_buffer">
-      <section class="panel">
-        <h2>Scene</h2>
-        <h3>Frame shown in the donut</h3>
-        <div id="dlb-scene-controls" class="chip-grid"></div>
-      </section>
-    </div>
-
     <!-- ===================== Process Memory report controls ===================== -->
     <div class="report-process_memory">
       <section class="panel">
@@ -279,22 +270,18 @@
         <p class="dlb-intro">Every frame, Civ 5's EXE lists everything the 2D interface draws &ndash; one record per icon, text label or panel &ndash; in a fixed <strong>1 MB buffer</strong> (1,048,576 bytes). The buffer object sits at <code>[[EXE + 0x29D1D1C] + 0x6F0]</code>: base pointer at +0x24, bytes used at +0x40. Unit flags, city banners, yield and resource icons, the top bar and every open screen all write to it. <strong>Nothing checks the capacity</strong>: when one frame needs more than 1 MB &ndash; roughly 400&ndash;450 units in view &ndash; the game writes past the end and crashes.</p>
         <div class="dlb-card">
           <h2 class="dlb-section-title">What Uses the Buffer</h2>
-          <p id="dlb-scene-note" class="dlb-sub"></p>
-          <div id="dlb-donut" class="dlb-plot-donut"></div>
+          <p class="dlb-sub">One frame per ring. Gray is the part of the 1 MB still empty &ndash; the room left for units.</p>
+          <!-- draw_list_buffer.js builds one titled donut per scene in here. -->
+          <div id="dlb-donut-grid" class="dlb-donut-grid"></div>
+        </div>
+        <div class="dlb-card">
+          <h2 class="dlb-section-title">How Full Each Frame Was</h2>
+          <p class="dlb-sub">Every frame measured. Screens are drawn on top of the map interface, which keeps drawing underneath. The heatmap is calculated, not crash-tested: each frame with its own unit flags taken out, refilled with flags of one cost. It is the buffer's limit only &ndash; a zoomed-in view has far fewer plots than that.</p>
+          <div id="dlb-frames"></div>
         </div>
         <div class="dlb-card">
           <h2 class="dlb-section-title">Cost per Item</h2>
           <div id="dlb-costs-table"></div>
-        </div>
-        <div class="dlb-card">
-          <h2 class="dlb-section-title">How Full Each Frame Was</h2>
-          <p class="dlb-sub">Every frame measured. Screens are drawn on top of the map interface, which keeps drawing underneath.</p>
-          <div id="dlb-frames"></div>
-        </div>
-        <div class="dlb-card">
-          <h2 class="dlb-section-title">Unit Flags That Still Fit</h2>
-          <p class="dlb-sub">Calculated, not crash-tested: the empty space in each frame divided by the cost of one more unit flag.</p>
-          <div id="dlb-headroom"></div>
         </div>
         <p class="dlb-footnote">One paused game (turn-280 huge-map save, Vox Populi + EUI); the crash frame is a different game, read from two crash dumps. Sizes depend on resolution, zoom and what is in view.</p>
       </div>

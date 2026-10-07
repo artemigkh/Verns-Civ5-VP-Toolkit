@@ -64,7 +64,6 @@ html, body {
 #app.show-religion #sidebar .report-religion,
 #app.show-units #sidebar .report-units,
 #app.show-instant_yields #sidebar .report-instant_yields,
-#app.show-draw_list_buffer #sidebar .report-draw_list_buffer,
 #app.show-process_memory #sidebar .report-process_memory,
 #app.show-wonders #sidebar .report-wonders {
   display: flex;
@@ -1202,7 +1201,7 @@ html, body {
 #app.show-draw_list_buffer #main-inner { justify-content: flex-start; }
 
 #main .report-draw_list_buffer {
-  max-width: 1180px;
+  max-width: 1500px;
   margin: 0 auto;
 }
 
@@ -1248,7 +1247,37 @@ html, body {
   color: var(--text-dim);
 }
 
-.dlb-plot-donut { height: 480px; }
+.dlb-donut-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+@media (max-width: 1100px) {
+  .dlb-donut-grid { grid-template-columns: 1fr; }
+}
+
+.dlb-facet { min-width: 0; }
+
+.dlb-facet-title {
+  margin: 8px 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+}
+
+.dlb-facet-note {
+  margin: 0 auto;
+  max-width: 520px;
+  min-height: 2.9em;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.dlb-plot-donut { height: 400px; }
 
 .dlb-table {
   width: 100%;

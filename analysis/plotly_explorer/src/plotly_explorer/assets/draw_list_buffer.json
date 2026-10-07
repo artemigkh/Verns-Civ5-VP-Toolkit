@@ -17,7 +17,13 @@
     "All sizes are bytes. Every scene's users sum to its 'used'. A user's bytes are",
     "sprites x 240 + texts x 144 + panels x 352 (the crash scene carries 144 bytes the",
     "record index does not account for, kept in 'Everything else').",
-    "'calculated' marks numbers derived by arithmetic rather than read from a frame."
+    "'calculated' marks numbers derived by arithmetic rather than read from a frame.",
+    "",
+    "frames[].flags is the part of 'used' that the frame's own unit flags took (from the",
+    "survey of that view; null where it was not measured). The report's 'units that fit'",
+    "table is floor((capacity - (used - flags)) / flagCosts[].bytes): the frame with its",
+    "own flags taken out, refilled with flags of one cost. Flag costs: 6 sprites plus one",
+    "per promotion icon, 240 B each (0, 2 and 4 icons measured, 13 calculated)."
   ],
   "capacity": 1048576,
   "locator": "[[EXE + 0x29D1D1C] + 0x6F0]",
@@ -39,7 +45,6 @@
     { "key": "techtree", "label": "Tech tree", "color": "#57b36a" },
     { "key": "other", "label": "Everything else", "color": "#6b7686" }
   ],
-  "defaultScene": "zoomed_out",
   "scenes": [
     {
       "key": "zoomed_out",
@@ -97,28 +102,24 @@
     }
   ],
   "frames": [
-    { "label": "Zoomed in, icons off", "used": 105696 },
-    { "label": "Zoomed in + resource icons", "used": 115296 },
-    { "label": "Zoomed in + yield icons", "used": 170496 },
-    { "label": "Zoomed out, icons off", "used": 237008 },
-    { "label": "Zoomed out + resource icons", "used": 273488 },
-    { "label": "Strategic view", "used": 359616 },
-    { "label": "Zoomed out + resources + yields", "used": 523088 },
-    { "label": "  ... + Military overview", "used": 537648 },
-    { "label": "  ... + Economic overview", "used": 540720 },
-    { "label": "  ... + Demographics", "used": 547312 },
-    { "label": "  ... + Tech tree", "used": 803888 },
-    { "label": "Crash frame: 440 units in view", "used": 1052672 }
+    { "label": "Zoomed in, yields off, resources off", "used": 105696, "flags": 27968 },
+    { "label": "Zoomed in, yields off, resources on", "used": 115296, "flags": 27968 },
+    { "label": "Zoomed in, yields on, resources off", "used": 170496, "flags": 27968 },
+    { "label": "Zoomed out, yields off, resources off", "used": 237008, "flags": 113536 },
+    { "label": "Zoomed out, yields off, resources on", "used": 273488, "flags": 113536 },
+    { "label": "Strategic view (constant with small variance)", "used": 359616, "flags": null, "kind": "strategic" },
+    { "label": "Zoomed out, yields on, resources on", "used": 523088, "flags": 113536 },
+    { "label": "Zoomed out, yields on, resources on, Military overview open", "used": 537648, "flags": 113536 },
+    { "label": "Zoomed out, yields on, resources on, Economic overview open", "used": 540720, "flags": 113536 },
+    { "label": "Zoomed out, yields on, resources on, Demographics open", "used": 547312, "flags": 113536 },
+    { "label": "Zoomed out, yields on, resources on, Tech tree open", "used": 803888, "flags": 113536 },
+    { "label": "Crash frame: 440 units in view (different game)", "used": 1052672, "flags": 844800 }
   ],
   "flagCosts": [
     { "key": "plain", "label": "No promotion icons", "bytes": 1440 },
     { "key": "two", "label": "2 promotion icons", "bytes": 1920 },
+    { "key": "four", "label": "4 promotion icons", "bytes": 2400 },
     { "key": "max", "label": "13 promotion icons (EUI's cap)", "bytes": 4560 }
-  ],
-  "headroomScenes": [
-    { "label": "Zoomed out, icons off", "used": 237008 },
-    { "label": "Zoomed out + resources + yields", "used": 523088 },
-    { "label": "... + Tech tree", "used": 803888 }
   ],
   "itemCosts": [
     { "item": "Promotion icon on a flag", "bytes": 240, "makeup": "1 sprite", "basis": "measured" },

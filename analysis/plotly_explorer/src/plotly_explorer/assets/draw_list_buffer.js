@@ -5,14 +5,13 @@
    is assets/draw_list_buffer.json passed straight through (see its _comment for where
    the measurements come from).
 
-   Controls (left sidebar): a mutually-exclusive Scene selector. The donut follows
-   the scene; the cost table, the frame-size bars and the flag headroom bars are fixed. Modeled on civs.js (Plotly donut) and instant_yields.js
-   (chip controls + router registration). */
+   No controls and no URL state: one donut per measured scene, faceted side by side,
+   then the cost table and the frame-size bars with their units-that-fit heatmap.
+   Modeled on civs.js (Plotly donut) and wonders.js (explicitly sized plots). */
 (function () {
   "use strict";
 
   var P = window.PAYLOAD.draw_list_buffer;
-  var Ser = Explorer.Ser;
 
   var BG = "#161c27"; // the card colour: slice separators read as gaps
   var TEXT = "#d7dde7";
@@ -35,19 +34,6 @@
     Plotly.react(host, traces, layout, PLOT_CONFIG);
   }
 
-  var SCENE_KEYS = P.scenes.map(function (s) {
-    return s.key;
-  });
-  var DEF = { scene: P.defaultScene || SCENE_KEYS[0] };
-  var state = { scene: DEF.scene };
-
-  function scene() {
-    for (var i = 0; i < P.scenes.length; i++) {
-      if (P.scenes[i].key === state.scene) return P.scenes[i];
-    }
-    return P.scenes[0];
-  }
-
   function fmtB(n) {
     return Math.round(n).toLocaleString() + " B";
   }
@@ -61,7 +47,7 @@
   }
 
   // The scene's users in the payload's fixed order, so a user keeps its place
-  // (and colour) on the ring when the scene changes.
+  // (and colour) on the ring in every facet.
   function sceneUsers(sc) {
     return P.users.filter(function (u) {
       return sc.users[u.key];
@@ -69,35 +55,33 @@
   }
 
   // -------------------------------------------------------------------------
-  // Controls
+  // Facet scaffolding — one titled cell per scene. Static: built once.
   // -------------------------------------------------------------------------
-  function chip(label, isOn, onClick) {
-    var el = document.createElement("div");
-    el.className = "chip" + (isOn ? " on" : "");
-    el.textContent = label;
-    el.addEventListener("click", function () {
-      onClick(el);
-    });
-    return el;
-  }
-
-  function buildSceneControls() {
-    var host = document.getElementById("dlb-scene-controls");
+  function buildDonutGrid() {
+    var host = document.getElementById("dlb-donut-grid");
     host.innerHTML = "";
-    P.scenes.forEach(function (s) {
-      host.appendChild(
-        chip(s.label, s.key === state.scene, function () {
-          if (state.scene === s.key) return;
-          state.scene = s.key;
-          buildSceneControls();
-          render();
-        })
-      );
+    P.scenes.forEach(function (sc) {
+      var cell = document.createElement("div");
+      cell.className = "dlb-facet";
+      var h = document.createElement("h3");
+      h.className = "dlb-facet-title";
+      h.textContent = sc.label;
+      var note = document.createElement("p");
+      note.className = "dlb-facet-note";
+      note.textContent = sc.note;
+      var plot = document.createElement("div");
+      plot.id = "dlb-donut-" + sc.key;
+      plot.className = "dlb-plot-donut";
+      cell.appendChild(h);
+      cell.appendChild(note);
+      cell.appendChild(plot);
+      host.appendChild(cell);
     });
   }
 
   // -------------------------------------------------------------------------
-  // Chart 1 — who uses the buffer, with the unused part of the 1 MB in gray
+  // Chart 1 — who uses the buffer, with the unused part of the 1 MB in gray.
+  // One donut per scene.
   // -------------------------------------------------------------------------
   function renderDonut(sc) {
     var users = sceneUsers(sc);
@@ -112,7 +96,7 @@
     });
     var free = P.capacity - sc.used;
     if (free > 0) {
-      labels.push("Empty: room for units");
+      labels.push("Empty");
       values.push(free);
       colors.push(FREE);
     }
@@ -124,7 +108,9 @@
       marker: { colors: colors, line: { color: BG, width: 2 } },
       sort: false,
       direction: "clockwise",
-      rotation: 0,
+      // A nearly empty frame is all small slices: started at 12 o'clock their
+      // labels pile up over the title, so start them on the right-hand side.
+      rotation: sc.used / P.capacity < 0.25 ? 55 : 0,
       customdata: values.map(pct),
       texttemplate: "<b>%{label}</b><br>%{customdata}",
       // Slices under 2% of the buffer keep their hover but lose the label: their
@@ -141,8 +127,8 @@
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
       // Fixed margins, as in civs.js: automargin on outside labels thrashes.
-      margin: { l: 110, r: 110, t: 40, b: 50 },
-      height: 480,
+      margin: { l: 120, r: 150, t: 30, b: 40 },
+      height: 400,
       font: { color: TEXT },
       annotations: [
         {
@@ -153,30 +139,73 @@
           x: 0.5,
           y: 0.5,
           showarrow: false,
-          font: { color: over ? OVER : TEXT, size: 28 },
+          font: { color: over ? OVER : TEXT, size: 24 },
         },
       ],
     };
-    draw("dlb-donut", [trace], layout);
+    draw("dlb-donut-" + sc.key, [trace], layout);
   }
 
   // -------------------------------------------------------------------------
   // Chart 2 — how full each measured frame was, against the 1 MB capacity
   // -------------------------------------------------------------------------
+  var STRATEGIC = "#57b36a"; // green: the one frame that does not grow with what is in view
+  var FRAME_LABEL_PX = 400; // left margin: the full-settings labels
+  var FIT_COL_PX = 66; // one column of the units-that-fit heatmap
+  var FIT_PAD_PX = 70; // room for the bars' % labels before the heatmap
+
+  // Units in view that fit in a frame at one flag cost: the frame with its own
+  // unit flags taken out, refilled with flags of that cost. null = not measured.
+  function unitsThatFit(frame, cost) {
+    if (frame.flags === null || frame.flags === undefined) return null;
+    return Math.max(0, Math.floor((P.capacity - (frame.used - frame.flags)) / cost.bytes));
+  }
+
+  // Fewer units fit = closer to the crash, so the scale runs red -> amber -> green.
+  // Muted, like the rest of the page, so the white cell text stays readable.
+  var FIT_SCALE = [
+    [0, "#8f3238"],
+    [0.3, "#8a6a2c"],
+    [0.6, "#3f7d4e"],
+    [1, "#2e9a5a"],
+  ];
+
   function renderFrames() {
+    var host = document.getElementById("dlb-frames");
+    var w = host.clientWidth;
+    if (!w) return; // hidden: the heatmap's share of the width is set in pixels
     var rows = P.frames.slice().reverse();
-    var trace = {
+    var costs = P.flagCosts;
+    var labels = rows.map(function (r) {
+      return r.label;
+    });
+    var marginR = 12;
+    var plotW = Math.max(300, w - FRAME_LABEL_PX - marginR);
+    // The heatmap is a second x axis on the SAME y axis as the bars, so its rows
+    // cannot drift out of line with them. Its width is fixed in pixels.
+    var heatW = FIT_COL_PX * costs.length;
+    var heatX0 = 1 - heatW / plotW;
+    var barsX1 = heatX0 - FIT_PAD_PX / plotW;
+    var icons = costs.map(function (c) {
+      return String((c.bytes - costs[0].bytes) / 240);
+    });
+    var z = rows.map(function (r) {
+      return costs.map(function (c) {
+        return unitsThatFit(r, c);
+      });
+    });
+
+    var bars = {
       type: "bar",
       orientation: "h",
-      y: rows.map(function (r) {
-        return r.label;
-      }),
+      y: labels,
       x: rows.map(function (r) {
         return r.used;
       }),
       marker: {
         color: rows.map(function (r) {
-          return r.used > P.capacity ? OVER : "#5aa9e6";
+          if (r.used > P.capacity) return OVER;
+          return r.kind === "strategic" ? STRATEGIC : "#5aa9e6";
         }),
       },
       text: rows.map(function (r) {
@@ -187,22 +216,103 @@
       cliponaxis: false,
       hovertemplate: "%{y}<br>%{x:,} B (%{text} of the buffer)<extra></extra>",
     };
+    var heat = {
+      type: "heatmap",
+      xaxis: "x2",
+      x: icons,
+      y: labels,
+      z: z,
+      colorscale: FIT_SCALE,
+      showscale: false,
+      xgap: 2,
+      ygap: 2,
+      hoverongaps: false,
+      texttemplate: "%{z:,}",
+      textfont: { color: "#ffffff", size: 13 },
+      hovertemplate:
+        "%{y}<br>%{x} promotion icons per unit on average: %{z:,} units in view fit<extra></extra>",
+    };
+
+    var heatMid = (heatX0 + 1) / 2;
+    var annotations = [
+      {
+        x: P.capacity,
+        xanchor: "right",
+        yref: "paper",
+        y: 1,
+        yanchor: "bottom",
+        text: "Capacity: 1,048,576 B",
+        showarrow: false,
+        font: { color: OVER, size: 12 },
+      },
+      {
+        xref: "paper",
+        x: heatMid,
+        yref: "paper",
+        y: 1,
+        yanchor: "bottom",
+        yshift: 40,
+        text: "<b>Units in view that fit</b>",
+        showarrow: false,
+        font: { color: TEXT, size: 13 },
+      },
+      {
+        xref: "paper",
+        x: heatMid,
+        yref: "paper",
+        y: 1,
+        yanchor: "bottom",
+        yshift: 22,
+        text: "by average promotion icons per unit",
+        showarrow: false,
+        font: { color: TEXT_DIM, size: 11 },
+      },
+    ];
+    // A frame whose flag share was not measured has no cells: mark the gap.
+    rows.forEach(function (r) {
+      if (unitsThatFit(r, costs[0]) !== null) return;
+      // By index, not name: a numeric-looking category name ("13") in an
+      // annotation is read as a position and stretches the axis.
+      icons.forEach(function (ic, i) {
+        annotations.push({
+          xref: "x2",
+          x: i,
+          yref: "y",
+          y: r.label,
+          text: "–",
+          showarrow: false,
+          font: { color: TEXT_DIM, size: 13 },
+        });
+      });
+    });
+
     var layout = {
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      margin: { l: 250, r: 70, t: 28, b: 50 },
-      height: 70 + 30 * rows.length,
+      margin: { l: FRAME_LABEL_PX, r: marginR, t: 70, b: 50 },
+      height: 110 + 30 * rows.length,
       font: { color: TEXT },
       showlegend: false,
       xaxis: {
+        domain: [0, barsX1],
         title: { text: "Bytes in one frame", font: { color: TEXT_DIM, size: 12 } },
-        range: [0, P.capacity * 1.12],
+        range: [0, P.capacity * 1.02],
         gridcolor: GRID,
         zeroline: false,
         tickformat: ",",
         tickfont: { color: TEXT_DIM },
       },
-      yaxis: { tickfont: { color: TEXT, size: 13 } },
+      xaxis2: {
+        domain: [heatX0, 1],
+        type: "category",
+        side: "top",
+        fixedrange: true,
+        showgrid: false,
+        zeroline: false,
+        ticks: "",
+        tickfont: { color: TEXT, size: 13 },
+      },
+      yaxis: { tickfont: { color: TEXT, size: 12 }, showgrid: false },
       shapes: [
         {
           type: "line",
@@ -214,66 +324,9 @@
           line: { color: OVER, width: 1.5, dash: "dash" },
         },
       ],
-      annotations: [
-        {
-          x: P.capacity,
-          yref: "paper",
-          y: 1,
-          yanchor: "bottom",
-          text: "Capacity: 1,048,576 B",
-          showarrow: false,
-          font: { color: OVER, size: 12 },
-        },
-      ],
+      annotations: annotations,
     };
-    draw("dlb-frames", [trace], layout);
-  }
-
-  // -------------------------------------------------------------------------
-  // Chart 3 — how many more unit flags the empty space holds (calculated)
-  // -------------------------------------------------------------------------
-  var FLAG_COLORS = ["#57b36a", "#e0a458", "#e5484d"];
-
-  function renderHeadroom() {
-    var x = P.headroomScenes.map(function (s) {
-      return s.label;
-    });
-    var traces = P.flagCosts.map(function (f, i) {
-      var fit = P.headroomScenes.map(function (s) {
-        return Math.max(0, Math.floor((P.capacity - s.used) / f.bytes));
-      });
-      return {
-        type: "bar",
-        name: f.label + " (" + f.bytes.toLocaleString() + " B)",
-        x: x,
-        y: fit,
-        marker: { color: FLAG_COLORS[i % FLAG_COLORS.length] },
-        text: fit.map(function (n) {
-          return n.toLocaleString();
-        }),
-        textposition: "outside",
-        textfont: { color: TEXT_DIM, size: 12 },
-        cliponaxis: false,
-        hovertemplate: "%{x}<br>" + f.label + ": %{y:,} more flags<extra></extra>",
-      };
-    });
-    var layout = {
-      barmode: "group",
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
-      margin: { l: 70, r: 30, t: 50, b: 40 },
-      height: 380,
-      font: { color: TEXT },
-      xaxis: { tickfont: { color: TEXT, size: 13 } },
-      yaxis: {
-        title: { text: "More unit flags that fit", font: { color: TEXT_DIM, size: 12 } },
-        gridcolor: GRID,
-        zeroline: false,
-        tickfont: { color: TEXT_DIM },
-      },
-      legend: { orientation: "h", x: 0, y: 1.04, yanchor: "bottom", font: { color: TEXT_DIM } },
-    };
-    draw("dlb-headroom", traces, layout);
+    draw("dlb-frames", [bars, heat], layout);
   }
 
   // -------------------------------------------------------------------------
@@ -295,12 +348,13 @@
     thead.appendChild(htr);
     table.appendChild(thead);
     var tbody = document.createElement("tbody");
-    rows.forEach(function (r) {
+    rows.forEach(function (r, ri) {
       var tr = document.createElement("tr");
       r.forEach(function (v, i) {
         var td = document.createElement("td");
         td.textContent = v;
         if (heads[i].num) td.className = "dlb-num";
+        if (heads[i].shade) td.style.background = heads[i].shade(ri);
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -309,13 +363,41 @@
     host.appendChild(table);
   }
 
+  // Heatmap shade for a cost: red whose intensity tracks the item's share of the
+  // buffer relative to the largest item, sqrt-scaled so mid values stay visible
+  // (as shade() in instant_yields.js, in red because a bigger share is worse).
+  function costShade(bytes, max) {
+    if (!max || bytes <= 0) return "transparent";
+    var t = Math.sqrt(bytes / max);
+    var lo = [40, 22, 26];
+    var hi = [158, 52, 58];
+    return (
+      "rgb(" +
+      Math.round(lo[0] + (hi[0] - lo[0]) * t) + "," +
+      Math.round(lo[1] + (hi[1] - lo[1]) * t) + "," +
+      Math.round(lo[2] + (hi[2] - lo[2]) * t) + ")"
+    );
+  }
+
   function buildTables() {
+    var maxCost = Math.max.apply(
+      null,
+      P.itemCosts.map(function (c) {
+        return c.bytes;
+      })
+    );
     buildTable(
       "dlb-costs-table",
       [
         { text: "Item on screen" },
         { text: "Bytes per frame", num: true },
-        { text: "Share of the buffer", num: true },
+        {
+          text: "Share of the buffer",
+          num: true,
+          shade: function (ri) {
+            return costShade(P.itemCosts[ri].bytes, maxCost);
+          },
+        },
         { text: "Made of" },
         { text: "Basis" },
       ],
@@ -326,37 +408,19 @@
   }
 
   function render() {
-    var sc = scene();
-    document.getElementById("dlb-scene-note").textContent = sc.note;
-    renderDonut(sc);
+    P.scenes.forEach(renderDonut);
     renderFrames();
-    renderHeadroom();
-    Explorer.Router.touch("draw_list_buffer");
   }
 
-  // --- url -----------------------------------------------------------------
-  function encode() {
-    var p = {};
-    Ser.put(p, "s", state.scene, DEF.scene);
-    return p;
-  }
-
-  function decode(p) {
-    // Reset before overlaying (router contract C2); control DOM only (C3).
-    state.scene = Ser.strIn(p.s, SCENE_KEYS, DEF.scene);
-    buildSceneControls();
-  }
-
-  buildSceneControls();
+  buildDonutGrid();
   buildTables();
   render();
 
+  // Nothing to serialize: the report has no controls, so its hash is the bare slug.
   window.DrawListBufferReport = { render: render };
   Explorer.Router.register({
     key: "draw_list_buffer",
     slug: "InterfaceDrawListBuffer",
-    render: render,
-    encode: encode,
-    decode: decode
+    render: render
   });
 })();
