@@ -1,0 +1,133 @@
+{
+  "_comment": [
+    "Static dataset for the Interface Draw List Buffer (dev) report.",
+    "",
+    "Nothing here comes from this repo's autoplay stats DB. The figures are one-off",
+    "measurements of a live CivilizationV_DX11.exe taken in the Community-Patch-DLL",
+    "workspace (.claude/skills/civ5-game-ui/experiments/mod-graphics-cost/render-buffer):",
+    "capture.py copies one complete frame of the buffer with ReadProcessMemory, and",
+    "survey.py hides each visible Lua context in turn and reads the frame again, so a",
+    "context's share is the bytes that disappear with it. Yield icons are the exception:",
+    "the engine draws them itself, so their share is the frame with them on minus off.",
+    "",
+    "Live scenes: one paused game, 2026-10-06 (turn-280 huge-map save, 2560x1440,",
+    "Vox Populi + EUI). The crash scene is a different game: two full crash dumps of",
+    "2026-09-29/30 with 440 Machine Guns in view, both holding the same frame.",
+    "",
+    "All sizes are bytes. Every scene's users sum to its 'used'. A user's bytes are",
+    "sprites x 240 + texts x 144 + panels x 352 (the crash scene carries 144 bytes the",
+    "record index does not account for, kept in 'Everything else').",
+    "'calculated' marks numbers derived by arithmetic rather than read from a frame."
+  ],
+  "capacity": 1048576,
+  "locator": "[[EXE + 0x29D1D1C] + 0x6F0]",
+  "kinds": [
+    { "key": "sprite", "label": "Sprite", "bytes": 240,
+      "draws": "One textured rectangle: every icon, flag layer, button and bar piece" },
+    { "key": "text", "label": "Text", "bytes": 144,
+      "draws": "One text label, whatever its length" },
+    { "key": "panel", "label": "Panel", "bytes": 352,
+      "draws": "One stretchable nine-piece frame: window and box backgrounds" }
+  ],
+  "users": [
+    { "key": "yields", "label": "Yield icons", "color": "#e0a458" },
+    { "key": "flags", "label": "Unit flags", "color": "#e5484d" },
+    { "key": "banners", "label": "City banners", "color": "#5aa9e6" },
+    { "key": "resources", "label": "Resource icons", "color": "#4f9da6" },
+    { "key": "civlist", "label": "Civ list and notifications", "color": "#7c83ff" },
+    { "key": "topbar", "label": "Top bar", "color": "#b07cc6" },
+    { "key": "techtree", "label": "Tech tree", "color": "#57b36a" },
+    { "key": "other", "label": "Everything else", "color": "#6b7686" }
+  ],
+  "defaultScene": "zoomed_out",
+  "scenes": [
+    {
+      "key": "zoomed_out",
+      "label": "Zoomed out, yields + resources",
+      "note": "Map zoomed out with yield and resource icons on. About 58 unit flags and 8 city banners in view.",
+      "used": 523088,
+      "users": {
+        "yields": { "sprite": 1040, "text": 0, "panel": 0, "bytes": 249600 },
+        "flags": { "sprite": 466, "text": 2, "panel": 4, "bytes": 113536 },
+        "banners": { "sprite": 212, "text": 120, "panel": 0, "bytes": 68160 },
+        "resources": { "sprite": 152, "text": 0, "panel": 0, "bytes": 36480 },
+        "civlist": { "sprite": 63, "text": 100, "panel": 6, "bytes": 31632 },
+        "topbar": { "sprite": 33, "text": 45, "panel": 0, "bytes": 14400 },
+        "other": { "sprite": 20, "text": 14, "panel": 7, "bytes": 9280 }
+      }
+    },
+    {
+      "key": "tech_tree",
+      "label": "Same view, tech tree open",
+      "note": "The tech tree is drawn on top of the map interface, which keeps drawing underneath it.",
+      "used": 803888,
+      "users": {
+        "yields": { "sprite": 1040, "text": 0, "panel": 0, "bytes": 249600 },
+        "flags": { "sprite": 466, "text": 2, "panel": 4, "bytes": 113536 },
+        "banners": { "sprite": 212, "text": 120, "panel": 0, "bytes": 68160 },
+        "resources": { "sprite": 152, "text": 0, "panel": 0, "bytes": 36480 },
+        "civlist": { "sprite": 63, "text": 100, "panel": 6, "bytes": 31632 },
+        "topbar": { "sprite": 33, "text": 45, "panel": 0, "bytes": 14400 },
+        "techtree": { "sprite": 939, "text": 99, "panel": 117, "bytes": 280800 },
+        "other": { "sprite": 20, "text": 14, "panel": 7, "bytes": 9280 }
+      }
+    },
+    {
+      "key": "zoomed_in",
+      "label": "Zoomed in, icons off",
+      "note": "Map zoomed in with yield and resource icons off. About 14 unit flags in view.",
+      "used": 105696,
+      "users": {
+        "flags": { "sprite": 113, "text": 1, "panel": 2, "bytes": 27968 },
+        "banners": { "sprite": 70, "text": 39, "panel": 0, "bytes": 22416 },
+        "civlist": { "sprite": 63, "text": 100, "panel": 6, "bytes": 31632 },
+        "topbar": { "sprite": 33, "text": 45, "panel": 0, "bytes": 14400 },
+        "other": { "sprite": 20, "text": 14, "panel": 7, "bytes": 9280 }
+      }
+    },
+    {
+      "key": "crash",
+      "label": "Crash frame: 440 units",
+      "note": "A different game: 440 Machine Guns in view, each flag showing two promotion icons, yield icons off. The frame ran 4,096 bytes past the end of the buffer and the game crashed.",
+      "used": 1052672,
+      "users": {
+        "flags": { "sprite": 3520, "text": 0, "panel": 0, "bytes": 844800 },
+        "other": { "sprite": 547, "text": 460, "panel": 29, "bytes": 207872 }
+      }
+    }
+  ],
+  "frames": [
+    { "label": "Zoomed in, icons off", "used": 105696 },
+    { "label": "Zoomed in + resource icons", "used": 115296 },
+    { "label": "Zoomed in + yield icons", "used": 170496 },
+    { "label": "Zoomed out, icons off", "used": 237008 },
+    { "label": "Zoomed out + resource icons", "used": 273488 },
+    { "label": "Strategic view", "used": 359616 },
+    { "label": "Zoomed out + resources + yields", "used": 523088 },
+    { "label": "  ... + Military overview", "used": 537648 },
+    { "label": "  ... + Economic overview", "used": 540720 },
+    { "label": "  ... + Demographics", "used": 547312 },
+    { "label": "  ... + Tech tree", "used": 803888 },
+    { "label": "Crash frame: 440 units in view", "used": 1052672 }
+  ],
+  "flagCosts": [
+    { "key": "plain", "label": "No promotion icons", "bytes": 1440 },
+    { "key": "two", "label": "2 promotion icons", "bytes": 1920 },
+    { "key": "max", "label": "13 promotion icons (EUI's cap)", "bytes": 4560 }
+  ],
+  "headroomScenes": [
+    { "label": "Zoomed out, icons off", "used": 237008 },
+    { "label": "Zoomed out + resources + yields", "used": 523088 },
+    { "label": "... + Tech tree", "used": 803888 }
+  ],
+  "itemCosts": [
+    { "item": "Promotion icon on a flag", "bytes": 240, "makeup": "1 sprite", "basis": "measured" },
+    { "item": "Yield icons on one plot", "bytes": 480, "makeup": "about 2 sprites", "basis": "average over the view" },
+    { "item": "Unit flag, no promotion icons", "bytes": 1440, "makeup": "6 sprites: 4 flag layers, unit icon and its shadow", "basis": "measured" },
+    { "item": "Unit flag, 2 promotion icons", "bytes": 1920, "makeup": "8 sprites", "basis": "measured" },
+    { "item": "Unit flag, 13 promotion icons", "bytes": 4560, "makeup": "19 sprites", "basis": "calculated" },
+    { "item": "City banner", "bytes": 8520, "makeup": "about 26 sprites and 15 texts", "basis": "average of about 8 banners" },
+    { "item": "Demographics screen", "bytes": 24224, "makeup": "", "basis": "measured" },
+    { "item": "Tech tree screen", "bytes": 280800, "makeup": "939 sprites, 99 texts, 117 panels", "basis": "measured" }
+  ]
+}

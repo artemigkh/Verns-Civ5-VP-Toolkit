@@ -780,6 +780,19 @@ def build_process_memory_payload() -> dict:
     return {k: v for k, v in data.items() if not k.startswith("_")}
 
 
+def build_draw_list_buffer_payload() -> dict:
+    """Static measurements for the Interface Draw List Buffer (dev) report.
+
+    Like Process Memory, no pipeline: one-off captures of the EXE's 1 MB
+    per-frame interface draw list, taken from a live ``CivilizationV_DX11.exe``
+    in the Community-Patch-DLL workspace and checked in verbatim as
+    ``assets/draw_list_buffer.json``. ``_comment`` keys carry the provenance
+    and are dropped here.
+    """
+    data = json.loads((ASSETS_DIR / "draw_list_buffer.json").read_text(encoding="utf-8"))
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
 def render(
     cfg: Config,
     *,
@@ -802,6 +815,7 @@ def render(
         "wonders": build_wonders_payload(cfg),
         "leaders": build_leaders_payload(),
         "process_memory": build_process_memory_payload(),
+        "draw_list_buffer": build_draw_list_buffer_payload(),
     }
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
@@ -810,11 +824,11 @@ def render(
     #                      calls Explorer.Router.register() at its IIFE tail.
     #                      app.js's renderActive() also defers to it.
     #   switcher.js LAST - Router.start() reads location.hash and renders the
-    #                      report it names, which requires all eleven modules to
+    #                      report it names, which requires all twelve modules to
     #                      be registered. (Before the router existed the switcher
     #                      sat at the tail of religion.js and silently skipped
     #                      the render for the six modules not yet defined.)
-    # The eleven report modules in between are order-independent: each only
+    # The twelve report modules in between are order-independent: each only
     # registers itself and renders its own panes. Keep this list explicit -- a
     # glob would hide both constraints, and alphabetical order violates both.
     js_bundle = (
@@ -830,6 +844,7 @@ def render(
         "wonders.js",
         "leaders.js",
         "process_memory.js",
+        "draw_list_buffer.js",
         "switcher.js",
     )
     app_js = "\n".join(

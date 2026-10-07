@@ -64,6 +64,7 @@ html, body {
 #app.show-religion #sidebar .report-religion,
 #app.show-units #sidebar .report-units,
 #app.show-instant_yields #sidebar .report-instant_yields,
+#app.show-draw_list_buffer #sidebar .report-draw_list_buffer,
 #app.show-process_memory #sidebar .report-process_memory,
 #app.show-wonders #sidebar .report-wonders {
   display: flex;
@@ -95,7 +96,10 @@ html, body {
 #app.show-leaders #expand-btn-right,
 #app.show-process_memory #sidebar-right,
 #app.show-process_memory #resizer-right,
-#app.show-process_memory #expand-btn-right {
+#app.show-process_memory #expand-btn-right,
+#app.show-draw_list_buffer #sidebar-right,
+#app.show-draw_list_buffer #resizer-right,
+#app.show-draw_list_buffer #expand-btn-right {
   display: none;
 }
 
@@ -1188,6 +1192,96 @@ html, body {
   box-shadow: none;
   background: var(--chip-on);
   color: #fff;
+}
+
+
+/* ---- Interface Draw List Buffer (dev) report (usage donut, bars, cost tables) ---- */
+.report-draw_list_buffer { display: none; }
+#app.show-draw_list_buffer .report-draw_list_buffer { display: block; }
+#app.show-draw_list_buffer .report-building { display: none; }
+#app.show-draw_list_buffer #main-inner { justify-content: flex-start; }
+
+#main .report-draw_list_buffer {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+#dlb-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.dlb-intro {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.dlb-intro code {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--chip);
+}
+
+.dlb-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.dlb-section-title {
+  margin: 4px 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dlb-sub {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.dlb-plot-donut { height: 480px; }
+
+.dlb-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.dlb-table th,
+.dlb-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.dlb-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.dlb-table tbody tr:last-child td { border-bottom: none; }
+
+.dlb-table .dlb-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dlb-footnote {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
 
