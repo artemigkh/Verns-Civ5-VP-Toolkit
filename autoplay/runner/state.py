@@ -35,6 +35,11 @@ class RunnerGlobalState:
     # was unreachable, so the runner stayed idle. The heartbeat loop will
     # trigger a deferred relaunch the next time it sees a successful POST.
     pending_reschedule: bool = False
+    # Turn cap supplied by the hypervisor on the last /start-game or
+    # /resume-game. When set, the monitor ends the game once it reaches this
+    # turn and harvests it as a normal completion. Kept here (not per-game)
+    # so auto-rescheduled games inherit the same cap.
+    max_turn: int | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def snapshot(self) -> "RunnerGlobalState":
@@ -50,6 +55,7 @@ class RunnerGlobalState:
                 is_scheduling_games=self.is_scheduling_games,
                 last_successful_heartbeat_ts=self.last_successful_heartbeat_ts,
                 pending_reschedule=self.pending_reschedule,
+                max_turn=self.max_turn,
             )
 
 

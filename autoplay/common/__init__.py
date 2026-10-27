@@ -7,9 +7,11 @@ from autoplay.common.constants import (
 from autoplay.common.models import (
     FileStatus,
     HeartbeatPayload,
+    RunnerKind,
     RunnerRegistration,
     RunnerState,
     RunnerStatusRow,
+    StartGameRequest,
 )
 
 __all__ = [
@@ -17,7 +19,9 @@ __all__ = [
     "MODPACK_FOLDER_REGEX",
     "FileStatus",
     "HeartbeatPayload",
+    "RunnerKind",
     "RunnerRegistration",
     "RunnerState",
     "RunnerStatusRow",
+    "StartGameRequest",
 ]

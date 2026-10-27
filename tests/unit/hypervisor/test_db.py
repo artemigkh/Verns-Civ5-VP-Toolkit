@@ -103,3 +103,46 @@ def test_delete_runner(db: RunnerDB) -> None:
     assert db.delete_runner("u1") is True
     assert db.delete_runner("u1") is False
     assert db.list_live_runners(timeout_sec=999_999) == []
+
+
+# --------------------------------------------------------------------------
+# Runner kind and last-turn seconds
+# --------------------------------------------------------------------------
+
+
+def _row(db: RunnerDB, uuid: str = "u1"):
+    return next(r for r in db.list_live_runners(timeout_sec=999_999) if r.uuid == uuid)
+
+
+def test_kind_defaults_to_client_and_is_stored(db: RunnerDB) -> None:
+    from autoplay.common import RunnerKind
+
+    db.upsert_registration(_reg("u1"))
+    db.upsert_registration(
+        RunnerRegistration(uuid="h1", url="http://b:1/slots/0", modpack="mp", kind=RunnerKind.headless)
+    )
+    assert _row(db, "u1").kind == RunnerKind.client
+    assert _row(db, "h1").kind == RunnerKind.headless
+
+
+def test_reported_last_turn_sec_is_stored(db: RunnerDB) -> None:
+    db.upsert_registration(_reg("u1"))
+    db.record_heartbeat("u1", RunnerState.running, "g1", 5, 100, last_turn_sec=2.5)
+    assert _row(db).last_turn_sec == 2.5
+
+
+def test_last_turn_sec_derived_from_turn_advances(db: RunnerDB) -> None:
+    db.upsert_registration(_reg("u1"))
+    db.record_heartbeat("u1", RunnerState.running, "g1", 3, 10)
+    assert _row(db).last_turn_sec is None  # first sight of the game
+    db.record_heartbeat("u1", RunnerState.running, "g1", 3, 12)
+    db.record_heartbeat("u1", RunnerState.running, "g1", 3, 14)
+    db.record_heartbeat("u1", RunnerState.running, "g1", 4, 16)
+    # Turn 3 was first seen at 10 s and turn 4 at 16 s, whatever the heartbeats in between.
+    assert _row(db).last_turn_sec == 6.0
+    db.record_heartbeat("u1", RunnerState.running, "g1", 4, 18)
+    assert _row(db).last_turn_sec == 6.0  # kept while the turn stands still
+    db.record_heartbeat("u1", RunnerState.running, "g1", 6, 26)
+    assert _row(db).last_turn_sec == 5.0  # two turns in 10 s
+    db.record_heartbeat("u1", RunnerState.running, "g2", 1, 3)
+    assert _row(db).last_turn_sec is None  # a new game starts over

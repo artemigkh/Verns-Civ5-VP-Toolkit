@@ -19,6 +19,7 @@ dependencies = [
 [project.scripts]
 autoplay-hypervisor = "autoplay.hypervisor.__main__:main"
 autoplay-runner = "autoplay.runner.__main__:main"
+autoplay-headless = "autoplay.headless.__main__:main"
 
 [dependency-groups]
 dev = [

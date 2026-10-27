@@ -175,6 +175,10 @@
     .badge.updating_modpack  { background: #f97316; }
     .badge.attempting_recovery { background: #fbbf24; color: #000; }
     .badge.recovered           { background: #14b8a6; }
+    .kind-tag {
+      display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px;
+      border: 1px solid currentColor; font-size: 0.75em; opacity: 0.7; vertical-align: middle;
+    }
 
     .controls {
       display: flex;
@@ -262,6 +266,7 @@
             <th class="sortable" data-sort-key="state">State</th>
             <th class="sortable" data-sort-key="turn">Turn</th>
             <th class="sortable" data-sort-key="timeElapsedSec">Game Time</th>
+            <th class="sortable" data-sort-key="lastTurnSec" title="Seconds the last completed turn took">Last Turn</th>
             <th class="sortable" data-sort-key="gameId">Game ID</th>
             <th>Actions</th>
             <th class="sortable" data-sort-key="successCount">Successes</th>
@@ -270,7 +275,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td colspan="11" class="muted">No runners registered.</td></tr>
+          <tr><td colspan="12" class="muted">No runners registered.</td></tr>
         </tbody>
       </table>
     </div>
@@ -482,18 +487,22 @@ function escapeHtml(s) {
 function renderRowHtml(r) {
   const turn = r.turn ?? "–";
   const time = formatDuration(r.timeElapsedSec);
-  const badge = `<span class="badge ${r.state}">${r.state}</span>`;
+  const headless = r.kind === "headless";
+  const badge = `<span class="badge ${r.state}">${r.state}</span>`
+    + (headless ? ` <span class="kind-tag" title="Headless bridge slot: Start/Stop act on the whole bridge">headless</span>` : "");
+  const lastTurn = formatTurnSec(r.lastTurnSec);
   const addr = (r.url || "").replace(/^https?:\/\//, "");
   const gameId = r.gameId ?? "–";
   const u = r.uuid;
   const successes = r.successCount ?? 0;
   const failures = r.failureCount ?? 0;
   const recoveries = r.recoveryCount ?? 0;
+  // Headless slots have no autosave resume or modpack install.
   const actions = `
     <button class="btn btn-start btn-sm"   data-action="start"   data-uuid="${u}">Start</button>
-    <button class="btn btn-resume btn-sm"  data-action="resume"  data-uuid="${u}">Resume</button>
+    ${headless ? "" : `<button class="btn btn-resume btn-sm"  data-action="resume"  data-uuid="${u}">Resume</button>`}
     <button class="btn btn-stop  btn-sm"   data-action="stop"    data-uuid="${u}">Stop</button>
-    <button class="btn btn-install btn-sm" data-action="install" data-uuid="${u}">Install Modpack</button>
+    ${headless ? "" : `<button class="btn btn-install btn-sm" data-action="install" data-uuid="${u}">Install Modpack</button>`}
   `;
   return `<tr>
     <td class="uuid" title="${u}">${shortUuid(u)}</td>
@@ -502,6 +511,7 @@ function renderRowHtml(r) {
     <td>${badge}</td>
     <td>${turn}</td>
     <td>${time}</td>
+    <td class="num">${lastTurn}</td>
     <td class="gameid" title="${escapeHtml(String(gameId))}">${escapeHtml(String(gameId))}</td>
     <td class="actions">${actions}</td>
     <td class="num">${successes}</td>
@@ -513,7 +523,7 @@ function renderRowHtml(r) {
 function renderRunners(rows) {
   const tbody = document.querySelector("#runners-table tbody");
   if (!rows || rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="muted">No runners registered.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="muted">No runners registered.</td></tr>`;
     updateSortIndicators("#runners-table", runnerSort, "sortKey");
     return;
   }
@@ -572,6 +582,7 @@ function renderRunnersGrouped(rows) {
         <th class="sortable" data-group-sort-key="state">State</th>
         <th class="sortable" data-group-sort-key="turn">Turn</th>
         <th class="sortable" data-group-sort-key="timeElapsedSec">Game Time</th>
+        <th class="sortable" data-group-sort-key="lastTurnSec" title="Seconds the last completed turn took">Last Turn</th>
         <th class="sortable" data-group-sort-key="gameId">Game ID</th>
         <th>Actions</th>
         <th class="sortable" data-group-sort-key="successCount">Successes</th>

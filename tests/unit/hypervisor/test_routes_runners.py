@@ -111,3 +111,37 @@ def test_turn_times_by_runner_initially_empty(client: TestClient) -> None:
     r = client.get("/turn-times/by-runner")
     assert r.status_code == 200
     assert r.json() == {}
+
+
+def test_headless_heartbeat_auto_registers_kind_and_last_turn(client: TestClient) -> None:
+    payload = {
+        "uuid": "slot0",
+        "state": "running",
+        "gameId": "g1",
+        "turn": 12,
+        "timeElapsedSec": 30,
+        "lastTurnSec": 1.75,
+        "url": "http://bridge:7000/slots/0",
+        "modpack": "MP_AUTOPLAY_VP_1_headless",
+        "kind": "headless",
+    }
+    assert client.post("/runner-heartbeat", json=payload).status_code == 204
+    row = next(r for r in client.get("/runner-status").json() if r["uuid"] == "slot0")
+    assert row["kind"] == "headless"
+    assert row["lastTurnSec"] == 1.75
+    # A later heartbeat without a kind keeps the stored one.
+    payload.pop("kind")
+    payload.update(turn=13, lastTurnSec=2.0)
+    assert client.post("/runner-heartbeat", json=payload).status_code == 204
+    row = next(r for r in client.get("/runner-status").json() if r["uuid"] == "slot0")
+    assert row["kind"] == "headless"
+    assert row["lastTurnSec"] == 2.0
+
+
+def test_client_registration_reports_client_kind(client: TestClient) -> None:
+    client.post(
+        "/runner-registration", json={"uuid": "u1", "url": "http://r:1", "modpack": "MP_AUTOPLAY_VP_1"}
+    )
+    row = client.get("/runner-status").json()[0]
+    assert row["kind"] == "client"
+    assert row["lastTurnSec"] is None

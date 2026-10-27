@@ -103,6 +103,8 @@ def create_app(config: HypervisorConfig | None = None) -> FastAPI:
             logger.info("Legacy CSV-log mode; SQLite ingest disabled")
 
         logger.info("Hypervisor ready; STORAGE_ROOT=%s", cfg.storage_root.resolve())
+        if cfg.max_turn is not None:
+            logger.info("Games will be capped at turn %d (max_turn)", cfg.max_turn)
         try:
             yield
         finally:

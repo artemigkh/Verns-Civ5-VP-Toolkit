@@ -9,7 +9,7 @@ import re
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from autoplay.common import HeartbeatPayload, RunnerRegistration, RunnerState, RunnerStatusRow
+from autoplay.common import HeartbeatPayload, RunnerKind, RunnerRegistration, RunnerState, RunnerStatusRow
 from autoplay.hypervisor import game_stats_db, runner_names_db
 from autoplay.hypervisor.db import RunnerDB
 router = APIRouter(tags=["runners"])
@@ -104,6 +104,7 @@ async def runner_heartbeat(payload: HeartbeatPayload, request: Request) -> None:
         game_id=payload.game_id,
         turn=payload.turn,
         time_elapsed_sec=payload.time_elapsed_sec,
+        last_turn_sec=payload.last_turn_sec,
     )
     if ok[0]:
         _maybe_update_game_stats(request, payload=payload, prev=ok[1])
@@ -113,7 +114,10 @@ async def runner_heartbeat(payload: HeartbeatPayload, request: Request) -> None:
     # kept running and sending heartbeats.
     if payload.url:
         reg = RunnerRegistration(
-            uuid=payload.uuid, url=payload.url, modpack=payload.modpack
+            uuid=payload.uuid,
+            url=payload.url,
+            modpack=payload.modpack,
+            kind=payload.kind or RunnerKind.client,
         )
         db.upsert_registration(reg)
         _ok2, _prev = db.record_heartbeat(
@@ -122,6 +126,7 @@ async def runner_heartbeat(payload: HeartbeatPayload, request: Request) -> None:
             game_id=payload.game_id,
             turn=payload.turn,
             time_elapsed_sec=payload.time_elapsed_sec,
+            last_turn_sec=payload.last_turn_sec,
         )
         logger.info(
             "Auto-registered runner from heartbeat: uuid=%s url=%s modpack=%s state=%s",
