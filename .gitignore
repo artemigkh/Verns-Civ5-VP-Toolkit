@@ -1,6 +1,7 @@
 cache/
 data/
 headless_data/
+headless_data_*/
 misc/
 .venv/
 

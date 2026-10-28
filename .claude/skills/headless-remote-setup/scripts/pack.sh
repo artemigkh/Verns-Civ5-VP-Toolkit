@@ -15,7 +15,7 @@ set -euo pipefail
 
 HOST="${1:?usage: pack.sh <ssh-alias> [out-dir]}"
 OUT="${2:-${TMPDIR:-/tmp}/civ5-remote-pack}"
-PINNED_VERSION="${PINNED_VERSION:-5.4.8}"
+PINNED_VERSION="${PINNED_VERSION:-5.4.8-neutrals}"
 GAME_PARENT="/c/Program Files (x86)/Steam/steamapps/common"
 GAME="Sid Meier's Civilization V"
 C5H="${C5H_DIR:-$HOME/Documents/civ5-headless}"
