@@ -107,6 +107,13 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
   `scripts/stop_bridge.ps1` (copied to `C:\civ5\stop_bridge.ps1`) stops the bridge, queue and games outright;
   also `Disable-ScheduledTask civ5-headless-bridge` where the boot task exists, or a reboot brings it back.
   Don't start a second bridge while one runs: it adopts the queue, fails to bind 5100, and kills the queue on exit.
+- **The desktop bridge plays on its own game folder copy** (since 2026-10-28). With
+  `AUTOPLAY_HEADLESS_MODPACK_FOLDER` set, it copies the Steam install's root DLLs, `Locale\` and `Assets\`
+  (no media; the configured modpack is the only modpack among the DLC) once, to
+  `headless_data\game\<folder>\Sid Meier's Civilization V\` (~190 MB, ~11 s), and writes `gameDir` and `dll`
+  into each batch's defaults (resumed batches too). Its games then hold no Steam file, so the user can play the
+  real game without the modpack. A copy counts only once its `headless-game-copy.json` marker exists. Remotes
+  don't set the variable: their `C:\civ5\game` is already private and `civ5headless.toml` points at it.
 - The desktop's `pinned/` and `civ5headless.toml` are gitignored, so they never arrive via the toolkit. They
   arrive via `pinned.tar` and the generated toml.
 - Throughput reference: the i7-7700HQ laptop (4C/8T) with 8 workers ran early turns at ~0.4 s/turn per game.

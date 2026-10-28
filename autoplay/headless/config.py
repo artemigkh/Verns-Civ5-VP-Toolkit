@@ -48,6 +48,24 @@ class HeadlessConfig(BaseSettings):
             "the hypervisor). Must start with ``MP_AUTOPLAY_VP_``."
         ),
     )
+    modpack_folder: str | None = Field(
+        default=None,
+        description=(
+            "DLC folder of the modpack the games play (``Assets\\DLC\\<name>``, e.g. "
+            "``VP_MODPACK_5_4_8_NEUTRALS``). When set, the games play on the bridge's own copy of the game "
+            "folder with that modpack (``autoplay.headless.game_copy``), made from ``game_source_dir`` "
+            "once, so they hold no file of the Steam install. Unset: ``civ5headless.toml``'s "
+            "``game_dir`` and ``dll`` apply."
+        ),
+    )
+    game_source_dir: Path = Field(
+        default=Path(r"C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization V"),
+        description="Game folder the copy is made from (only read while there is no copy yet).",
+    )
+    game_copy_dir: Path | None = Field(
+        default=None,
+        description="Where the game folder copies go (default ``<work_dir>/game``).",
+    )
     spec: Path | None = Field(
         default=None,
         description="c5h game spec (map, size, speed, ...) every game plays; seeds are drawn per game.",
@@ -107,6 +125,10 @@ class HeadlessConfig(BaseSettings):
     @property
     def pending_dir(self) -> Path:
         return self.pending_uploads_dir or self.work_dir / "pending"
+
+    @property
+    def game_copy_root(self) -> Path:
+        return self.game_copy_dir or self.work_dir / "game"
 
 
 def load_config() -> HeadlessConfig:
