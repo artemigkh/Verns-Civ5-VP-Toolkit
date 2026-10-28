@@ -10,6 +10,7 @@
   "use strict";
 
   var P = window.PAYLOAD.units;
+  if (!P) return Explorer.Router.registerUnavailable("units", "UnitComposition");
 
   // category key -> bar color, from the server-provided legend.
   var CAT_COLOR = {};

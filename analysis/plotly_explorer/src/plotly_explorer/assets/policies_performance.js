@@ -10,6 +10,7 @@
   "use strict";
 
   var P = window.PAYLOAD.policies_performance;
+  if (!P) return Explorer.Router.registerUnavailable("policies_performance", "PoliciesPerformance");
 
   var BG = "#0e1117";
   var TEXT = "#d7dde7";

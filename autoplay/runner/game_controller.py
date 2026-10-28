@@ -971,6 +971,18 @@ class GameController:
                     if turn > last_turn:
                         last_turn = turn
                         last_turn_ts = now
+                    with state.lock:
+                        max_turn = state.max_turn
+                    if max_turn is not None and turn >= max_turn:
+                        logger.info(
+                            "Turn cap reached (turn=%s, max_turn=%s, game_id=%s); "
+                            "ending game and harvesting results",
+                            turn,
+                            max_turn,
+                            game_id,
+                        )
+                        await self._harvest_and_submit_complete(logs_dir, game_id)
+                        return
 
                 if not got_any_log and (now - start_time) > cfg.startup_timeout_sec:
                     logger.error(

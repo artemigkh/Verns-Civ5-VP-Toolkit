@@ -1,25 +1,17 @@
 """Build the Plotly Explorer dashboard (Building + Religion + Unit reports).
 
-Pipeline: load config -> ensure intermediate summaries (regenerated only when the
-source DB changes) -> render a single self-contained ``index.html`` into
-``PUBLISH_DIR``.
+Pipeline: load config -> for every dataset, ensure intermediate summaries
+(regenerated only when the source DB changes) -> render the default dataset into
+a self-contained ``index.html`` in ``PUBLISH_DIR`` and every other dataset into
+a ``datasets/<id>.js`` beside it.
 """
 
 from __future__ import annotations
 
 import argparse
 
-from .aggregate import (
-    ensure_game_summaries,
-    ensure_instant_yields_summaries,
-    ensure_policies_performance_summaries,
-    ensure_religion_performance_summaries,
-    ensure_religion_summaries,
-    ensure_summaries,
-    ensure_unit_summaries,
-    ensure_wonders_summaries,
-)
 from .config import load_config
+from .datasets import load_datasets
 from .render import render
 
 
@@ -28,11 +20,15 @@ def main() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Rebuild the intermediate summaries even if the cache looks fresh.",
+        help=(
+            "Rebuild the default dataset's intermediate summaries even if the cache "
+            "looks fresh. Other datasets still rebuild only when their DB changes."
+        ),
     )
-    # Dataset descriptors surfaced on the Civs Overview KPI cards. Supplied by
-    # the launcher .bat files; defaults keep a bare `python -m plotly_explorer`
-    # working.
+    # Default-dataset descriptors surfaced on the Civs Overview KPI cards.
+    # Supplied by the launcher .bat files; defaults keep a bare
+    # `python -m plotly_explorer` working. Other datasets take theirs from
+    # datasets.toml.
     parser.add_argument("--patch", default="5.3.3", help="VP patch version.")
     parser.add_argument("--difficulty", default="Emperor", help="Game difficulty.")
     parser.add_argument("--mapscript", default="Communitu 3.2.0", help="Map script.")
@@ -40,22 +36,18 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config()
-    print(f"[config] db_type={cfg.db_type} db={cfg.db_path}")
-    ensure_summaries(cfg, force=args.force)
-    ensure_religion_summaries(cfg, force=args.force)
-    ensure_unit_summaries(cfg, force=args.force)
-    ensure_game_summaries(cfg, force=args.force)
-    ensure_religion_performance_summaries(cfg, force=args.force)
-    ensure_policies_performance_summaries(cfg, force=args.force)
-    ensure_instant_yields_summaries(cfg, force=args.force)
-    ensure_wonders_summaries(cfg, force=args.force)
-    out = render(
+    datasets = load_datasets(
         cfg,
         patch=args.patch,
         difficulty=args.difficulty,
         mapscript=args.mapscript,
         size=args.size,
     )
+    for ds in datasets:
+        tag = " (default)" if ds.is_default else ""
+        print(f"[config] dataset {ds.id}{tag}: db_type={ds.cfg.db_type} db={ds.cfg.db_path}")
+        ds.ensure_summaries(force=args.force and ds.is_default)
+    out = render(cfg, datasets)
     print(f"[done] open {out}")
 
 

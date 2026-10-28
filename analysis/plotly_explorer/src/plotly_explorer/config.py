@@ -66,6 +66,11 @@ RELIGION_CHOICES_CSV = "religion_choices.csv"
 RELIGION_STATS_CSV = "religion_stats.csv"
 POLICY_CHOICES_CSV = "policy_choices.csv"
 
+# Synthetic "Authority Victory" variants of game_result / power_ranking, shown by
+# the Overview's toggle (see aggregate/authority.py).
+AUTHORITY_GAME_RESULT_CSV = "authority_game_result.csv"
+AUTHORITY_POWER_RANKING_CSV = "authority_power_ranking.csv"
+
 # Religion Performance report (attainment-time KDE + belief pick/win-rate bars).
 RELIGION_ATTAINMENT_KDE_CSV = "religion_attainment_kde.csv"
 RELIGION_ATTAINMENT_MOMENTS_CSV = "religion_attainment_moments.csv"
@@ -133,6 +138,14 @@ class Config:
     @property
     def power_ranking_path(self) -> Path:
         return self.intermediate_data_dir / POWER_RANKING_CSV
+
+    @property
+    def authority_game_result_path(self) -> Path:
+        return self.intermediate_data_dir / AUTHORITY_GAME_RESULT_CSV
+
+    @property
+    def authority_power_ranking_path(self) -> Path:
+        return self.intermediate_data_dir / AUTHORITY_POWER_RANKING_CSV
 
     @property
     def religion_choices_path(self) -> Path:

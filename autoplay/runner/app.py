@@ -10,8 +10,9 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import Body, FastAPI, File, HTTPException, UploadFile, status
 
+from autoplay.common import StartGameRequest
 from autoplay.runner.civ_io import detect_installed_modpack, find_most_recent_autosave
 from autoplay.runner.config import RunnerConfig, load_config
 from autoplay.runner.fatal import fatal_permission_error, warn_if_low_disk_space
@@ -178,7 +179,10 @@ def create_app(config: RunnerConfig | None = None) -> FastAPI:
         return {"uuid": snap.uuid, "state": snap.state.value, "modpack": snap.modpack or ""}
 
     @app.post("/start-game", status_code=status.HTTP_202_ACCEPTED)
-    async def start_game_endpoint() -> dict[str, str]:
+    async def start_game_endpoint(
+        payload: StartGameRequest | None = Body(default=None),
+    ) -> dict[str, str]:
+        max_turn = payload.max_turn if payload else None
         # Validate cheap preconditions synchronously so the operator gets an
         # immediate 4xx for misconfiguration; defer the actual launch (which
         # waits on the exe and spawns the game process) to a background task
@@ -210,6 +214,8 @@ def create_app(config: RunnerConfig | None = None) -> FastAPI:
             # against this state rather than against the controller itself.
             state.state = _RS.starting
             state.is_scheduling_games = True
+            state.max_turn = max_turn
+        logger.info("Start requested (max_turn=%s)", max_turn)
 
         async def _launch_in_background() -> None:
             try:
@@ -233,7 +239,10 @@ def create_app(config: RunnerConfig | None = None) -> FastAPI:
         return {"status": "starting"}
 
     @app.post("/resume-game", status_code=status.HTTP_202_ACCEPTED)
-    async def resume_game_endpoint() -> dict[str, str]:
+    async def resume_game_endpoint(
+        payload: StartGameRequest | None = Body(default=None),
+    ) -> dict[str, str]:
+        max_turn = payload.max_turn if payload else None
         # Resume the most recent autosave (crash-recovery style relaunch) rather
         # than starting a fresh game. Same cheap synchronous validation as
         # /start-game; if there is no autosave on disk this is a deliberate
@@ -269,6 +278,8 @@ def create_app(config: RunnerConfig | None = None) -> FastAPI:
         with state.lock:
             state.state = _RS.starting
             state.is_scheduling_games = True
+            state.max_turn = max_turn
+        logger.info("Resume requested (max_turn=%s)", max_turn)
 
         async def _resume_in_background() -> None:
             try:

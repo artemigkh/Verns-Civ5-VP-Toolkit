@@ -56,6 +56,25 @@ TEMP_DIR_NAME = "duckdb_spill"
 # pushed-down query. Override with ``DB_MAX_TABLE_ROWS``.
 MAX_WHOLE_TABLE_ROWS = 5_000_000
 
+# Values the reports show under another name, swapped in on every result
+# :func:`read_table` and :func:`read_query` return. Doing it here, the one
+# exit from the DB, means every summary CSV -- and every pandas join between
+# them -- agrees on the new name, while the SQL inside a query still joins on
+# the raw one. Exact cell matches in text columns only.
+#
+# The CSV cache does not know about this map: after changing it, rebuild with
+# --force (a DB that keeps growing rebuilds on its own).
+VALUE_RENAMES = {
+    "Niten Ichi Ryu": "Baseline",
+}
+
+
+def _rename_values(df: pd.DataFrame) -> pd.DataFrame:
+    for col in df.columns:
+        if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col]):
+            df[col] = df[col].replace(VALUE_RENAMES)
+    return df
+
 
 def _max_whole_table_rows() -> int:
     return int(os.environ.get("DB_MAX_TABLE_ROWS", MAX_WHOLE_TABLE_ROWS))
@@ -92,6 +111,23 @@ def _row_count(cfg: Config, table: str) -> int:
         return int(con.execute(sql).fetchone()[0])
 
 
+def list_tables(cfg: Config) -> set[str]:
+    """Names of the tables in the source DB.
+
+    Older datasets predate some of the logging tables, so the pipeline checks
+    this before running an aggregation rather than letting its query fail.
+    """
+    _require_db(cfg)
+
+    if cfg.db_type == "sqlite":
+        with sqlite3.connect(cfg.db_path) as cnx:
+            rows = cnx.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    else:
+        with _duckdb(cfg) as con:
+            rows = con.execute("SELECT table_name FROM information_schema.tables").fetchall()
+    return {r[0] for r in rows}
+
+
 def read_table(cfg: Config, table: str) -> pd.DataFrame:
     """Return the full contents of ``table`` as a DataFrame.
 
@@ -116,10 +152,10 @@ def read_table(cfg: Config, table: str) -> pd.DataFrame:
 
     if cfg.db_type == "sqlite":
         with sqlite3.connect(cfg.db_path) as cnx:
-            return pd.read_sql_query(f'SELECT * FROM "{table}"', cnx)
+            return _rename_values(pd.read_sql_query(f'SELECT * FROM "{table}"', cnx))
 
     with _duckdb(cfg) as con:
-        return con.execute(f'SELECT * FROM "{table}"').df()
+        return _rename_values(con.execute(f'SELECT * FROM "{table}"').df())
 
 
 def read_query(cfg: Config, sql: str) -> pd.DataFrame:
@@ -134,10 +170,10 @@ def read_query(cfg: Config, sql: str) -> pd.DataFrame:
 
     if cfg.db_type == "sqlite":
         with sqlite3.connect(cfg.db_path) as cnx:
-            return pd.read_sql_query(sql, cnx)
+            return _rename_values(pd.read_sql_query(sql, cnx))
 
     if cfg.db_type == "duckdb":
         with _duckdb(cfg) as con:
-            return con.execute(sql).df()
+            return _rename_values(con.execute(sql).df())
 
     raise SystemExit(f"Unsupported DB_TYPE: {cfg.db_type}")

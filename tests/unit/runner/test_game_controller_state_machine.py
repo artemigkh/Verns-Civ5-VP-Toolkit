@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -109,6 +109,71 @@ async def test_start_calls_set_load_on_start_false(
         # Last call should have enabled=False (fresh start).
         kwargs = gc.set_load_on_start.call_args.kwargs
         assert kwargs.get("enabled") is False
+    finally:
+        await ctrl.stop()
+
+
+async def _fixed_turn(ctrl: GameController, turn: int) -> None:
+    async def _read_turn(_logs_dir: Path) -> int:
+        return turn
+
+    ctrl._read_turn = _read_turn  # type: ignore[method-assign]
+
+
+async def test_monitor_ends_game_at_max_turn(
+    runner_config, state, patched, monkeypatch
+) -> None:
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    state.max_turn = 300
+    ctrl = GameController(runner_config, state)
+    await _fixed_turn(ctrl, 300)
+    harvest = AsyncMock()
+    ctrl._harvest_and_submit_complete = harvest  # type: ignore[method-assign]
+
+    game_id = await ctrl.start()
+    try:
+        await asyncio.wait_for(ctrl._monitor_task, timeout=5.0)
+        harvest.assert_awaited_once()
+        assert harvest.await_args.args[1] == game_id
+    finally:
+        await ctrl.stop()
+
+
+async def test_monitor_keeps_running_below_max_turn(
+    runner_config, state, patched, monkeypatch
+) -> None:
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    state.max_turn = 300
+    ctrl = GameController(runner_config, state)
+    await _fixed_turn(ctrl, 299)
+    harvest = AsyncMock()
+    ctrl._harvest_and_submit_complete = harvest  # type: ignore[method-assign]
+
+    await ctrl.start()
+    try:
+        await asyncio.sleep(0.2)
+        assert ctrl.is_running
+        assert state.state == RunnerState.running
+        harvest.assert_not_awaited()
+    finally:
+        await ctrl.stop()
+
+
+async def test_monitor_ignores_turn_when_uncapped(
+    runner_config, state, patched, monkeypatch
+) -> None:
+    monkeypatch.setattr(gc, "_MONITOR_POLL_SEC", 0.01)
+    assert state.max_turn is None
+    ctrl = GameController(runner_config, state)
+    await _fixed_turn(ctrl, 1000)
+    harvest = AsyncMock()
+    ctrl._harvest_and_submit_complete = harvest  # type: ignore[method-assign]
+
+    await ctrl.start()
+    try:
+        await asyncio.sleep(0.2)
+        assert ctrl.is_running
+        harvest.assert_not_awaited()
     finally:
         await ctrl.stop()
 

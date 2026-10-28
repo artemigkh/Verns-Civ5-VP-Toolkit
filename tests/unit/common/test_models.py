@@ -35,7 +35,7 @@ class TestRunnerRegistration:
     def test_dump_uses_camel_aliases(self) -> None:
         reg = RunnerRegistration(uuid="u1", url="http://h", modpack="MP_AUTOPLAY_VP_1")
         d = reg.model_dump(by_alias=True)
-        assert d == {"uuid": "u1", "url": "http://h", "modpack": "MP_AUTOPLAY_VP_1"}
+        assert d == {"uuid": "u1", "url": "http://h", "modpack": "MP_AUTOPLAY_VP_1", "kind": "client"}
 
     def test_accepts_snake_and_camel(self) -> None:
         # No underscored fields here, but at least ensure construction works.

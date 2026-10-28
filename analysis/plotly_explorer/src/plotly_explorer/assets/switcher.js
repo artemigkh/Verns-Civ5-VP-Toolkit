@@ -20,6 +20,29 @@
     });
   }
 
+  // Dataset dropdown. Picking one reloads the page under the new ds (see
+  // Router.setDataset), so the <select> is built once, from the loaded state.
+  var dsSel = document.getElementById("dataset-select");
+  if (dsSel) {
+    var ds = Router.datasets();
+    ds.list.forEach(function (d) {
+      var opt = document.createElement("option");
+      opt.value = d.id;
+      opt.textContent = d.label;
+      dsSel.appendChild(opt);
+    });
+    dsSel.value = ds.current;
+    dsSel.addEventListener("change", function () {
+      Router.setDataset(dsSel.value);
+    });
+  }
+  // Set by boot.js when the URL named a dataset it could not load.
+  var note = document.getElementById("dataset-note");
+  if (note && window.EXPLORER_DATASET_NOTE) {
+    note.textContent = window.EXPLORER_DATASET_NOTE;
+    note.hidden = false;
+  }
+
   // Reads location.hash, flips the show-* classes, syncs the <select>, decodes
   // the params into the target module and draws it. With no hash this lands on
   // PAYLOAD.defaultReport in its default state and writes nothing, leaving the

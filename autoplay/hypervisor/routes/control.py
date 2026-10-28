@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
-from autoplay.common import RunnerStatusRow
+from autoplay.common import RunnerKind, RunnerStatusRow, StartGameRequest
 from autoplay.hypervisor.db import RunnerDB
 from autoplay.runner.modpack import ModpackZipError, peek_modpack_version
 
@@ -49,6 +49,12 @@ def _safe_json(r: httpx.Response) -> object:
         return r.text
 
 
+def _start_body(request: Request) -> dict[str, object]:
+    """JSON body for ``/start-game`` / ``/resume-game`` carrying the turn cap."""
+    cfg = request.app.state.config
+    return StartGameRequest(max_turn=cfg.max_turn).model_dump(by_alias=True)
+
+
 def _find_runner(request: Request, uuid: str) -> RunnerStatusRow:
     runners = _db(request).list_live_runners(_timeout(request))
     for r in runners:
@@ -83,10 +89,11 @@ def _spawn_bg(coro, name: str) -> None:
 @router.post("/start/{uuid}", status_code=status.HTTP_202_ACCEPTED)
 async def start_one(request: Request, uuid: str) -> dict[str, object]:
     runner = _find_runner(request, uuid)
+    body = _start_body(request)
 
     async def _do() -> None:
         async with httpx.AsyncClient() as client:
-            await _post_to_runner(client, runner, "/start-game")
+            await _post_to_runner(client, runner, "/start-game", json=body)
 
     _spawn_bg(_do(), name=f"start-{uuid}")
     return {"status": "scheduled", "uuid": uuid}
@@ -95,10 +102,11 @@ async def start_one(request: Request, uuid: str) -> dict[str, object]:
 @router.post("/resume/{uuid}", status_code=status.HTTP_202_ACCEPTED)
 async def resume_one(request: Request, uuid: str) -> dict[str, object]:
     runner = _find_runner(request, uuid)
+    body = _start_body(request)
 
     async def _do() -> None:
         async with httpx.AsyncClient() as client:
-            await _post_to_runner(client, runner, "/resume-game")
+            await _post_to_runner(client, runner, "/resume-game", json=body)
 
     _spawn_bg(_do(), name=f"resume-{uuid}")
     return {"status": "scheduled", "uuid": uuid}
@@ -123,6 +131,14 @@ async def install_modpack_one(
     file: UploadFile = File(...),
 ) -> dict[str, object]:
     runner = _find_runner(request, uuid)
+    if runner.kind == RunnerKind.headless:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Headless runners play a pinned copy of the modpack's database; "
+                "re-pin it on the bridge host."
+            ),
+        )
     fd, tmp_path = tempfile.mkstemp(suffix="-modpack.zip", prefix="hv-")
     os.close(fd)
     tmp = Path(tmp_path)
@@ -151,6 +167,7 @@ async def install_modpack_one(
 @router.post("/start-all", status_code=status.HTTP_202_ACCEPTED)
 async def start_all(request: Request) -> dict[str, object]:
     runners = _db(request).list_live_runners(_timeout(request))
+    body = _start_body(request)
 
     async def _do() -> None:
         # Stagger /start-game POSTs by one second so each runner seeds its
@@ -159,7 +176,7 @@ async def start_all(request: Request) -> dict[str, object]:
             for i, r in enumerate(runners):
                 if i > 0:
                     await asyncio.sleep(_START_FANOUT_GAP_SEC)
-                uuid, result = await _post_to_runner(client, r, "/start-game")
+                uuid, result = await _post_to_runner(client, r, "/start-game", json=body)
                 logger.info("start-all -> %s: %s", uuid, result)
 
     _spawn_bg(_do(), name="start-all")
@@ -169,13 +186,14 @@ async def start_all(request: Request) -> dict[str, object]:
 @router.post("/resume-all", status_code=status.HTTP_202_ACCEPTED)
 async def resume_all(request: Request) -> dict[str, object]:
     runners = _db(request).list_live_runners(_timeout(request))
+    body = _start_body(request)
 
     async def _do() -> None:
         # Fan out concurrently: unlike start-all there is no need to stagger,
         # since resuming an existing save doesn't seed a fresh game RNG.
         async with httpx.AsyncClient() as client:
             results = await asyncio.gather(
-                *(_post_to_runner(client, r, "/resume-game") for r in runners)
+                *(_post_to_runner(client, r, "/resume-game", json=body) for r in runners)
             )
         for uuid, result in results:
             logger.info("resume-all -> %s: %s", uuid, result)
@@ -222,6 +240,8 @@ async def install_modpack_all(
             ) from exc
 
         runners = _db(request).list_live_runners(_timeout(request))
+        headless = [r.uuid for r in runners if r.kind == RunnerKind.headless]
+        runners = [r for r in runners if r.kind != RunnerKind.headless]
         targets = [r for r in runners if r.modpack != target]
         skipped = [r.uuid for r in runners if r.modpack == target]
         logger.info(
@@ -244,6 +264,8 @@ async def install_modpack_all(
                 per_runner[uuid] = result
         for uuid in skipped:
             per_runner[uuid] = {"status": 304, "detail": "already on target modpack"}
+        for uuid in headless:
+            per_runner[uuid] = {"status": 409, "detail": "headless runner: no modpack install"}
 
         return {"targetModpack": target, "results": per_runner}
     finally:

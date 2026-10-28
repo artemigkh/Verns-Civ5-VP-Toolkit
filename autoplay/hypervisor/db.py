@@ -6,7 +6,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from autoplay.common import RunnerRegistration, RunnerState, RunnerStatusRow
+from autoplay.common import RunnerKind, RunnerRegistration, RunnerState, RunnerStatusRow
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runners (
@@ -17,12 +17,44 @@ CREATE TABLE IF NOT EXISTS runners (
     game_id           TEXT,
     turn              INTEGER,
     time_elapsed_sec  INTEGER,
+    kind              TEXT NOT NULL DEFAULT 'client',
+    last_turn_sec     REAL,
+    turn_seen_elapsed_sec REAL,
     last_heartbeat_ts REAL NOT NULL,
     success_count     INTEGER NOT NULL DEFAULT 0,
     failure_count     INTEGER NOT NULL DEFAULT 0,
     recovery_count    INTEGER NOT NULL DEFAULT 0
 );
 """
+
+
+def _turn_timing(
+    row: sqlite3.Row,
+    game_id: str | None,
+    turn: int | None,
+    time_elapsed_sec: int | None,
+    reported_last_turn_sec: float | None,
+) -> tuple[float | None, float | None]:
+    """``(last_turn_sec, turn_seen_elapsed_sec)`` to store for a heartbeat (see ``record_heartbeat``).
+
+    ``turn_seen_elapsed_sec`` is the game time at which the current turn was first seen.
+    """
+    same_game = game_id is not None and row["game_id"] == game_id
+    advanced = same_game and turn is not None and row["turn"] is not None and turn > row["turn"]
+    if same_game and not advanced and turn == row["turn"]:
+        seen = row["turn_seen_elapsed_sec"]
+    else:
+        seen = time_elapsed_sec
+    if reported_last_turn_sec is not None:
+        return reported_last_turn_sec, seen
+    if not same_game:
+        return None, seen
+    if not advanced:
+        return row["last_turn_sec"], seen
+    start = row["turn_seen_elapsed_sec"]
+    if time_elapsed_sec is None or start is None or time_elapsed_sec < start:
+        return row["last_turn_sec"], seen
+    return (time_elapsed_sec - start) / (turn - row["turn"]), seen
 
 
 class RunnerDB:
@@ -52,14 +84,15 @@ class RunnerDB:
             ).fetchone()
             conn.execute(
                 """
-                INSERT INTO runners (uuid, url, modpack, state, last_heartbeat_ts)
-                VALUES (?, ?, ?, 'idle', ?)
+                INSERT INTO runners (uuid, url, modpack, kind, state, last_heartbeat_ts)
+                VALUES (?, ?, ?, ?, 'idle', ?)
                 ON CONFLICT(uuid) DO UPDATE SET
                     url = excluded.url,
                     modpack = excluded.modpack,
+                    kind = excluded.kind,
                     last_heartbeat_ts = excluded.last_heartbeat_ts
                 """,
-                (reg.uuid, reg.url, reg.modpack, now),
+                (reg.uuid, reg.url, reg.modpack, reg.kind.value, now),
             )
             return existed is None
 
@@ -70,8 +103,19 @@ class RunnerDB:
         game_id: str | None,
         turn: int | None,
         time_elapsed_sec: int | None,
+        last_turn_sec: float | None = None,
+        url: str | None = None,
     ) -> tuple[bool, dict | None]:
         """Update heartbeat fields for a runner.
+
+        ``url``, when given, replaces the registered one: a headless bridge that restarts on a
+        new port keeps its slot uuids, so the heartbeat is the only place the new address shows up.
+
+        ``last_turn_sec`` is stored as reported when given. Runners that do not
+        report it get it derived here: when the same game's turn advances, the
+        game time since that turn was first seen divided by the turns advanced
+        (so it is as precise as the heartbeat interval); while the turn stands
+        still the previous value is kept; a new game clears it.
 
         Returns ``(ok, prev)`` where ``ok`` is False if the runner is unknown.
         ``prev`` is a snapshot of the row's ``(game_id, turn, time_elapsed_sec,
@@ -81,9 +125,13 @@ class RunnerDB:
         now = time.time()
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT game_id, turn, time_elapsed_sec, modpack FROM runners WHERE uuid = ?",
+                "SELECT game_id, turn, time_elapsed_sec, modpack, last_turn_sec, turn_seen_elapsed_sec"
+                " FROM runners WHERE uuid = ?",
                 (uuid,),
             ).fetchone()
+            turn_seen = time_elapsed_sec
+            if row is not None:
+                last_turn_sec, turn_seen = _turn_timing(row, game_id, turn, time_elapsed_sec, last_turn_sec)
             cur = conn.execute(
                 """
                 UPDATE runners
@@ -91,10 +139,13 @@ class RunnerDB:
                        game_id = ?,
                        turn = ?,
                        time_elapsed_sec = ?,
-                       last_heartbeat_ts = ?
+                       last_turn_sec = ?,
+                       turn_seen_elapsed_sec = ?,
+                       last_heartbeat_ts = ?,
+                       url = COALESCE(?, url)
                  WHERE uuid = ?
                 """,
-                (state.value, game_id, turn, time_elapsed_sec, now, uuid),
+                (state.value, game_id, turn, time_elapsed_sec, last_turn_sec, turn_seen, now, url, uuid),
             )
             if cur.rowcount == 0:
                 return False, None
@@ -123,6 +174,8 @@ class RunnerDB:
                 game_id=r["game_id"],
                 turn=r["turn"],
                 time_elapsed_sec=r["time_elapsed_sec"],
+                kind=RunnerKind(r["kind"]),
+                last_turn_sec=r["last_turn_sec"],
                 last_heartbeat_ts=r["last_heartbeat_ts"],
                 success_count=r["success_count"],
                 failure_count=r["failure_count"],

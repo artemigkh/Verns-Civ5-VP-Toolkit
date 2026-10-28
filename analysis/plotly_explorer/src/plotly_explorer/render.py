@@ -4,6 +4,10 @@ The output embeds the Plotly.js library, CSS, JS, and the aggregated data inline
 so it can be hosted on GitHub Pages (or opened from disk) with zero backend and
 zero external network requests. Both reports (Building Yields and Religion Yields)
 are bundled into the one file; a Report Type dropdown switches between them in-page.
+
+That file carries the default dataset. Each other dataset (see :mod:`.datasets`)
+is a ``datasets/<id>.js`` sidecar the page loads only when the Dataset dropdown or
+the URL picks it.
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ import plotly.offline as po
 from .aggregate.policies_performance import BRANCH_ORDER, SHOWN_VICTORY_TYPES
 from .aggregate.wonders import BRANCH_SEP
 from .config import Config
+from .datasets import Dataset
 from .metadata import (
     BUILDING_FILTER_ERAS,
     ERA_COLORS,
@@ -341,20 +346,12 @@ def _avg_winrate(gr: pd.DataFrame) -> float:
     return (n_completed / total_participations) if total_participations else 0.0
 
 
-def build_civs_payload(
-    cfg: Config, patch: str, difficulty: str, mapscript: str, size: str
-) -> dict:
-    """KPI cards + victory-mix + per-civ win-rate data for the overview report.
+def _civs_variant(gr: pd.DataFrame, pr: pd.DataFrame) -> dict:
+    """The victory-mix, win-rate baseline and stats-table slice of the overview.
 
-    Victory share (donut) and turn distributions (violin/beeswarm) come from
-    ``game_result.csv`` (one row per game); the win-rate stacked bars and the
-    full stats table come from ``power_ranking.csv`` (one row per civ).
+    Split out so a variant pair (e.g. aggregate/authority.py's synthetic
+    Authority Victory CSVs) can be turned into the same slice.
     """
-    gr = pd.read_csv(cfg.game_result_path)
-    pr = pd.read_csv(cfg.power_ranking_path)
-
-    n_games = int(gr["game_id"].nunique())
-
     # Only decided games contribute to the victory mix (drop undecided rows
     # whose victory_type is blank/NaN).
     vt = gr["victory_type"].fillna("").astype(str).str.strip()
@@ -376,8 +373,6 @@ def build_civs_payload(
         for t in present
     }
 
-    avg_winrate = _avg_winrate(gr)
-
     # Full per-civ table, sorted by win rate descending (JS formats to 2 dp).
     # ``rank`` is the row's 1-based position in that order, so it belongs to the
     # presentation rather than to power_ranking.csv, and sits next to ``civ``.
@@ -392,22 +387,39 @@ def build_civs_payload(
                 row[key] = None  # NaN pct cells (civs with no wins) -> null
 
     return {
-        "kpis": {
-            "patch": patch,
-            "difficulty": difficulty,
-            "mapscript": mapscript,
-            "size": size,
-            "games": n_games,
-        },
-        "victoryOrder": VICTORY_ORDER,
         "victory": {
             "present": present,
             "counts": counts,
             "turns": turns,
             "victors": victors,
         },
-        "avgWinrate": avg_winrate,
+        "avgWinrate": _avg_winrate(gr),
         "table": {"columns": list(pr_sorted.columns), "rows": rows},
+    }
+
+
+def build_civs_payload(
+    cfg: Config, patch: str, difficulty: str, mapscript: str, size: str
+) -> dict:
+    """KPI cards + victory-mix + per-civ win-rate data for the overview report.
+
+    Victory share (donut) and turn distributions (violin/beeswarm) come from
+    ``game_result.csv`` (one row per game); the win-rate stacked bars and the
+    full stats table come from ``power_ranking.csv`` (one row per civ).
+    """
+    gr = pd.read_csv(cfg.game_result_path)
+    pr = pd.read_csv(cfg.power_ranking_path)
+
+    return {
+        "kpis": {
+            "patch": patch,
+            "difficulty": difficulty,
+            "mapscript": mapscript,
+            "size": size,
+            "games": int(gr["game_id"].nunique()),
+        },
+        "victoryOrder": VICTORY_ORDER,
+        **_civs_variant(gr, pr),
     }
 
 
@@ -793,30 +805,88 @@ def build_draw_list_buffer_payload() -> dict:
     return {k: v for k, v in data.items() if not k.startswith("_")}
 
 
-def render(
-    cfg: Config,
-    *,
-    patch: str = "5.3.3",
-    difficulty: str = "Emperor",
-    mapscript: str = "Communitu 3.2.0",
-    size: str = "Standard",
-) -> Path:
-    payload = {
-        "defaultReport": "civs",
-        "civs": build_civs_payload(cfg, patch, difficulty, mapscript, size),
-        "building": build_building_payload(cfg),
-        "religion": build_religion_payload(cfg),
-        "units": build_units_payload(cfg),
-        "religion_performance": build_religion_performance_payload(
-            cfg, patch, difficulty, mapscript, size
-        ),
-        "policies_performance": build_policies_performance_payload(cfg),
-        "instant_yields": build_instant_yields_payload(cfg),
-        "wonders": build_wonders_payload(cfg),
-        "leaders": build_leaders_payload(),
-        "process_memory": build_process_memory_payload(),
-        "draw_list_buffer": build_draw_list_buffer_payload(),
+def build_payload(ds: Dataset) -> dict:
+    """Everything one dataset's view of the explorer reads, as ``window.PAYLOAD``.
+
+    A report the dataset cannot show (see ``Dataset.unavailable_reports``) gets
+    ``None`` in place of its slice and its reason under ``unavailable``; the
+    frontend module sees the ``None`` and registers a "data not available" stub.
+    """
+    cfg = ds.cfg
+    desc = (ds.patch, ds.difficulty, ds.mapscript, ds.size)
+    builders = {
+        "civs": lambda: build_civs_payload(cfg, *desc),
+        "building": lambda: build_building_payload(cfg),
+        "religion": lambda: build_religion_payload(cfg),
+        "units": lambda: build_units_payload(cfg),
+        "religion_performance": lambda: build_religion_performance_payload(cfg, *desc),
+        "policies_performance": lambda: build_policies_performance_payload(cfg),
+        "instant_yields": lambda: build_instant_yields_payload(cfg),
+        "wonders": lambda: build_wonders_payload(cfg),
     }
+    unavailable = ds.unavailable_reports()
+    for key, reason in unavailable.items():
+        print(f"[render] {ds.id}: {key} not available -- {reason}")
+
+    payload: dict = {
+        "defaultReport": "civs",
+        "dataset": ds.id,
+        "unavailable": unavailable,
+    }
+    for key, build in builders.items():
+        payload[key] = None if key in unavailable else build()
+    payload["leaders"] = build_leaders_payload()
+    payload["process_memory"] = build_process_memory_payload()
+    payload["draw_list_buffer"] = build_draw_list_buffer_payload()
+    return payload
+
+
+def _to_json(obj: object) -> str:
+    # Escaping "</" keeps a string in the data from closing the <script> element
+    # it is inlined into; "<\/" is the same string to JSON and JS.
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+
+# Sidecar directory, relative to PUBLISH_DIR, for the non-default datasets.
+DATASETS_SUBDIR = "datasets"
+
+
+def render(cfg: Config, datasets: list[Dataset]) -> Path:
+    """Write ``index.html`` (default dataset inlined) plus one sidecar per other dataset.
+
+    The default dataset's payload is inlined as a JSON ``<script>`` block, so the
+    page stays self-contained when nobody picks another dataset, and is parsed
+    only when it is the one shown. Every other dataset is written to
+    ``datasets/<id>.js`` as ``window.PAYLOAD = {...};`` and loaded by a
+    ``<script src>`` -- which, unlike fetch(), also works over file://.
+    """
+    default = next(d for d in datasets if d.is_default)
+    manifest = {
+        "default": default.id,
+        "dir": DATASETS_SUBDIR,
+        "list": [{"id": d.id, "label": d.label} for d in datasets],
+    }
+
+    sidecar_dir = cfg.publish_dir / DATASETS_SUBDIR
+    sidecar_dir.mkdir(parents=True, exist_ok=True)
+    written = set()
+    default_payload = None
+    for ds in datasets:
+        payload = build_payload(ds)
+        if ds.is_default:
+            default_payload = payload
+            continue
+        path = sidecar_dir / f"{ds.id}.js"
+        path.write_text("window.PAYLOAD = " + _to_json(payload) + ";\n", encoding="utf-8")
+        written.add(path.name)
+        print(f"[render] wrote {path} ({path.stat().st_size / 1_048_576:.1f} MB)")
+    # A dataset dropped from datasets.toml would otherwise keep being served to
+    # any old link that names it.
+    for stale in sidecar_dir.glob("*.js"):
+        if stale.name not in written:
+            stale.unlink()
+            print(f"[render] removed stale {stale}")
+
     template = (ASSETS_DIR / "template.html").read_text(encoding="utf-8")
     styles = (ASSETS_DIR / "styles.css").read_text(encoding="utf-8")
     # Bundle order. Two hard constraints, both about the router:
@@ -828,11 +898,17 @@ def render(
     #                      be registered. (Before the router existed the switcher
     #                      sat at the tail of religion.js and silently skipped
     #                      the render for the six modules not yet defined.)
-    # The twelve report modules in between are order-independent: each only
-    # registers itself and renders its own panes. Keep this list explicit -- a
-    # glob would hide both constraints, and alphabetical order violates both.
+    # chrome.js (the sidebars) and the twelve report modules in between are
+    # order-independent: each only wires its own DOM and registers itself. Keep
+    # this list explicit -- a glob would hide both constraints, and alphabetical
+    # order violates both.
+    #
+    # The whole bundle runs inside window.__explorerMain, which boot.js calls
+    # once window.PAYLOAD holds the dataset the URL names: every module reads
+    # PAYLOAD as it loads, and a non-default dataset arrives asynchronously.
     js_bundle = (
         "router.js",
+        "chrome.js",
         "app.js",
         "building_grouped.js",
         "civs.js",
@@ -847,18 +923,19 @@ def render(
         "draw_list_buffer.js",
         "switcher.js",
     )
-    app_js = "\n".join(
-        (ASSETS_DIR / name).read_text(encoding="utf-8") for name in js_bundle
+    app_js = (
+        "window.__explorerMain = function () {\n"
+        + "\n".join((ASSETS_DIR / name).read_text(encoding="utf-8") for name in js_bundle)
+        + "\n};\n"
+        + (ASSETS_DIR / "boot.js").read_text(encoding="utf-8")
     )
     plotly_js = po.get_plotlyjs()
 
     html = (
         template.replace("/*__STYLES__*/", styles)
         .replace("/*__PLOTLYJS__*/", plotly_js)
-        .replace(
-            "/*__DATA__*/",
-            "window.PAYLOAD = " + json.dumps(payload, ensure_ascii=False) + ";",
-        )
+        .replace("/*__DATASETS__*/", "window.EXPLORER_DATASETS = " + _to_json(manifest) + ";")
+        .replace("/*__DATA__*/", _to_json(default_payload))
         .replace("/*__APPJS__*/", app_js)
     )
 

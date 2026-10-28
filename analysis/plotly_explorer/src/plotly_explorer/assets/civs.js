@@ -12,6 +12,7 @@
   "use strict";
 
   var P = window.PAYLOAD.civs;
+  if (!P) return Explorer.Router.registerUnavailable("civs", "Overview");
 
   // Table sort state: sortCol is a column key or null (default = server order,
   // i.e. win rate desc); sortDir is 'desc' | 'asc' when sortCol is set.
@@ -59,7 +60,7 @@
     host.innerHTML = "";
     var k = P.kpis;
     [
-      { value: k.patch, title: "Patch Version" },
+      { value: k.patch, title: "Patch Version", smallSuffix: true },
       { value: k.difficulty, title: "Difficulty" },
       { value: k.mapscript, title: "Mapscript" },
       { value: k.size, title: "Map Size" },
@@ -69,7 +70,17 @@
       card.className = "civs-kpi";
       var v = document.createElement("div");
       v.className = "kpi-value";
-      v.textContent = c.value;
+      // "5.4.8 + 5.5.X Tourism": the " + ..." add-on renders smaller.
+      var plus = c.smallSuffix ? String(c.value).indexOf(" + ") : -1;
+      if (plus >= 0) {
+        v.textContent = c.value.slice(0, plus);
+        var s = document.createElement("span");
+        s.className = "kpi-value-suffix";
+        s.textContent = c.value.slice(plus + 1);
+        v.appendChild(s);
+      } else {
+        v.textContent = c.value;
+      }
       var t = document.createElement("div");
       t.className = "kpi-title";
       t.textContent = c.title;

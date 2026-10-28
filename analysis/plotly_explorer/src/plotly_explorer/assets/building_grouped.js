@@ -13,6 +13,7 @@
   "use strict";
 
   var P = window.PAYLOAD.building;
+  if (!P) return Explorer.Router.registerUnavailable("building_grouped", "BuildingYieldsGrouped");
 
   // Each selected yield gets its own side-by-side slot; Base/Bonus/Instant stack
   // inside it. Hue therefore carries the yield and lightness carries the segment,

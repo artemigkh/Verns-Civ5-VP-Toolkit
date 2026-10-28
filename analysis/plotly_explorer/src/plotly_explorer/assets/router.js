@@ -31,6 +31,20 @@
  *   C4. encode(decode(h)) === h for every h that encode() can produce. A module
  *       that violates this would make the router ping-pong; touch() contains a
  *       loop breaker, but the fixpoint self-test is what actually catches it.
+ *
+ * ---------------------------------------------------------------------------
+ * The dataset. One param belongs to the router rather than to any module:
+ * `ds`, the dataset the page shows, written first and only when it is not the
+ * default (#Wonders?ds=5_4_7&c=Rome). Modules never see it in decode() and
+ * must not use the name. boot.js reads it to pick the PAYLOAD before any
+ * module loads; since every module reads PAYLOAD as it loads, a hash naming a
+ * different dataset than the loaded one -- a dropdown pick, Back/Forward, an
+ * edited URL -- is honoured by reloading the page.
+ *
+ * A module whose report the dataset cannot show registers through
+ * registerUnavailable() instead, which shows "data not available" in its
+ * place and holds its params untouched, so a link keeps its filters across a
+ * hop through a dataset that lacks the report.
  * ========================================================================== */
 (function () {
   "use strict";
@@ -39,6 +53,27 @@
 
   var DEFAULT_KEY = (window.PAYLOAD && window.PAYLOAD.defaultReport) || "civs";
   var WRITE_DELAY = 250; // the topN <input type=range> fires on every drag step
+
+  var DS_PARAM = "ds";
+  var DATASETS = window.EXPLORER_DATASETS || { "default": "", list: [] };
+  var DEFAULT_DATASET = DATASETS["default"];
+  // What boot.js loaded. Not necessarily what the hash says: it falls back to
+  // the default for an unknown id or a sidecar that failed to load, and the
+  // first canonicalizing write then drops the ds it could not honour.
+  var DATASET = (window.PAYLOAD && window.PAYLOAD.dataset) || DEFAULT_DATASET;
+  var UNAVAILABLE = (window.PAYLOAD && window.PAYLOAD.unavailable) || {};
+
+  function datasetLabel(id) {
+    for (var i = 0; i < DATASETS.list.length; i++) {
+      if (DATASETS.list[i].id === id) return DATASETS.list[i].label;
+    }
+    return null;
+  }
+
+  // An absent or unknown ds is the default dataset.
+  function datasetIn(v) {
+    return v && datasetLabel(v) !== null ? v : DEFAULT_DATASET;
+  }
 
   var ORDER = []; // keys, registration order
   var BY_KEY = {};
@@ -110,25 +145,31 @@
   function parseHash(h) {
     h = String(h || "");
     if (h.charAt(0) === "#") h = h.slice(1);
-    if (!h) return { key: DEFAULT_KEY, params: {} };
+    if (!h) return { key: DEFAULT_KEY, params: {}, ds: DEFAULT_DATASET };
     var q = h.indexOf("?");
     var slug = q < 0 ? h : h.slice(0, q);
     var key = BY_SLUG[decVal(slug).toLowerCase()];
+    var params = parseQuery(q < 0 ? "" : h.slice(q + 1));
+    var ds = datasetIn(params[DS_PARAM]);
+    delete params[DS_PARAM];
     // Unknown slug (renamed report, typo, stale bookmark): fall back to the
     // default report rather than showing nothing. The params go with it -- they
-    // belonged to a report we cannot identify.
-    if (!key) return { key: DEFAULT_KEY, params: {} };
-    return { key: key, params: parseQuery(q < 0 ? "" : h.slice(q + 1)) };
+    // belonged to a report we cannot identify -- but the dataset stays.
+    if (!key) return { key: DEFAULT_KEY, params: {}, ds: ds };
+    return { key: key, params: params, ds: ds };
   }
 
   // Param order is the insertion order of encode()'s object, which every engine
   // preserves for string keys. That makes the formatted string a stable function
   // of state -- required, because "did the hash change?" is a string compare and
-  // two users in the same state must produce the same URL.
-  function formatHash(key, params) {
+  // two users in the same state must produce the same URL. `ds` defaults to the
+  // loaded dataset.
+  function formatHash(key, params, ds) {
     var reg = BY_KEY[key];
     if (!reg) return "";
+    if (ds === undefined) ds = DATASET;
     var parts = [];
+    if (ds !== DEFAULT_DATASET) parts.push(DS_PARAM + "=" + encVal(ds));
     for (var k in params) {
       if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
       var v = params[k];
@@ -138,10 +179,10 @@
     return "#" + reg.slug + (parts.length ? "?" + parts.join("&") : "");
   }
 
-  function hashFor(key) {
+  function hashFor(key, ds) {
     var reg = BY_KEY[key];
     if (!reg) return "";
-    return formatHash(key, reg.encode ? reg.encode() || {} : {});
+    return formatHash(key, reg.encode ? reg.encode() || {} : {}, ds);
   }
 
   // --- writing -------------------------------------------------------------
@@ -204,6 +245,8 @@
       ORDER.forEach(function (k) {
         app.classList.toggle("show-" + k, k === key);
       });
+      // Swaps the report's panes and controls for #unavailable-msg (styles.css).
+      app.classList.toggle("report-unavailable", !!(BY_KEY[key] && BY_KEY[key].unavailable));
     }
     // Keeps the dropdown in step with a pasted hash and with back/forward.
     var sel = document.getElementById("report-select");
@@ -263,7 +306,39 @@
       return;
     }
     expected.length = 0;
-    applyHash(parseHash(h));
+    var route = parseHash(h);
+    // Every module captured this dataset's PAYLOAD as it loaded, so another
+    // dataset means another page load; boot.js reads the new hash.
+    if (route.ds !== DATASET) {
+      location.reload();
+      return;
+    }
+    applyHash(route);
+  }
+
+  // --- unavailable reports -------------------------------------------------
+
+  // Report key -> its name in the Report Type dropdown, captured before
+  // start() marks the unavailable ones.
+  var REPORT_NAMES = {};
+
+  function showUnavailable(key) {
+    var text = document.getElementById("unavailable-text");
+    if (!text) return;
+    var name = REPORT_NAMES[key] || key;
+    text.textContent =
+      name + " has no data for the " + (datasetLabel(DATASET) || DATASET) + " dataset. " +
+      (UNAVAILABLE[key] || "") + " Pick another dataset to see it.";
+  }
+
+  function markUnavailableOptions() {
+    var sel = document.getElementById("report-select");
+    if (!sel) return;
+    for (var i = 0; i < sel.options.length; i++) {
+      var opt = sel.options[i];
+      REPORT_NAMES[opt.value] = opt.textContent;
+      if (BY_KEY[opt.value] && BY_KEY[opt.value].unavailable) opt.textContent += " (no data)";
+    }
   }
 
   // --- public --------------------------------------------------------------
@@ -277,10 +352,48 @@
       ORDER.push(spec.key);
     },
 
+    // Stand-in for a module whose PAYLOAD slice this dataset lacks. decode()
+    // keeps the params whole -- each parse yields a fresh object, so replacing
+    // it is the C2 reset -- and encode() hands them back, which is C4 for free.
+    registerUnavailable: function (key, slug) {
+      var held = {};
+      Router.register({
+        key: key,
+        slug: slug,
+        unavailable: true,
+        render: function () {
+          showUnavailable(key);
+        },
+        encode: function () {
+          return held;
+        },
+        decode: function (params) {
+          held = params;
+        }
+      });
+    },
+
     start: function () {
       started = true;
+      markUnavailableOptions();
+      // The dataset was settled by boot.js; a ds it could not honour is
+      // dropped by applyHash's canonicalizing write, not reloaded.
       applyHash(parseHash(curHash()));
       window.addEventListener("hashchange", onHashChange);
+    },
+
+    // Dataset switch. Pushes the current report and filters under the new ds;
+    // the hashchange comes back through onHashChange, which reloads. The
+    // filters carry over, and each module's whitelisting decode() drops any
+    // value the new dataset lacks.
+    setDataset: function (id) {
+      if (datasetLabel(id) === null || id === DATASET) return;
+      flushPending();
+      location.hash = hashFor(currentKey, id);
+    },
+
+    datasets: function () {
+      return { list: DATASETS.list.slice(), current: DATASET, "default": DEFAULT_DATASET };
     },
 
     // "My state changed." Debounced replace-write. `key` is required and is

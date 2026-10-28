@@ -25,6 +25,19 @@ class RunnerState(str, Enum):
     recovered = "recovered"
 
 
+class RunnerKind(str, Enum):
+    """What sits behind a runner row.
+
+    ``client`` is the classic runner driving a full Civ 5 game client.
+    ``headless`` is one worker slot of a headless bridge (``autoplay.headless``)
+    that plays games in civ5-headless; it has no modpack install or autosave
+    resume, and control actions on any of its slots act on the whole bridge.
+    """
+
+    client = "client"
+    headless = "headless"
+
+
 class _CamelModel(BaseModel):
     """Base model that accepts and emits camelCase JSON keys."""
 
@@ -42,6 +55,18 @@ class RunnerRegistration(_CamelModel):
     uuid: str
     url: str
     modpack: str | None = None
+    kind: RunnerKind = RunnerKind.client
+
+
+class StartGameRequest(_CamelModel):
+    """Optional body of the runner's ``/start-game`` and ``/resume-game`` endpoints.
+
+    ``max_turn`` caps game length: once the game reaches this turn the runner
+    ends it and harvests/uploads its stats exactly as for a normal completion.
+    ``None`` means no cap (play to a natural game end).
+    """
+
+    max_turn: int | None = Field(default=None, ge=1)
 
 
 class HeartbeatPayload(_CamelModel):
@@ -59,6 +84,14 @@ class HeartbeatPayload(_CamelModel):
     time_elapsed_sec: int | None = None
     url: str | None = None
     modpack: str | None = None
+    kind: RunnerKind | None = Field(
+        default=None,
+        description="Runner kind, for auto-registration from a heartbeat. None keeps the stored kind.",
+    )
+    last_turn_sec: float | None = Field(
+        default=None,
+        description="Seconds the most recently completed turn took. None when unknown.",
+    )
 
 
 class RunnerStatusRow(_CamelModel):
@@ -71,6 +104,11 @@ class RunnerStatusRow(_CamelModel):
     game_id: str | None = None
     turn: int | None = None
     time_elapsed_sec: int | None = None
+    kind: RunnerKind = RunnerKind.client
+    last_turn_sec: float | None = Field(
+        default=None,
+        description="Seconds the most recently completed turn took, as last reported.",
+    )
     last_heartbeat_ts: float = Field(
         description="Unix timestamp (seconds) of the most recent heartbeat received."
     )

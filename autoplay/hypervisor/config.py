@@ -28,6 +28,16 @@ class HypervisorConfig(BaseSettings):
         default=120,
         description="Seconds since last heartbeat after which a runner is considered dead.",
     )
+    max_turn: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "If set, every start/resume request sent to runners carries this "
+            "turn cap: the runner ends the game once it reaches this turn and "
+            "uploads its stats as a normal completion. Useful for repeatedly "
+            "sampling early-game stats. ``None`` (default) plays to game end."
+        ),
+    )
     stats_mode: Literal["sqlite", "legacy_logs"] = Field(
         default="sqlite",
         description=(
