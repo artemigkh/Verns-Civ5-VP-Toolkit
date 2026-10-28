@@ -1,5 +1,6 @@
 """Intermediate aggregation step (decoupled from rendering and the web UI)."""
 
+from .authority import ensure_authority_summaries
 from .game_summaries import ensure_game_summaries
 from .instant_yields import ensure_instant_yields_summaries
 from .pipeline import ensure_summaries
@@ -14,6 +15,7 @@ __all__ = [
     "ensure_religion_summaries",
     "ensure_unit_summaries",
     "ensure_game_summaries",
+    "ensure_authority_summaries",
     "ensure_religion_performance_summaries",
     "ensure_policies_performance_summaries",
     "ensure_instant_yields_summaries",

@@ -9,12 +9,16 @@ database is complete and closed by then.
 ``<work_dir>/uploads.jsonl`` records every game handed over (one JSON line each), so a game is never
 uploaded twice, across bridge restarts too. When the hypervisor cannot be reached the upload is staged
 with the runner's pending-upload queue, which retries it until the hypervisor takes it.
+
+A completed game's run folder (~80 MB, nearly all of it the ``stats.db`` the hypervisor archives) is
+deleted once it is uploaded or staged, unless ``prune`` is off. Failed and rejected games keep theirs.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,9 +146,11 @@ async def hand_over(
     runner_url: str,
     pending_dir: Path,
     ledger: Ledger,
+    prune: bool = False,
 ) -> str:
     """Upload one finished game; returns the outcome recorded in the ledger:
-    ``uploaded``, ``staged`` (hypervisor unreachable, retried from ``pending_dir``) or ``rejected``."""
+    ``uploaded``, ``staged`` (hypervisor unreachable, retried from ``pending_dir``) or ``rejected``.
+    With ``prune``, a completed game's run folder is deleted once uploaded or staged."""
     endpoint, filename, content, form = _upload_parts(h, modpack, runner_url)
     url = f"{hypervisor_url.rstrip('/')}{endpoint}"
     try:
@@ -195,4 +201,8 @@ async def hand_over(
         endpoint,
         outcome,
     )
+    if prune and h.completed and outcome in ("uploaded", "staged"):
+        # The stats now live on the hypervisor (or in pending_dir); a file another process still holds
+        # (a virus scanner) is left behind rather than failing the handover.
+        shutil.rmtree(h.run_dir, ignore_errors=True)
     return outcome

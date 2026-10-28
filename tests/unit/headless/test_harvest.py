@@ -27,7 +27,9 @@ def _form(request: httpx.Request) -> dict[str, str]:
     return out
 
 
-async def _hand_over_all(cfg: HeadlessConfig, batch: Batch, ledger: harvest.Ledger) -> list[str]:
+async def _hand_over_all(
+    cfg: HeadlessConfig, batch: Batch, ledger: harvest.Ledger, *, prune: bool = False
+) -> list[str]:
     async with httpx.AsyncClient() as client:
         return [
             await harvest.hand_over(
@@ -38,6 +40,7 @@ async def _hand_over_all(cfg: HeadlessConfig, batch: Batch, ledger: harvest.Ledg
                 runner_url="http://bridge/slots/0",
                 pending_dir=cfg.pending_dir,
                 ledger=ledger,
+                prune=prune,
             )
             for h in harvest.finished_games(batch, ledger, cfg.work_dir)
         ]
@@ -124,3 +127,48 @@ async def test_unfinished_and_retried_games(cfg: HeadlessConfig, batch: Batch) -
     # A new attempt of the same job (c5h --retry-failed) is a new game.
     set_jobs(batch, {job: {"state": "completed", "worker": 0, "started": iso_ago(5)}})
     assert len(harvest.finished_games(batch, ledger, cfg.work_dir)) == 1
+
+
+async def test_prune_deletes_handed_over_completed_runs_only(cfg: HeadlessConfig, batch: Batch) -> None:
+    uploaded, staged, failed, rejected = batch.job_names()
+    set_jobs(
+        batch,
+        {
+            uploaded: {"state": "completed", "worker": 0, "started": iso_ago(10)},
+            staged: {"state": "completed", "worker": 1, "started": iso_ago(10)},
+            failed: {"state": "failed", "worker": 2, "started": iso_ago(10)},
+        },
+    )
+    runs = {job: finish_job(batch, job) for job in (uploaded, staged, failed)}
+    calls = iter([httpx.Response(204), httpx.ConnectError("down")])
+    with respx.mock() as mock:
+        mock.post("http://hv.test/submit-stats").mock(side_effect=lambda _req: _next(calls))
+        mock.post("http://hv.test/submit-crash").mock(return_value=httpx.Response(204))
+        await _hand_over_all(cfg, batch, harvest.Ledger(cfg.work_dir), prune=True)
+    assert not runs[uploaded].exists()
+    assert not runs[staged].exists() and pending_count(cfg.pending_dir) == 1
+    assert runs[failed].is_dir()  # kept for debugging
+
+    set_jobs(batch, {rejected: {"state": "completed", "worker": 0, "started": iso_ago(5)}})
+    runs[rejected] = finish_job(batch, rejected)
+    with respx.mock() as mock:
+        mock.post("http://hv.test/submit-stats").mock(return_value=httpx.Response(400))
+        assert await _hand_over_all(cfg, batch, harvest.Ledger(cfg.work_dir), prune=True) == ["rejected"]
+    assert runs[rejected].is_dir()
+
+
+async def test_no_prune_keeps_run_folders(cfg: HeadlessConfig, batch: Batch) -> None:
+    job = batch.job_names()[0]
+    set_jobs(batch, {job: {"state": "completed", "worker": 0, "started": iso_ago(10)}})
+    run = finish_job(batch, job)
+    with respx.mock() as mock:
+        mock.post("http://hv.test/submit-stats").mock(return_value=httpx.Response(204))
+        assert await _hand_over_all(cfg, batch, harvest.Ledger(cfg.work_dir)) == ["uploaded"]
+    assert (run / "cache" / "stats.db").is_file()
+
+
+def _next(responses):
+    r = next(responses)
+    if isinstance(r, Exception):
+        raise r
+    return r

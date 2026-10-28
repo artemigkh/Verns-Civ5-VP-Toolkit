@@ -3,7 +3,8 @@
 c5h needs only the Python standard library (3.11+), so it runs on the release kit's own
 ``runtime\\python.exe`` when there is one, else on this interpreter, with ``<c5h_dir>\\python`` on
 ``PYTHONPATH`` (what ``c5h.cmd`` does, without ``cmd /c`` quoting). Its working folder is ``c5h_dir``,
-so the checkout's ``civ5headless.toml`` applies.
+so the checkout's ``civ5headless.toml`` applies. ``--workers`` and ``--affinity`` come from the bridge's
+configuration, not the batch file, so a batch resumed after a ``WORKERS`` change plays that many games.
 
 The process gets its own process group, so a Ctrl-C in the bridge's console does not reach it, and
 ``<work_dir>/queue.pid.json`` names it, so a restarted bridge can adopt a queue that kept playing.
@@ -34,13 +35,14 @@ _CREATE_NO_WINDOW = 0x08000000
 
 
 def c5h_command(cfg: HeadlessConfig, batch: Batch) -> tuple[list[str], dict[str, str]]:
-    """(argv, environment) of ``c5h queue run <batch>``."""
+    """(argv, environment) of ``c5h queue run <batch> --workers <WORKERS> --affinity <AFFINITY>``."""
     kit_python = cfg.c5h_dir / "runtime" / "python.exe"
     python = str(kit_python) if kit_python.is_file() else sys.executable
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(p for p in (str(cfg.c5h_dir / "python"), env.get("PYTHONPATH")) if p)
     env["PYTHONUNBUFFERED"] = "1"
-    return [python, "-m", "civ5headless", "queue", "run", str(batch.path)], env
+    argv = [python, "-m", "civ5headless", "queue", "run", str(batch.path)]
+    return argv + ["--workers", str(cfg.workers), "--affinity", cfg.affinity], env
 
 
 class QueueProcess:
@@ -115,6 +117,14 @@ class QueueProcess:
         self.batch = Batch(Path(info["batch"]))
         self.started_at = proc.create_time()
         logger.info("Adopted running c5h queue %s (pid %d)", self.batch.name, proc.pid)
+        playing = (self.batch.state().get("queue") or {}).get("workers")
+        if playing is not None and playing != self.cfg.workers:
+            logger.warning(
+                "The adopted queue plays %d games at once; WORKERS=%d applies from its next start "
+                "(Stop, then Ctrl-C the bridge to end it now)",
+                playing,
+                self.cfg.workers,
+            )
         return True
 
     def request_stop(self) -> None:

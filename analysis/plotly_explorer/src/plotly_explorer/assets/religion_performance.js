@@ -14,6 +14,7 @@
   "use strict";
 
   var P = window.PAYLOAD.religion_performance;
+  if (!P) return Explorer.Router.registerUnavailable("religion_performance", "ReligionPerformance");
 
   var BG = "#0e1117";
   var TEXT = "#d7dde7";

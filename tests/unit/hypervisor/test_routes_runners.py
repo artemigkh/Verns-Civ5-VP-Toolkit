@@ -145,3 +145,13 @@ def test_client_registration_reports_client_kind(client: TestClient) -> None:
     row = client.get("/runner-status").json()[0]
     assert row["kind"] == "client"
     assert row["lastTurnSec"] is None
+
+
+def test_heartbeat_with_new_url_updates_known_runner(client: TestClient) -> None:
+    # A headless bridge restarted on another port keeps its slot uuids.
+    reg = {"uuid": "u1", "url": "http://r:1/slots/0", "modpack": "MP_AUTOPLAY_VP_1"}
+    client.post("/runner-registration", json=reg)
+    client.post("/runner-heartbeat", json={"uuid": "u1", "state": "running", "url": "http://r:2/slots/0"})
+    assert client.get("/runner-status").json()[0]["url"] == "http://r:2/slots/0"
+    client.post("/runner-heartbeat", json={"uuid": "u1", "state": "running"})  # client runners send no url
+    assert client.get("/runner-status").json()[0]["url"] == "http://r:2/slots/0"

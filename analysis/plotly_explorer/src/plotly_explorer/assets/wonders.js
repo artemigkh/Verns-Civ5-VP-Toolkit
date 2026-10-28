@@ -30,6 +30,7 @@
   "use strict";
 
   var P = window.PAYLOAD.wonders;
+  if (!P) return Explorer.Router.registerUnavailable("wonders", "Wonders");
 
   var BG = "#0e1117";
   var TEXT = "#d7dde7";

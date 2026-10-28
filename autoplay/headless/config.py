@@ -76,6 +76,13 @@ class HeadlessConfig(BaseSettings):
             "the next start). When False the queue keeps playing and the next bridge adopts it."
         ),
     )
+    keep_run_folders: bool = Field(
+        default=False,
+        description=(
+            "Keep a completed game's run folder after its stats are handed to the hypervisor. Off by "
+            "default: each is ~80 MB, mostly the stats.db the hypervisor already archives."
+        ),
+    )
     heartbeat_interval_sec: float = Field(default=2.0)
     poll_interval_sec: float = Field(default=2.0, description="How often run folders are checked.")
     pending_uploads_dir: Path | None = Field(

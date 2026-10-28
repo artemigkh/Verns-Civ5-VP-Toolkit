@@ -35,6 +35,13 @@
       </select>
     </section>
 
+    <section class="panel">
+      <h2>Dataset</h2>
+      <!-- Filled from EXPLORER_DATASETS by switcher.js. -->
+      <select id="dataset-select" class="select-control"></select>
+      <p id="dataset-note" class="dataset-note" hidden></p>
+    </section>
+
     <!-- ===================== Building report controls ===================== -->
     <div class="report-building">
       <section class="panel">
@@ -189,6 +196,12 @@
 
   <main id="main">
     <div id="main-inner">
+      <!-- Shown in place of the active report when the dataset lacks its data
+           (the router's unavailable stub fills it). -->
+      <div id="unavailable-msg">
+        <h1 id="unavailable-title">Data not available</h1>
+        <p id="unavailable-text" class="chart-subtitle"></p>
+      </div>
       <div class="report-civs">
         <h1 id="civs-title">Overview</h1>
         <div id="civs-kpi-row"></div>
@@ -349,6 +362,11 @@
 /*__PLOTLYJS__*/
 </script>
 <script>
+/*__DATASETS__*/
+</script>
+<!-- The default dataset's payload. A JSON block rather than a script so that a
+     page showing another dataset never pays to parse it; boot.js reads it. -->
+<script type="application/json" id="payload-default">
 /*__DATA__*/
 </script>
 <script>

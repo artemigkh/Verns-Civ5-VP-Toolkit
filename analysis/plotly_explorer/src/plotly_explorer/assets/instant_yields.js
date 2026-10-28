@@ -12,6 +12,7 @@
   "use strict";
 
   var P = window.PAYLOAD.instant_yields;
+  if (!P) return Explorer.Router.registerUnavailable("instant_yields", "InstantYields");
 
   var TEXT = "#d7dde7";
   var TEXT_DIM = "#8b97a8";

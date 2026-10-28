@@ -102,6 +102,32 @@ html, body {
   display: none;
 }
 
+/* A report the selected dataset predates (router.js registerUnavailable): its
+   panes, controls and right sidebar give way to #unavailable-msg. !important
+   because the per-report show rules are more specific than these. */
+#unavailable-msg { display: none; }
+#app.report-unavailable #unavailable-msg { display: block; }
+#app.report-unavailable #main-inner { justify-content: flex-start; }
+#app.report-unavailable #main-inner > div:not(#unavailable-msg),
+#app.report-unavailable #sidebar > div:not(#sidebar-head),
+#app.report-unavailable #sidebar-right,
+#app.report-unavailable #resizer-right,
+#app.report-unavailable #expand-btn-right {
+  display: none !important;
+}
+
+#unavailable-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.dataset-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 #app.collapsed #sidebar,
 #app.collapsed #resizer {
   display: none;
@@ -863,6 +889,14 @@ html, body {
   text-align: center;
   color: var(--text);
   word-break: break-word;
+}
+
+.civs-kpi .kpi-value-suffix {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dim);
 }
 
 .civs-kpi .kpi-title {

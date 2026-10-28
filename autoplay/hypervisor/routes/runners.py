@@ -105,6 +105,7 @@ async def runner_heartbeat(payload: HeartbeatPayload, request: Request) -> None:
         turn=payload.turn,
         time_elapsed_sec=payload.time_elapsed_sec,
         last_turn_sec=payload.last_turn_sec,
+        url=payload.url,
     )
     if ok[0]:
         _maybe_update_game_stats(request, payload=payload, prev=ok[1])

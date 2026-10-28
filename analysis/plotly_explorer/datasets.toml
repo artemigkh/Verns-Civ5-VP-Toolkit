@@ -1,0 +1,37 @@
+# Datasets the Plotly Explorer's "Dataset" dropdown offers, in dropdown order.
+#
+# Every build renders all of them: the default is inlined into index.html as
+# before, the rest go beside it as datasets/<id>.js and load on demand.
+#
+# The launcher .bat's DB_PATH picks the default -- the entry whose db_path
+# matches it -- and its --patch/--difficulty/--mapscript/--size args describe
+# that one (they win over the values here). A DB_PATH matching no entry is
+# added as a dataset of its own.
+#
+#   id         URL value (#Overview?ds=<id>) and sidecar file name. Keep it
+#              stable: shared links carry it.
+#   cache_dir  Intermediate CSV directory. Defaults to plotly_explorer_cache
+#              next to the DB. Only the default dataset honours --force; the
+#              rest rebuild only when their DB is newer than their CSVs.
+#
+# Paths are relative to the repo root.
+
+[[dataset]]
+id = "5_4_8_headless"
+label = "5.4.8 Emperor + 5.5.X Tourism"
+db_path = "data/MP_AUTOPLAY_VP_5_4_8_headless/stats.duckdb"
+patch = "5.4.8 + 5.5.X Tourism"
+difficulty = "Emperor"
+mapscript = "Communitu 3.2.0"
+size = "Standard"
+
+[[dataset]]
+id = "WARLORD_533"
+label = "5.3.3 Warlord"
+db_path = "data/MP_AUTOPLAY_VP_WARLORD_533/stats.duckdb"
+# The cache plotly_explorer_deploy_ghpages.bat builds this DB into.
+cache_dir = "data/MP_AUTOPLAY_VP_SQLITE_STATS_DEV/plotly_explorer_cache"
+patch = "5.3.3"
+difficulty = "Warlord"
+mapscript = "Communitu 3.2.0"
+size = "Standard"

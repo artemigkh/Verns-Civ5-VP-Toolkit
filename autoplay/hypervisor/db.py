@@ -104,8 +104,12 @@ class RunnerDB:
         turn: int | None,
         time_elapsed_sec: int | None,
         last_turn_sec: float | None = None,
+        url: str | None = None,
     ) -> tuple[bool, dict | None]:
         """Update heartbeat fields for a runner.
+
+        ``url``, when given, replaces the registered one: a headless bridge that restarts on a
+        new port keeps its slot uuids, so the heartbeat is the only place the new address shows up.
 
         ``last_turn_sec`` is stored as reported when given. Runners that do not
         report it get it derived here: when the same game's turn advances, the
@@ -137,10 +141,11 @@ class RunnerDB:
                        time_elapsed_sec = ?,
                        last_turn_sec = ?,
                        turn_seen_elapsed_sec = ?,
-                       last_heartbeat_ts = ?
+                       last_heartbeat_ts = ?,
+                       url = COALESCE(?, url)
                  WHERE uuid = ?
                 """,
-                (state.value, game_id, turn, time_elapsed_sec, last_turn_sec, turn_seen, now, uuid),
+                (state.value, game_id, turn, time_elapsed_sec, last_turn_sec, turn_seen, now, url, uuid),
             )
             if cur.rowcount == 0:
                 return False, None

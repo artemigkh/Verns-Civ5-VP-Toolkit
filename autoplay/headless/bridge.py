@@ -182,6 +182,7 @@ class Bridge:
                     runner_url=self.slot_url(h.slot),
                     pending_dir=self.cfg.pending_dir,
                     ledger=self.ledger,
+                    prune=not self.cfg.keep_run_folders,
                 )
                 done += 1
         return done

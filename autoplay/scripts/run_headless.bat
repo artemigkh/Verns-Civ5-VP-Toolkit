@@ -19,13 +19,13 @@ REM  pinned game database (the modpack) the games play.
 set "AUTOPLAY_HEADLESS_C5H_DIR=%USERPROFILE%\Documents\civ5-headless"
 set "AUTOPLAY_HEADLESS_SPEC=%AUTOPLAY_HEADLESS_C5H_DIR%\pinned\specs\communitu-standard.json"
 REM  Name the games are ingested under on the hypervisor (MP_AUTOPLAY_VP_*).
-set "AUTOPLAY_HEADLESS_MODPACK=MP_AUTOPLAY_VP_5_4_7_headless"
+set "AUTOPLAY_HEADLESS_MODPACK=MP_AUTOPLAY_VP_5_4_8_headless"
 set "AUTOPLAY_HEADLESS_WORK_DIR=%CD%\headless_data"
-REM  Games at once (one P-core each with p-first), games per queue file, and
-REM  the turn each game plays to unless the hypervisor's --max-turn caps it.
-set "AUTOPLAY_HEADLESS_WORKERS=5"
-set "AUTOPLAY_HEADLESS_AFFINITY=p-first"
-set "AUTOPLAY_HEADLESS_GAMES_PER_BATCH=100"
+REM  Games at once (unpinned: Windows places each one-thread game), games per
+REM  queue file, and the turn each game plays to unless --max-turn caps it.
+set "AUTOPLAY_HEADLESS_WORKERS=24"
+set "AUTOPLAY_HEADLESS_AFFINITY=none"
+set "AUTOPLAY_HEADLESS_GAMES_PER_BATCH=512"
 set "AUTOPLAY_HEADLESS_TURNS=500"
 set "AUTOPLAY_HEADLESS_CONTINUOUS=true"
 REM  Queue defaults for every game (c5h run options by JSON name). No outer

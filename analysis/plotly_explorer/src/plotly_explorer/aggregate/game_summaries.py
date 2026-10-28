@@ -57,7 +57,7 @@ ACTION_TO_TYPE = {
 }
 
 
-def _make_reader(cfg: Config) -> Callable[[str], pd.DataFrame]:
+def make_reader(cfg: Config) -> Callable[[str], pd.DataFrame]:
     """Return a memoized whole-table reader (each table loaded at most once)."""
     cache: dict[str, pd.DataFrame] = {}
 
@@ -246,7 +246,14 @@ def _game_end_ranks(cfg: Config) -> pd.DataFrame:
     return read_query(cfg, _GAME_END_RANK_SQL)
 
 
-def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.DataFrame:
+def power_ranking_rows(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.DataFrame:
+    """One row per real (game, civ), the input :func:`summarize_power_ranking` groups.
+
+    Carries ``victory_type`` (NaN unless that civ won), ``score``, the end-of-game
+    ``tiles_owned_percentage`` / ``cities_owned_percentage`` and ``game_end_rank``.
+    Split out so the synthetic Authority Victory variant (see :mod:`.authority`) can
+    re-assign winners and ownership before summarizing the same way.
+    """
     gr = read("GameResult")  # one row per (game, civ)
     df = gr.rename(columns={"GameId": "game_id", "Civ": "civ", "Score": "score"}).copy()
 
@@ -256,26 +263,33 @@ def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.
 
     victory = _clean_str(df["VictoryType"])
     df["victory_type"] = victory.where(victory != "", other=np.nan)
+
+    own = _ownership_percentages(cfg)
+    df = df.merge(own, on=["game_id", "civ"], how="left")
+    return df.merge(_game_end_ranks(cfg), on=["game_id", "civ"], how="left")
+
+
+def summarize_power_ranking(
+    df: pd.DataFrame, victory_types: list[tuple[str, str]] = VICTORY_TYPES
+) -> pd.DataFrame:
+    """Per-civ performance from :func:`power_ranking_rows`-shaped rows."""
+    df = df.copy()
     won = df["victory_type"].notna()
     df["won"] = won.astype(int)
 
     # Victory flags are NaN for non-winning (game, civ) rows so that pct_* is a
     # mean over a civ's *wins* (victories / wins), not over all its games.
-    for stem, label in VICTORY_TYPES:
+    for stem, label in victory_types:
         flag = (df["victory_type"] == label).astype(float)
         flag[~won] = np.nan
         df[f"{stem}_victory"] = flag
 
-    own = _ownership_percentages(cfg)
-    df = df.merge(own, on=["game_id", "civ"], how="left")
-    df = df.merge(_game_end_ranks(cfg), on=["game_id", "civ"], how="left")
-
     grp = df.groupby("civ")
     out = pd.DataFrame({"count_games": grp.size(), "winrate": grp["won"].mean()})
-    for stem, _ in VICTORY_TYPES:
+    for stem, _ in victory_types:
         # sum -> count of that-type wins; mean -> that share of the civ's wins.
         out[f"{stem}_victories"] = grp[f"{stem}_victory"].sum().astype(int)
-    for stem, _ in VICTORY_TYPES:
+    for stem, _ in victory_types:
         out[f"pct_{stem}_victories"] = grp[f"{stem}_victory"].mean()
     out["avg_tiles_owned_percentage"] = grp["tiles_owned_percentage"].mean()
     out["avg_cities_owned_percentage"] = grp["cities_owned_percentage"].mean()
@@ -285,8 +299,8 @@ def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.
     out = out.reset_index()  # civ column first
     columns = (
         ["civ", "count_games", "winrate"]
-        + [f"{stem}_victories" for stem, _ in VICTORY_TYPES]
-        + [f"pct_{stem}_victories" for stem, _ in VICTORY_TYPES]
+        + [f"{stem}_victories" for stem, _ in victory_types]
+        + [f"pct_{stem}_victories" for stem, _ in victory_types]
         + [
             "avg_tiles_owned_percentage",
             "avg_cities_owned_percentage",
@@ -295,6 +309,10 @@ def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.
         ]
     )
     return out[columns].sort_values("civ").reset_index(drop=True)
+
+
+def build_power_ranking(cfg: Config, read: Callable[[str], pd.DataFrame]) -> pd.DataFrame:
+    return summarize_power_ranking(power_ranking_rows(cfg, read))
 
 
 # ---------------------------------------------------------------------------
@@ -356,7 +374,7 @@ def build_policy_choices(read: Callable[[str], pd.DataFrame]) -> pd.DataFrame:
 
 def ensure_game_summaries(cfg: Config, *, force: bool = False) -> None:
     """Generate the five game-stats CSVs, each cached independently by mtime."""
-    read = _make_reader(cfg)
+    read = make_reader(cfg)
 
     game_result_df = ensure_csv(
         cfg, cfg.game_result_path, lambda: build_game_result(read), force=force

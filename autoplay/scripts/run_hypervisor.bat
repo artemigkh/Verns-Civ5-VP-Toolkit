@@ -20,7 +20,7 @@ REM --- Game turn cap (passed as the --max-turn CLI option) -------------
 REM  Runners end each game once it reaches this turn and upload its stats as
 REM  a normal completion. Useful for repeatedly sampling early-game stats.
 REM  Leave empty (set "MAX_TURN=") to play every game to its natural end.
-set "MAX_TURN=300"
+set "MAX_TURN=500"
 set "HV_ARGS="
 if defined MAX_TURN set "HV_ARGS=--max-turn %MAX_TURN%"
 

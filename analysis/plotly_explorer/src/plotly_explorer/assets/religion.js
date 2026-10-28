@@ -3,6 +3,7 @@
   "use strict";
 
   var P = window.PAYLOAD.religion;
+  if (!P) return Explorer.Router.registerUnavailable("religion", "ReligionYields");
 
   // ---------------------------------------------------------------------------
   // Yield color LUT — edit freely. Yields not listed get a stable fallback color.
