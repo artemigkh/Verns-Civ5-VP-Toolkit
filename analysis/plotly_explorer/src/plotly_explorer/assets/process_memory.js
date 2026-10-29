@@ -3,7 +3,7 @@
    table.
 
    This is the "Who holds the memory" section of *The Civ 5 Memory Ledger*
-   lifted into the explorer. It is the odd report out and marked (dev) for it:
+   lifted into the explorer. It is the odd report out and listed under "dev" for it:
    every other report aggregates this repo's autoplay stats DB, while these are
    one-off measurements of a live CivilizationV_DX11.exe taken in the
    Community-Patch-DLL workspace — the DLL's allocation hook, its heap and

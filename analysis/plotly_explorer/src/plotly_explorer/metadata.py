@@ -272,17 +272,13 @@ _NON_MAJOR_CIVS = {"City State", "Barbarians"}
 
 
 def load_civ_list() -> list[str]:
-    """The 43 major civilizations (civ_colors.csv minus City State/Barbarians)."""
+    """The 43 major civilizations (civ_colors.csv minus City State/Barbarians).
+
+    Sorted by name like the other reports' civ lists; the file itself is in
+    game-database ID order (base game, then G&K, then BNW civs).
+    """
     df = pd.read_csv(CIV_COLORS_CSV, dtype=str).fillna("")
-    civs = [c.strip() for c in df["civ"] if c.strip() and c.strip() not in _NON_MAJOR_CIVS]
-    # Preserve file order but drop any accidental duplicates.
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for c in civs:
-        if c not in seen:
-            seen.add(c)
-            ordered.append(c)
-    return ordered
+    return sorted({c.strip() for c in df["civ"] if c.strip() and c.strip() not in _NON_MAJOR_CIVS})
 
 
 # ===========================================================================

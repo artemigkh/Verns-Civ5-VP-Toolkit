@@ -26,6 +26,15 @@ mapscript = "Communitu 3.2.0"
 size = "Standard"
 
 [[dataset]]
+id = "5_4_8_neutrals_headless"
+label = "5.4.8 Neutrals Emperor + 5.5.X Tourism"
+db_path = "data/MP_AUTOPLAY_VP_5_4_8_NEUTRALS_headless/stats.duckdb"
+patch = "5.4.8 + 5.5.X Tourism + Globally Neutral Leader Flavors"
+difficulty = "Emperor"
+mapscript = "Communitu 3.2.0"
+size = "Standard"
+
+[[dataset]]
 id = "WARLORD_533"
 label = "5.3.3 Warlord"
 db_path = "data/MP_AUTOPLAY_VP_WARLORD_533/stats.duckdb"

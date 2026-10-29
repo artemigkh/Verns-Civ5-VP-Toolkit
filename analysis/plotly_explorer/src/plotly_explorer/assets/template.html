@@ -20,18 +20,22 @@
     <section class="panel">
       <h2>Report Type</h2>
       <select id="report-select">
-        <option value="civs">Overview</option>
-        <option value="building">Building Yields</option>
-        <option value="building_grouped">Building Yields Grouped (Experimental)</option>
-        <option value="instant_yields">Instant Yields</option>
-        <option value="draw_list_buffer">Interface Draw List Buffer (dev)</option>
-        <option value="leaders">Leaders</option>
-        <option value="policies_performance">Policies Performance</option>
-        <option value="process_memory">Process Memory (dev)</option>
-        <option value="religion_performance">Religion Performance</option>
-        <option value="religion">Religion Yields</option>
-        <option value="units">Unit Composition</option>
-        <option value="wonders">Wonders</option>
+        <optgroup label="stats">
+          <option value="civs">Overview</option>
+          <option value="building">Building Yields</option>
+          <option value="building_grouped">Building Yields Grouped (Experimental)</option>
+          <option value="instant_yields">Instant Yields</option>
+          <option value="leaders">Leaders</option>
+          <option value="policies_performance">Policies Performance</option>
+          <option value="religion_performance">Religion Performance</option>
+          <option value="religion">Religion Yields</option>
+          <option value="units">Unit Composition</option>
+          <option value="wonders">Wonders</option>
+        </optgroup>
+        <optgroup label="dev">
+          <option value="draw_list_buffer">Interface Draw List Buffer</option>
+          <option value="process_memory">Process Memory</option>
+        </optgroup>
       </select>
     </section>
 

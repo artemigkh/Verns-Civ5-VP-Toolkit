@@ -899,6 +899,10 @@ html, body {
   color: var(--text-dim);
 }
 
+.civs-kpi .kpi-value-suffix:last-child {
+  margin-bottom: 6px;
+}
+
 .civs-kpi .kpi-title {
   font-size: 12px;
   text-transform: uppercase;
