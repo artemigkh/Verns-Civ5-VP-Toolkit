@@ -25,7 +25,7 @@ import time
 import httpx
 
 from autoplay.common import HeartbeatPayload, RunnerKind, RunnerState
-from autoplay.headless import harvest
+from autoplay.headless import game_copy, harvest
 from autoplay.headless.batches import Batch, all_batches, latest_batch, write_batch
 from autoplay.headless.config import HeadlessConfig
 from autoplay.headless.queue_process import QueueProcess
@@ -54,6 +54,7 @@ class Bridge:
         self._quick_exits = 0
         self._finished_at_start = 0
         self._lock = asyncio.Lock()
+        self.game: game_copy.GamePaths | None = None
 
     # --- identity --------------------------------------------------------
 
@@ -95,6 +96,14 @@ class Bridge:
                 return "stopping"
             return "stopped"
 
+    def prepare_game(self) -> None:
+        """Make (once) and select the bridge's own copy of the game folder, if a modpack folder is set."""
+        if self.cfg.modpack_folder:
+            self.game = game_copy.prepare(
+                self.cfg.game_source_dir, self.cfg.modpack_folder, self.cfg.game_copy_root
+            )
+            logger.info("Games play on %s with %s", self.game.game_dir, self.game.dll)
+
     async def restore(self) -> None:
         """At startup: adopt a queue that kept playing, else resume scheduling if it was on."""
         try:
@@ -126,6 +135,8 @@ class Bridge:
                 self.cfg.games_per_batch,
                 self.max_turn or self.cfg.turns,
             )
+        if self.game is not None:
+            batch.set_defaults(gameDir=str(self.game.game_dir), dll=str(self.game.dll))
         self._finished_at_start = len(batch.job_names()) - len(batch.unfinished())
         self.queue.start(batch)
 

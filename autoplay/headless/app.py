@@ -34,6 +34,7 @@ def create_app(config: HeadlessConfig | None = None, bridge: Bridge | None = Non
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         cfg.work_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(bridge.prepare_game)
         await bridge.restore()
         stop_event = asyncio.Event()
         tasks = [

@@ -55,6 +55,15 @@ class Batch:
     def queue(self) -> dict[str, Any]:
         return json.loads(self.path.read_text(encoding="utf-8"))
 
+    def set_defaults(self, **values: Any) -> None:
+        """Set job defaults (c5h reads the queue file at each start, so a resumed batch gets them too)."""
+        queue = self.queue()
+        defaults = queue.setdefault("defaults", {})
+        if all(defaults.get(k) == v for k, v in values.items()):
+            return
+        defaults.update(values)
+        self.path.write_text(json.dumps(queue, indent=1) + "\n", encoding="utf-8")
+
     def out_dir(self) -> Path:
         out = self.queue().get("out")
         return (self.path.parent / out).resolve() if out else runs_dir(self.path.parent.parent) / self.name

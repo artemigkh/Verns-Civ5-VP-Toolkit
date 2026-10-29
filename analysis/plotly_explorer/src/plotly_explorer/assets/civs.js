@@ -70,14 +70,17 @@
       card.className = "civs-kpi";
       var v = document.createElement("div");
       v.className = "kpi-value";
-      // "5.4.8 + 5.5.X Tourism": the " + ..." add-on renders smaller.
-      var plus = c.smallSuffix ? String(c.value).indexOf(" + ") : -1;
-      if (plus >= 0) {
-        v.textContent = c.value.slice(0, plus);
-        var s = document.createElement("span");
-        s.className = "kpi-value-suffix";
-        s.textContent = c.value.slice(plus + 1);
-        v.appendChild(s);
+      // "5.4.8 + 5.5.X Tourism + ...": each " + ..." add-on renders smaller,
+      // on a line of its own.
+      var parts = c.smallSuffix ? String(c.value).split(" + ") : [];
+      if (parts.length > 1) {
+        v.textContent = parts[0];
+        parts.slice(1).forEach(function (part) {
+          var s = document.createElement("span");
+          s.className = "kpi-value-suffix";
+          s.textContent = "+ " + part;
+          v.appendChild(s);
+        });
       } else {
         v.textContent = c.value;
       }
