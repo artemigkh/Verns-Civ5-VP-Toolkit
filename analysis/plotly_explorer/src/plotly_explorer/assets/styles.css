@@ -65,6 +65,7 @@ html, body {
 #app.show-units #sidebar .report-units,
 #app.show-instant_yields #sidebar .report-instant_yields,
 #app.show-process_memory #sidebar .report-process_memory,
+#app.show-comparison #sidebar .report-comparison,
 #app.show-wonders #sidebar .report-wonders {
   display: flex;
   flex-direction: column;
@@ -78,6 +79,9 @@ html, body {
 #app.show-civs #sidebar-right,
 #app.show-civs #resizer-right,
 #app.show-civs #expand-btn-right,
+#app.show-comparison #sidebar-right,
+#app.show-comparison #resizer-right,
+#app.show-comparison #expand-btn-right,
 #app.show-religion_performance #sidebar-right,
 #app.show-religion_performance #resizer-right,
 #app.show-religion_performance #expand-btn-right,
@@ -862,7 +866,8 @@ html, body {
 }
 
 /* KPI card row: business-intelligence style rounded tiles. */
-#civs-kpi-row {
+#civs-kpi-row,
+#cmp-kpi-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 16px;
@@ -913,7 +918,8 @@ html, body {
 }
 
 /* Two graphs side by side (donut + violin), collapsing to one on narrow mains. */
-#civs-mid-row {
+#civs-mid-row,
+#cmp-mid-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
@@ -921,7 +927,8 @@ html, body {
 }
 
 @media (max-width: 900px) {
-  #civs-mid-row { grid-template-columns: 1fr; }
+  #civs-mid-row,
+  #cmp-mid-row { grid-template-columns: 1fr; }
 }
 
 .civs-card {
@@ -932,7 +939,8 @@ html, body {
   margin-bottom: 16px;
 }
 
-#civs-mid-row .civs-card { margin-bottom: 0; }
+#civs-mid-row .civs-card,
+#cmp-mid-row .civs-card { margin-bottom: 0; }
 
 .civs-plot { width: 100%; height: 380px; }
 .civs-plot.tall { height: 480px; }
@@ -943,26 +951,26 @@ html, body {
   font-weight: 600;
 }
 
-/* ---- Civs stats table ---- */
-#civs-table { overflow-x: auto; }
+/* ---- Civs stats table (.civs-tbl: also the Comparison report's table) ---- */
+.civs-tbl { overflow-x: auto; }
 
-#civs-table table {
+.civs-tbl table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12.5px;
   white-space: nowrap;
 }
 
-#civs-table th,
-#civs-table td {
+.civs-tbl th,
+.civs-tbl td {
   padding: 6px 10px;
   text-align: right;
   border-bottom: 1px solid var(--border);
 }
 
 /* First column (civ name) reads left-aligned. */
-#civs-table th:first-child,
-#civs-table td:first-child {
+.civs-tbl th:first-child,
+.civs-tbl td:first-child {
   text-align: left;
   font-weight: 600;
   position: sticky;
@@ -970,7 +978,7 @@ html, body {
   background: var(--panel);
 }
 
-#civs-table thead th {
+.civs-tbl thead th {
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: .4px;
@@ -983,30 +991,30 @@ html, body {
 }
 
 /* Clickable column headers (sortable). */
-#civs-table thead th.civs-sortable {
+.civs-tbl thead th.civs-sortable {
   cursor: pointer;
   user-select: none;
 }
 
-#civs-table thead th.civs-sortable:hover { color: var(--text); }
-#civs-table thead th.civs-sorted { color: var(--accent); }
+.civs-tbl thead th.civs-sortable:hover { color: var(--text); }
+.civs-tbl thead th.civs-sorted { color: var(--accent); }
 
-#civs-table thead th.civs-sortable .civs-sort-arrow {
+.civs-tbl thead th.civs-sortable .civs-sort-arrow {
   font-size: 9px;
   margin-left: 3px;
 }
 
 /* Idle sort affordance: faint until the header is hovered. */
-#civs-table thead th.civs-sortable .civs-sort-arrow.civs-sort-idle {
+.civs-tbl thead th.civs-sortable .civs-sort-arrow.civs-sort-idle {
   opacity: 0.35;
   font-size: 10px;
 }
-#civs-table thead th.civs-sortable:hover .civs-sort-arrow.civs-sort-idle {
+.civs-tbl thead th.civs-sortable:hover .civs-sort-arrow.civs-sort-idle {
   opacity: 0.7;
 }
 
-#civs-table tbody tr:hover td { background: var(--panel-2); }
-#civs-table tbody tr:hover td:first-child { background: var(--panel-2); }
+.civs-tbl tbody tr:hover td { background: var(--panel-2); }
+.civs-tbl tbody tr:hover td:first-child { background: var(--panel-2); }
 
 
 /* ---- Leaders report (green-shaded civ x attribute tables) ---- */
@@ -1776,3 +1784,151 @@ html, body {
   border-color: var(--border);
 }
 
+
+/* ---- Comparison Overview report (two datasets side by side) ---- */
+.report-comparison { display: none; }
+#app.show-comparison .report-comparison { display: block; }
+#app.show-comparison .report-building { display: none; }
+#app.show-comparison #main-inner { justify-content: flex-start; }
+/* The report picks its datasets with its own A / B selects. */
+#app.show-comparison #dataset-panel { display: none; }
+
+#cmp-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+#cmp-note { margin: 0 0 16px; }
+
+/* Sidebar: an A / B tag beside each dataset select, and the swap button. */
+.cmp-ds-row {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.cmp-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: center;
+}
+
+.cmp-tag.a { border-color: #6a7a90; }
+.cmp-tag.b { border-color: var(--accent); color: #bfe0fb; }
+
+.cmp-swap {
+  width: 100%;
+  margin-top: 10px;
+  background: var(--chip);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.cmp-swap:hover { border-color: var(--accent); }
+
+/* KPI pair cards: the Overview tile, holding one line per dataset (or one
+   shared line when both agree), title on top. */
+.civs-kpi.cmp-kpi {
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.cmp-kpi .kpi-title { order: -1; margin-bottom: 4px; }
+
+.cmp-kv {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.cmp-kv.one {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  font-size: 24px;
+}
+
+.cmp-kv.one small {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+
+.cmp-kv-suffix {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+/* Shade key under the split violins. */
+.cmp-key {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin: 2px 0 6px;
+}
+
+.cmp-key span { display: inline-flex; align-items: center; gap: 7px; }
+
+.cmp-sw {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,.12);
+}
+
+/* Comparison table: the Overview stats table (.civs-tbl) plus centred value
+   columns, a rule before each A|B|change group, and tinted change cells. The
+   tint's alpha is the --i custom property comparison.js sets per cell. */
+.cmp-table-sub {
+  margin: -4px 0 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+#cmp-table th,
+#cmp-table td { text-align: center; }
+
+#cmp-table th:first-child,
+#cmp-table td:first-child { text-align: left; }
+
+#cmp-table .cmp-gl { border-left: 2px solid #3a4658; }
+#cmp-table td.cmp-d { font-weight: 600; }
+#cmp-table td.cmp-dim { color: var(--text-dim); }
+#cmp-table td.cmp-up,
+#cmp-table tbody tr:hover td.cmp-up { background: rgba(46,160,67,var(--i)); }
+#cmp-table td.cmp-down,
+#cmp-table tbody tr:hover td.cmp-down { background: rgba(201,60,60,var(--i)); }
+
+#cmp-table .cmp-arr {
+  font-size: 9px;
+  margin-left: 4px;
+  letter-spacing: -1px;
+}
