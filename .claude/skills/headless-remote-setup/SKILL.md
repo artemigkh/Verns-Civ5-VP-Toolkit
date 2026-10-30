@@ -44,12 +44,12 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
    ```bash
    bash .claude/skills/headless-remote-setup/scripts/pack.sh <alias> <scratch-dir>
    ```
-   Env overrides: `PINNED_VERSION` (default 5.4.8), `C5H_DIR`, `UV_EXE`. Takes ~20 s over the LAN.
+   Env overrides: `PINNED_VERSION` (default 5.4.8-neutrals), `C5H_DIR`, `UV_EXE`. Takes ~20 s over the LAN.
    If the modpack changes, also edit `-ModpackFolder`/`-Modpack` below and re-pin on the desktop first
    (see memory `civ5-headless-layout`).
 3. **Install** (runs on the remote, idempotent, ~1 min; uv's first Python + deps download takes most of it):
    ```bash
-   ssh <alias> 'powershell -ExecutionPolicy Bypass -File C:\civ5\incoming\remote-install.ps1 -HypervisorUrl http://192.168.2.57:5000 -Workers 8 -GamesPerBatch 512 -Continuous true'
+   ssh <alias> 'powershell -ExecutionPolicy Bypass -File C:\civ5\incoming\remote-install.ps1 -HypervisorUrl http://192.168.2.57:5000 -Workers 8 -GamesPerBatch 1000 -Continuous true'
    ```
    It also does the following:
    - opens inbound TCP 5100 (the bridge's fixed port) to `192.168.2.0/24`;
@@ -59,8 +59,8 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
    - writes `C:\civ5\start_headless_detached.ps1`;
    - ends with `c5h doctor`. It must say `ready for host games`.
 
-   Other params: `-Turns` (500), `-ModpackFolder` (`VP_MODPACK_5_4_8`), `-PinnedVersion`, `-Modpack`
-   (the hypervisor name, `MP_AUTOPLAY_VP_5_4_8_headless`, the same as the desktop bridge so games pool together),
+   Other params: `-Turns` (500), `-ModpackFolder` (`VP_MODPACK_5_4_8_NEUTRALS`), `-PinnedVersion`, `-Modpack`
+   (the hypervisor name, `MP_AUTOPLAY_VP_5_4_8_NEUTRALS_headless`, the same as the desktop bridge so games pool together),
    `-BridgePort`, `-LanPrefix`.
 4. **Smoke game** (~30 s): one 5-turn game, then check that `runs\*\cache\stats.db` exists, then delete
    `C:\civ5\civ5-headless\runs`:
@@ -80,7 +80,7 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
    - `http://<remote-ip>:5100/status` answers from the desktop, which proves the firewall rule works.
    - For a bounded validation run, install with `-GamesPerBatch 20 -Continuous false`. Done means `/status`
      shows `batchUnfinished: 0` and `queueRunning: false`, and `gamesHandedOver` equals the batch size.
-7. **Switch to production**: re-run step 3 with `-GamesPerBatch 512 -Continuous true`. It keeps
+7. **Switch to production**: re-run step 3 with `-GamesPerBatch 1000 -Continuous true`. It keeps
    `headless_data`. Then stop the old bridge (`Stop-Process` the `python -m autoplay.headless` and its
    `civ5headless queue` child, or press Stop in the webapp and wait for the drain) and repeat step 5.
 
@@ -94,8 +94,11 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
   laptop with Defender real-time scanning. The queue exits; the bridge restarts it and it resumes. Three quick
   exits in a row turn scheduling off. Check `headless_data\logs\batch-*.out`.
 - **Disk use**: each finished game's run folder is ~80 MB (mostly `cache/stats.db`). Since 2026-10-28 the
-  bridge deletes a completed game's folder once it is uploaded or staged (`AUTOPLAY_HEADLESS_KEEP_RUN_FOLDERS=true`
-  keeps them); failed and rejected games keep theirs. Before that, folders piled up at ~1 GB/hour per 8-worker
+  bridge empties a completed game's folder once it is uploaded or staged (`AUTOPLAY_HEADLESS_KEEP_RUN_FOLDERS=true`
+  keeps them); failed and rejected games keep theirs. It must keep `status.json`: c5h re-queues any job whose
+  folder lacks one whenever it (re)starts a batch. An early version deleted whole folders, and a resumed desktop
+  batch replayed and re-uploaded 183 games (ids in `misc/duplicate_headless_games.txt`).
+  `scripts/prune_uploaded_runs.py <work_dir> [--delete]` empties old folders the same way from the upload ledger. Before that, folders piled up at ~1 GB/hour per 8-worker
   box. The hypervisor still archives every raw upload under `data/<modpack>/complete/` (~80 MB/game) by design.
 - **Reboots**: Windows Update restarts a fresh install on its own (the laptop did at 23:50 on 2026-10-27), and
   nothing restarted the bridge. `scripts/register_boot_task.ps1` (run on the remote, elevated) adds the task
@@ -119,3 +122,31 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
 - Throughput reference: the i7-7700HQ laptop (4C/8T) with 8 workers ran early turns at ~0.4 s/turn per game.
   The 20-game validation batch (to turn 500) took 2 h 10 min wall clock: 7253 game turns, ~3300 game turns/hour.
   Every game ended by victory between turns 280 and 423, with none failed or restarted.
+- **Switching modpacks** (done 2026-10-28 for `VP_MODPACK_5_4_8_NEUTRALS`, which replaced `VP_MODPACK_5_4_8`):
+  1. On the desktop, after the user has started the real game once with the new modpack, copy
+     `My Games\...\cache\Civ5DebugDatabase.db` and `Localization-Merged.db` to `civ5-headless/pinned/vp-modpack-<ver>/`.
+  2. Swap in the pragma-patched `CvGameCore_Expansion2.dll`, keeping the original as `.dll.orig` (see memory
+     `civ5-headless-layout`). A generated modpack ships the official DLL.
+  3. Point `civ5headless.toml` at the new paths, smoke one game, and set a new `AUTOPLAY_HEADLESS_MODPACK` and
+     `AUTOPLAY_HEADLESS_MODPACK_FOLDER` in `autoplay/scripts/run_headless.bat`. The desktop bridge then makes
+     its own copy of the game folder with that modpack on its next start (below), so the new modpack must be in
+     Steam's `Assets\DLC` at that moment; it can be removed from Steam afterwards.
+  4. Move each runner's old `headless_data` aside (`headless_data_<old>`; remotes: `C:\civ5\headless_data_<old>`,
+     outside the toolkit tree that remote-install clears). Otherwise the new bridge resumes the old batch's
+     unfinished games on the new database.
+  5. Then run pack.sh and remote-install with `-ModpackFolder`, `-PinnedVersion` and `-Modpack` set.
+- **Map scripts the modpack doesn't register** (done 2026-10-29 for Continental Drift / Huge,
+  `MP_AUTOPLAY_VP_5_4_8_CDRIFT_HUGE_headless`). A pinned database lists only Assets\Maps, the user's Maps folder and
+  DLC MapDirectory scripts. The modpack's `Mods\(2) Vox Populi\Mapscripts\` aren't among them, so a spec naming one fails
+  with "map script ... matches 0 entries". The fix is to copy the pinned dir and run a `civ5headless.exe builddb` plan
+  on it: `snapshot <pinned db>`, `attach <copy of Localization-Merged.db> Localization`, `phase mapscripts`,
+  `mapscript <file> <FileName as recorded>`, `detach Localization`, plus `vfs` lines from `dbbuild.build_vfs(game, [], set())`.
+  The plan adds only MapScripts/MapScriptOptions/MapScriptOptionPossibleValues rows.
+  - Record the script under a game-relative path (`Assets\DLC\<folder>\Mods\(2) Vox Populi\Mapscripts\X.lua`), which
+    every runner's game copy has.
+  - The result is `pinned/vp-modpack-5.4.8-cdrift` (5.4.8 original flavors), played on the NEUTRALS DLC folder's
+    DLL and Lua. The two pinned databases differ only in leader flavor rows, so those files match.
+  - remote-install/pack.sh defaults still describe the NEUTRALS Communitu setup. The remotes were switched by hand:
+    `civ5headless.toml` db/loc_db, plus `run_headless_remote.bat` SPEC/MODPACK/maxSeconds 43200. The `.5_4_8_neutrals.bak`
+    copies sit beside them.
+  - Workers: desktop 16 (Huge games use more memory; the desktop has 32 GB).

@@ -20,21 +20,24 @@ set "AUTOPLAY_HEADLESS_C5H_DIR=%USERPROFILE%\Documents\civ5-headless"
 REM  The games play on the bridge's own copy of the game folder with this
 REM  modpack (headless_data\game\<folder>), made from the Steam install the
 REM  first time, so Steam's Assets\DLC\<folder> can be removed afterwards.
+REM  The NEUTRALS folder only supplies the DLL and Lua (the same as 5.4.8's);
+REM  the flavors come from the database civ5headless.toml pins
+REM  (vp-modpack-5.4.8-cdrift: 5.4.8 + Continental Drift registered).
 set "AUTOPLAY_HEADLESS_MODPACK_FOLDER=VP_MODPACK_5_4_8_NEUTRALS"
-set "AUTOPLAY_HEADLESS_SPEC=%AUTOPLAY_HEADLESS_C5H_DIR%\pinned\specs\communitu-standard.json"
+set "AUTOPLAY_HEADLESS_SPEC=%AUTOPLAY_HEADLESS_C5H_DIR%\pinned\specs\continental-drift-huge.json"
 REM  Name the games are ingested under on the hypervisor (MP_AUTOPLAY_VP_*).
-set "AUTOPLAY_HEADLESS_MODPACK=MP_AUTOPLAY_VP_5_4_8_NEUTRALS_headless"
+set "AUTOPLAY_HEADLESS_MODPACK=MP_AUTOPLAY_VP_5_4_8_CDRIFT_HUGE_headless"
 set "AUTOPLAY_HEADLESS_WORK_DIR=%CD%\headless_data"
 REM  Games at once (unpinned: Windows places each one-thread game), games per
 REM  queue file, and the turn each game plays to unless --max-turn caps it.
-set "AUTOPLAY_HEADLESS_WORKERS=24"
+set "AUTOPLAY_HEADLESS_WORKERS=16"
 set "AUTOPLAY_HEADLESS_AFFINITY=none"
 set "AUTOPLAY_HEADLESS_GAMES_PER_BATCH=1000"
 set "AUTOPLAY_HEADLESS_TURNS=500"
 set "AUTOPLAY_HEADLESS_CONTINUOUS=true"
 REM  Queue defaults for every game (c5h run options by JSON name). No outer
 REM  quotes on this `set` so inner double-quotes remain literal.
-set AUTOPLAY_HEADLESS_JOB_DEFAULTS={"noMods": true, "detail": "summary", "maxSeconds": 14400, "stallSeconds": 900}
+set AUTOPLAY_HEADLESS_JOB_DEFAULTS={"noMods": true, "detail": "summary", "maxSeconds": 43200, "stallSeconds": 1800}
 set "AUTOPLAY_HEADLESS_HEARTBEAT_INTERVAL_SEC=2"
 
 REM --- Force unbuffered Python stdio so log lines stream to the console ---

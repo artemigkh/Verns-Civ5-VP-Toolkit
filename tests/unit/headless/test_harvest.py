@@ -129,7 +129,12 @@ async def test_unfinished_and_retried_games(cfg: HeadlessConfig, batch: Batch) -
     assert len(harvest.finished_games(batch, ledger, cfg.work_dir)) == 1
 
 
-async def test_prune_deletes_handed_over_completed_runs_only(cfg: HeadlessConfig, batch: Batch) -> None:
+def _pruned(run: Path) -> bool:
+    # c5h re-queues a job whose run folder has no status.json, so pruning must keep it.
+    return [p.name for p in run.iterdir()] == ["status.json"]
+
+
+async def test_prune_empties_handed_over_completed_runs_only(cfg: HeadlessConfig, batch: Batch) -> None:
     uploaded, staged, failed, rejected = batch.job_names()
     set_jobs(
         batch,
@@ -145,16 +150,16 @@ async def test_prune_deletes_handed_over_completed_runs_only(cfg: HeadlessConfig
         mock.post("http://hv.test/submit-stats").mock(side_effect=lambda _req: _next(calls))
         mock.post("http://hv.test/submit-crash").mock(return_value=httpx.Response(204))
         await _hand_over_all(cfg, batch, harvest.Ledger(cfg.work_dir), prune=True)
-    assert not runs[uploaded].exists()
-    assert not runs[staged].exists() and pending_count(cfg.pending_dir) == 1
-    assert runs[failed].is_dir()  # kept for debugging
+    assert _pruned(runs[uploaded])
+    assert _pruned(runs[staged]) and pending_count(cfg.pending_dir) == 1
+    assert (runs[failed] / "cache" / "stats.db").is_file()  # kept for debugging
 
     set_jobs(batch, {rejected: {"state": "completed", "worker": 0, "started": iso_ago(5)}})
     runs[rejected] = finish_job(batch, rejected)
     with respx.mock() as mock:
         mock.post("http://hv.test/submit-stats").mock(return_value=httpx.Response(400))
         assert await _hand_over_all(cfg, batch, harvest.Ledger(cfg.work_dir), prune=True) == ["rejected"]
-    assert runs[rejected].is_dir()
+    assert (runs[rejected] / "cache" / "stats.db").is_file()
 
 
 async def test_no_prune_keeps_run_folders(cfg: HeadlessConfig, batch: Batch) -> None:
