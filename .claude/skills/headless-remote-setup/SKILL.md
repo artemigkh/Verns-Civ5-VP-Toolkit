@@ -97,7 +97,8 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
   bridge empties a completed game's folder once it is uploaded or staged (`AUTOPLAY_HEADLESS_KEEP_RUN_FOLDERS=true`
   keeps them); failed and rejected games keep theirs. It must keep `status.json`: c5h re-queues any job whose
   folder lacks one whenever it (re)starts a batch. An early version deleted whole folders, and a resumed desktop
-  batch replayed and re-uploaded 183 games (ids in `misc/duplicate_headless_games.txt`).
+  batch replayed and re-uploaded 183 games (ids in `misc/duplicate_headless_games.txt`). Since 2026-11-01 it also
+  keeps the game's `report.html` (~1 MB); c5h can only rebuild that from the files pruning deletes.
   `scripts/prune_uploaded_runs.py <work_dir> [--delete]` empties old folders the same way from the upload ledger. Before that, folders piled up at ~1 GB/hour per 8-worker
   box. The hypervisor still archives every raw upload under `data/<modpack>/complete/` (~80 MB/game) by design.
 - **Reboots**: Windows Update restarts a fresh install on its own (the laptop did at 23:50 on 2026-10-27), and
@@ -110,6 +111,10 @@ bundled embeddable Python failed make_kit's signature check on non-binary files.
   `scripts/stop_bridge.ps1` (copied to `C:\civ5\stop_bridge.ps1`) stops the bridge, queue and games outright;
   also `Disable-ScheduledTask civ5-headless-bridge` where the boot task exists, or a reboot brings it back.
   Don't start a second bridge while one runs: it adopts the queue, fails to bind 5100, and kills the queue on exit.
+- **Changing the desktop's WORKERS**: an adopted queue keeps its old worker count, so the queue and its games have
+  to go too. Kill the `cmd` running `run_headless.bat` first, or edit the .bat only after it has exited. cmd re-reads a
+  running .bat from disk, and on 2026-11-01 an in-place edit made it re-run `uv run` with the old WORKERS when
+  the bridge was killed. Then deregister the dropped slots' UUIDs on the hypervisor and relaunch detached.
 - **The desktop bridge plays on its own game folder copy** (since 2026-10-28). With
   `AUTOPLAY_HEADLESS_MODPACK_FOLDER` set, it copies the Steam install's root DLLs, `Locale\` and `Assets\`
   (no media; the configured modpack is the only modpack among the DLC) once, to

@@ -12,7 +12,8 @@ with the runner's pending-upload queue, which retries it until the hypervisor ta
 
 A completed game's run folder (~80 MB, nearly all of it the ``stats.db`` the hypervisor archives) is
 emptied once it is uploaded or staged, unless ``prune`` is off: only c5h's ``status.json`` stays, so a
-resumed batch still sees the game as done. Failed and rejected games keep their folders.
+resumed batch still sees the game as done, along with its ``report.html`` (~1 MB, and c5h can only rebuild it
+from the files pruning deletes). Failed and rejected games keep their folders.
 """
 
 from __future__ import annotations
@@ -207,17 +208,22 @@ async def hand_over(
     return outcome
 
 
+# What a pruned run folder keeps. See prune_run_dir.
+KEPT_ON_PRUNE = ("status.json", "report.html")
+
+
 def prune_run_dir(run_dir: Path) -> None:
-    """Delete a handed-over game's files, keeping ``status.json``.
+    """Delete a handed-over game's files, keeping ``status.json`` and ``report.html``.
 
     c5h decides whether a job is done from ``<run>/status.json`` each time it (re)starts a batch; without
-    it a completed game goes back to pending and is played and uploaded again. A file another process
-    still holds (a virus scanner) is left behind rather than failing the handover.
+    it a completed game goes back to pending and is played and uploaded again. ``report.html`` is c5h's
+    page for the game, kept for reading later. A file another process still holds (a virus scanner) is
+    left behind rather than failing the handover.
     """
     if not run_dir.is_dir():
         return
     for child in run_dir.iterdir():
-        if child.name == "status.json":
+        if child.name in KEPT_ON_PRUNE:
             continue
         if child.is_dir():
             shutil.rmtree(child, ignore_errors=True)

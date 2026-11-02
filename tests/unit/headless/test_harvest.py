@@ -162,6 +162,19 @@ async def test_prune_empties_handed_over_completed_runs_only(cfg: HeadlessConfig
     assert (runs[rejected] / "cache" / "stats.db").is_file()
 
 
+async def test_prune_keeps_the_game_report(cfg: HeadlessConfig, batch: Batch) -> None:
+    job = batch.job_names()[0]
+    set_jobs(batch, {job: {"state": "completed", "worker": 0, "started": iso_ago(10)}})
+    run = finish_job(batch, job)
+    (run / "report.html").write_text("<html>game report</html>", encoding="utf-8")
+    (run / "events.jsonl").write_text("{}\n", encoding="utf-8")
+    with respx.mock() as mock:
+        mock.post("http://hv.test/submit-stats").mock(return_value=httpx.Response(204))
+        assert await _hand_over_all(cfg, batch, harvest.Ledger(cfg.work_dir), prune=True) == ["uploaded"]
+    assert sorted(p.name for p in run.iterdir()) == ["report.html", "status.json"]
+    assert (run / "report.html").read_text(encoding="utf-8") == "<html>game report</html>"
+
+
 async def test_no_prune_keeps_run_folders(cfg: HeadlessConfig, batch: Batch) -> None:
     job = batch.job_names()[0]
     set_jobs(batch, {job: {"state": "completed", "worker": 0, "started": iso_ago(10)}})

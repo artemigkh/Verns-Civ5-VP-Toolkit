@@ -22,11 +22,12 @@ REM  modpack (headless_data\game\<folder>), made from the Steam install the
 REM  first time, so Steam's Assets\DLC\<folder> can be removed afterwards.
 REM  The NEUTRALS folder only supplies the DLL and Lua (the same as 5.4.8's);
 REM  the flavors come from the database civ5headless.toml pins
-REM  (vp-modpack-5.4.8-cdrift: 5.4.8 + Continental Drift registered).
+REM  (vp-modpack-5.4.8-cdrift: 5.4.8, with Continental Drift also registered;
+REM  Pangaea is a base-game map script, already in every 5.4.8 database).
 set "AUTOPLAY_HEADLESS_MODPACK_FOLDER=VP_MODPACK_5_4_8_NEUTRALS"
-set "AUTOPLAY_HEADLESS_SPEC=%AUTOPLAY_HEADLESS_C5H_DIR%\pinned\specs\continental-drift-huge.json"
+set "AUTOPLAY_HEADLESS_SPEC=%AUTOPLAY_HEADLESS_C5H_DIR%\pinned\specs\pangaea-standard.json"
 REM  Name the games are ingested under on the hypervisor (MP_AUTOPLAY_VP_*).
-set "AUTOPLAY_HEADLESS_MODPACK=MP_AUTOPLAY_VP_5_4_8_CDRIFT_HUGE_headless"
+set "AUTOPLAY_HEADLESS_MODPACK=MP_AUTOPLAY_VP_5_4_8_PANGAEA_headless"
 set "AUTOPLAY_HEADLESS_WORK_DIR=%CD%\headless_data"
 REM  Games at once (unpinned: Windows places each one-thread game), games per
 REM  queue file, and the turn each game plays to unless --max-turn caps it.
