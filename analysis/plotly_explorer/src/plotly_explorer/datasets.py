@@ -76,14 +76,12 @@ def _report_sources(cfg: Config) -> dict[str, tuple[set[str], list[Path]]]:
     Interface Draw List Buffer render static reference data, not the stats DB,
     so every dataset has them and they are not listed.
     """
-    building = (
-        {"BuildingsOverview", "BuildingYields", "BuildingInstantYields"},
-        [cfg.turn_average_path, cfg.era_totals_path],
-    )
     return {
         "civs": (_GAME_TABLES, [cfg.game_result_path, cfg.power_ranking_path]),
-        "building": building,
-        "building_grouped": building,
+        "building": (
+            {"BuildingsOverview", "BuildingYields", "BuildingInstantYields"},
+            [cfg.turn_average_path, cfg.era_totals_path],
+        ),
         "religion": (
             {RELIGION_TABLE, CIV_TURN_ERA_TABLE},
             [

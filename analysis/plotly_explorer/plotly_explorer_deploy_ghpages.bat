@@ -8,6 +8,12 @@ REM
 REM  All configuration is passed to Python via the env vars below.
 REM  DB_PATH is the default dataset; the Dataset dropdown's other entries
 REM  come from datasets.toml and are written to PUBLISH_DIR\datasets\.
+REM
+REM  Release: 5.4.8 Communitu Default (5_4_8_headless) is the default, with
+REM  Pangaea, Continental Drift Huge, Neutral Leader Flavors and 5.3.3
+REM  Warlord beside it. Each dataset also gets a datasets\<id>.civs.js
+REM  slice, which the Comparison Overview report loads for both sides.
+REM  Commit docs\ (index.html and all of datasets\) to publish.
 REM =====================================================================
 setlocal
 

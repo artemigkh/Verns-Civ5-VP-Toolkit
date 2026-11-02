@@ -923,7 +923,6 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
         "router.js",
         "chrome.js",
         "app.js",
-        "building_grouped.js",
         "civs.js",
         "comparison.js",
         "religion.js",

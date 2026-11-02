@@ -387,6 +387,11 @@
       if (BY_KEY[spec.key]) return;
       BY_KEY[spec.key] = spec;
       BY_SLUG[spec.slug.toLowerCase()] = spec.key;
+      // Former slugs (a report folded into another) keep old links working;
+      // the canonicalizing write then rewrites them to `slug`.
+      (spec.aliases || []).forEach(function (a) {
+        BY_SLUG[a.toLowerCase()] = spec.key;
+      });
       ORDER.push(spec.key);
     },
 

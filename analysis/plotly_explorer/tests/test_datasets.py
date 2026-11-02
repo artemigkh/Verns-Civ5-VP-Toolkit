@@ -161,7 +161,7 @@ def test_unavailable_reports_names_the_missing_table(default_cfg, monkeypatch):
     assert "predates" in out["instant_yields"]
     # Every other report has its tables but no CSVs were built.
     assert out["civs"] == "This report's summaries were not built for this dataset."
-    assert set(out) >= {"civs", "building", "building_grouped", "religion", "units", "wonders"}
+    assert set(out) >= {"civs", "building", "religion", "units", "wonders"}
 
 
 def test_unavailable_reports_is_empty_once_every_csv_exists(default_cfg, monkeypatch):

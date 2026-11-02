@@ -18,7 +18,7 @@
 
 [[dataset]]
 id = "5_4_8_headless"
-label = "5.4.8 Emperor"
+label = "5.4.8 Communitu Default"
 db_path = "data/MP_AUTOPLAY_VP_5_4_8_headless/stats.duckdb"
 patch = "5.4.8 + 5.5.X Tourism"
 difficulty = "Emperor"
