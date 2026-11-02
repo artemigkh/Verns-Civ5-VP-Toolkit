@@ -16,9 +16,9 @@ pushd "%~dp0..\.."
 
 REM --- Configuration (consumed by plotly_explorer.config) -------------
 set "DB_TYPE=duckdb"
-set "DB_PATH=data/MP_AUTOPLAY_VP_5_4_8_headless/stats.duckdb"
-set "INTERMEDIATE_DATA_DIR=data/MP_AUTOPLAY_VP_5_4_8_headless/plotly_explorer_cache"
-set "PUBLISH_DIR=data/MP_AUTOPLAY_VP_5_4_8_headless/plotly_explorer_public"
+set "DB_PATH=data/MP_AUTOPLAY_VP_5_4_8_PANGAEA_headless/stats.duckdb"
+set "INTERMEDIATE_DATA_DIR=data/MP_AUTOPLAY_VP_5_4_8_PANGAEA_headless/plotly_explorer_cache"
+set "PUBLISH_DIR=data/MP_AUTOPLAY_VP_5_4_8_PANGAEA_headless/plotly_explorer_public"
 
 REM  Hard ceiling on DuckDB's working set. The aggregations stream and spill to
 REM  INTERMEDIATE_DATA_DIR\duckdb_spill above this, so it caps peak memory rather
@@ -51,7 +51,7 @@ uv sync --project analysis/plotly_explorer || (echo uv sync failed & set "ERR=1"
 
 echo [plotly_explorer] DB_PATH=%DB_PATH%
 echo [plotly_explorer] PUBLISH_DIR=%PUBLISH_DIR%
-uv run --project analysis/plotly_explorer python -u -m plotly_explorer --patch "5.4.8 + 5.5.X Tourism" --difficulty Emperor --mapscript "Communitu 3.2.0" --size "Standard"%PY_ARGS%
+uv run --project analysis/plotly_explorer python -u -m plotly_explorer --patch "5.4.8 + 5.5.X Tourism" --difficulty Emperor --mapscript "Pangaea" --size "Standard"%PY_ARGS%
 set ERR=%ERRORLEVEL%
 
 if "%ERR%"=="0" (

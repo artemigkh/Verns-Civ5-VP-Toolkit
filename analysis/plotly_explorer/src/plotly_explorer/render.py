@@ -7,7 +7,7 @@ are bundled into the one file; a Report Type dropdown switches between them in-p
 
 That file carries the default dataset. Each other dataset (see :mod:`.datasets`)
 is a ``datasets/<id>.js`` sidecar the page loads only when the Dataset dropdown or
-the URL picks it.
+the URL picks it, and then keeps for the life of the tab (``assets/boot.js``).
 """
 
 from __future__ import annotations
@@ -917,6 +917,8 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
     # The whole bundle runs inside window.__explorerMain, which boot.js calls
     # once window.PAYLOAD holds the dataset the URL names: every module reads
     # PAYLOAD as it loads, and a non-default dataset arrives asynchronously.
+    # boot.js calls it again, against a fresh copy of the template's body, on
+    # every dataset switch -- so nothing in the bundle may assume it runs once.
     js_bundle = (
         "router.js",
         "chrome.js",

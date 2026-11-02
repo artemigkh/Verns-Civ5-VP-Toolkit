@@ -14,9 +14,17 @@
    Data. Each dataset's Overview slice (PAYLOAD.civs) is what this report
    compares, so render.py writes every dataset's slice to a small sidecar,
    datasets/<id>.civs.js, which assigns window.EXPLORER_CIVS_SLICES[<id>]. The
-   page's own dataset is already in PAYLOAD; the other side is loaded by
-   <script src> on demand (works over file://, like boot.js) and cached for the
-   rest of the page's life, so no reload is needed to compare.
+   page's own dataset is already in PAYLOAD, and so is any dataset the Dataset
+   dropdown has shown since the tab opened (boot.js keeps every full payload in
+   window.EXPLORER_PAYLOADS); a side not found in either is loaded by
+   <script src> on demand (works over file://, like boot.js). Both caches live
+   on window, so they survive the bundle re-run a dataset switch does.
+
+   Victory Time Spread. Below VIOLIN_POINTS_MAX_GAMES combined games each half
+   violin carries its per-game beeswarm; above it the points (one hover object
+   each) would make the chart lag, so each half gets a median line and dotted
+   quartile lines instead, with one hover target at the median that reads out
+   the quartiles.
 
    URL: #Comparison?a=<id>&b=<id>&m=<metric>&s=<col>&sd=a|d. `a` defaults to the
    page's dataset, `b` to the first other dataset in the dropdown. */
@@ -37,6 +45,14 @@
   // an id that is not an own property has not been loaded yet.
   var SLICES = (window.EXPLORER_CIVS_SLICES = window.EXPLORER_CIVS_SLICES || {});
   SLICES[CURRENT] = (window.PAYLOAD && window.PAYLOAD.civs) || null;
+
+  // A dataset whose full payload boot.js already holds needs no .civs.js.
+  function sliceFromPayload(id) {
+    if (hasOwn(SLICES, id)) return;
+    var DS = window.Explorer.Datasets;
+    var p = DS && DS.payload(id);
+    if (p) SLICES[id] = p.civs || null;
+  }
   var FAILED = {}; // id -> true when its sidecar could not be loaded
   var PENDING = {}; // id -> callbacks waiting on its sidecar
 
@@ -52,6 +68,7 @@
   // Load a dataset's Overview slice, then call done(). Synchronous when it is
   // already here; otherwise the sidecar loads once and every waiter runs.
   function ensureSlice(id, done) {
+    sliceFromPayload(id);
     if (hasOwn(SLICES, id) || FAILED[id]) return done();
     if (PENDING[id]) return PENDING[id].push(done);
     PENDING[id] = [done];
@@ -388,12 +405,19 @@
   // Row 3 — Victory Time Spread, split violins (A left half, B right half)
   // -------------------------------------------------------------------------
   var VIOLIN_TURN_CAP = 500;
+  // Combined games (A + B) above which the per-game beeswarm gives way to
+  // median and quartile lines: every point is a hover object, and a few
+  // thousand of them make hovering lag.
+  var VIOLIN_POINTS_MAX_GAMES = 2000;
+  // Each violin is 1 category wide (width: 1, scalemode: "width"), so A's half
+  // spans [i - HALF, i] and B's [i, i + HALF] around category index i.
+  var VIOLIN_HALF = 0.5;
 
-  function violinTrace(s, t, negative) {
+  function violinTrace(s, t, negative, withPoints) {
     var color = shade(VICTORY_COLORS[t] || "#888888", s.tag);
     var turns = s.p.victory.turns[t] || [];
     var victors = (s.p.victory.victors && s.p.victory.victors[t]) || [];
-    return {
+    var trace = {
       type: "violin",
       name: s.label,
       side: negative ? "negative" : "positive",
@@ -401,20 +425,89 @@
         return t;
       }),
       y: turns,
-      customdata: victors,
       fillcolor: rgba(color, 0.85),
       line: { color: BG, width: 1 },
-      points: "all",
-      pointpos: negative ? -0.35 : 0.35,
-      jitter: 0.3,
       width: 1,
       scalemode: "width",
       spanmode: "soft",
-      marker: { color: color, size: 4, opacity: 0.9, line: { color: "#000000", width: 0.6 } },
       meanline: { visible: false },
       box: { visible: false },
-      hoveron: "points",
-      hovertemplate: "%{customdata}<br>" + s.label + "<br>" + t + " victory, turn %{y}<extra></extra>",
+      showlegend: false,
+    };
+    if (withPoints) {
+      trace.customdata = victors;
+      trace.points = "all";
+      trace.pointpos = negative ? -0.35 : 0.35;
+      trace.jitter = 0.3;
+      trace.marker = { color: color, size: 4, opacity: 0.9, line: { color: "#000000", width: 0.6 } };
+      trace.hoveron = "points";
+      trace.hovertemplate = "%{customdata}<br>" + s.label + "<br>" + t + " victory, turn %{y}<extra></extra>";
+    } else {
+      trace.points = false;
+      trace.hoverinfo = "skip"; // the median marker (quartileHover) answers instead
+    }
+    return trace;
+  }
+
+  // Linear-interpolated quantile (R type 7, Plotly's "linear" quartilemethod)
+  // of an ascending array.
+  function quantile(sorted, q) {
+    if (!sorted.length) return null;
+    var pos = (sorted.length - 1) * q;
+    var lo = Math.floor(pos), hi = Math.ceil(pos);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+  }
+
+  function quartiles(turns) {
+    var sorted = turns.slice().sort(function (a, b) {
+      return a - b;
+    });
+    return { n: sorted.length, q1: quantile(sorted, 0.25), med: quantile(sorted, 0.5), q3: quantile(sorted, 0.75) };
+  }
+
+  // Lines across one half violin: the median solid, the quartiles dotted. The
+  // x axis is categorical, so shapes address it by category index; the lines
+  // run from the centre seam to the half's outer edge. Dark on A's lighter
+  // tint, light on B's darker tone.
+  function quartileShapes(s, idx, q) {
+    var negative = s.tag === "A";
+    var x0 = idx, x1 = negative ? idx - VIOLIN_HALF : idx + VIOLIN_HALF;
+    var color = negative ? "rgba(14,17,23,0.9)" : "rgba(215,221,231,0.95)";
+    function line(y, dash, width) {
+      return {
+        type: "line",
+        xref: "x",
+        yref: "y",
+        x0: x0,
+        x1: x1,
+        y0: y,
+        y1: y,
+        layer: "above",
+        line: { color: color, width: width, dash: dash },
+      };
+    }
+    return [line(q.q1, "dot", 1.2), line(q.q3, "dot", 1.2), line(q.med, "solid", 2)];
+  }
+
+  // One invisible marker per half, on the median line, so hovering the half
+  // reads out its quartiles. A numeric x on the category axis would become a
+  // category of its own, so the marker sits on xaxis2: a hidden linear axis
+  // overlaying the category one with the same range, where category i is x=i.
+  function quartileHover(s, t, idx, q) {
+    var negative = s.tag === "A";
+    return {
+      type: "scatter",
+      mode: "markers",
+      xaxis: "x2",
+      x: [negative ? idx - VIOLIN_HALF / 2 : idx + VIOLIN_HALF / 2],
+      y: [q.med],
+      marker: { size: 28, opacity: 0, color: shade(VICTORY_COLORS[t] || "#888888", s.tag) },
+      hovertemplate:
+        s.label + "<br>" + t + " victory, " + q.n.toLocaleString() + " games" +
+        "<br>Q3: turn " + Math.round(q.q3) +
+        "<br>median: turn " + Math.round(q.med) +
+        "<br>Q1: turn " + Math.round(q.q1) +
+        "<extra></extra>",
       showlegend: false,
     };
   }
@@ -424,12 +517,26 @@
     var types = order.filter(function (t) {
       return t !== "Time" && victoryCount(A, t) + victoryCount(B, t) > 0;
     });
+    var games = (A.p.kpis.games || 0) + (B.p.kpis.games || 0);
+    var withPoints = games <= VIOLIN_POINTS_MAX_GAMES;
     var traces = [];
-    types.forEach(function (t) {
-      if (victoryCount(A, t)) traces.push(violinTrace(A, t, true));
-      if (victoryCount(B, t)) traces.push(violinTrace(B, t, false));
+    var shapes = [];
+    types.forEach(function (t, idx) {
+      [A, B].forEach(function (s) {
+        if (!victoryCount(s, t)) return;
+        traces.push(violinTrace(s, t, s.tag === "A", withPoints));
+        if (withPoints) return;
+        var q = quartiles(s.p.victory.turns[t] || []);
+        if (!q.n) return;
+        shapes = shapes.concat(quartileShapes(s, idx, q));
+        traces.push(quartileHover(s, t, idx, q));
+      });
     });
+    // Category i sits at x=i; the half-violins reach ±VIOLIN_HALF around it.
+    var xRange = [-VIOLIN_HALF - 0.1, types.length - 1 + VIOLIN_HALF + 0.1];
     var layout = {
+      shapes: shapes,
+      hovermode: "closest",
       title: { text: "Victory Time Spread", font: { color: TEXT, size: 17 }, x: 0.5, xanchor: "center" },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
@@ -441,9 +548,13 @@
         type: "category",
         categoryorder: "array",
         categoryarray: types,
+        range: xRange,
         tickfont: { color: TEXT, size: 13 },
         gridcolor: "rgba(255,255,255,0.04)",
       },
+      // Carries the quartile hover markers (see quartileHover); pinned to the
+      // category axis's range so x=i is category i on both.
+      xaxis2: { overlaying: "x", range: xRange, visible: false, fixedrange: true },
       yaxis: {
         title: { text: "Game-ending turn", font: { color: TEXT_DIM, size: 12 } },
         gridcolor: GRID,
@@ -454,22 +565,28 @@
       showlegend: false,
     };
     Plotly.react(document.getElementById("cmp-violin"), traces, layout, PLOT_CONFIG);
-    renderShadeKey(A, B, types);
+    renderShadeKey(A, B, types, withPoints);
   }
 
-  // Under the violins: which shades are A and which are B.
-  function renderShadeKey(A, B, types) {
+  // Under the violins: which shades are A and which are B, and what the lines
+  // mean when the beeswarm is off.
+  function renderShadeKey(A, B, types, withPoints) {
     var host = document.getElementById("cmp-violin-key");
-    host.innerHTML = [A, B]
-      .map(function (s) {
-        var swatches = types
-          .map(function (t) {
-            return '<i class="cmp-sw" style="background:' + shade(VICTORY_COLORS[t] || "#888888", s.tag) + '"></i>';
-          })
-          .join("");
-        return "<span>" + swatches + " " + esc(s.label) + (s.tag === "A" ? " (lighter, left)" : " (darker, right)") + "</span>";
-      })
-      .join("");
+    var parts = [A, B].map(function (s) {
+      var swatches = types
+        .map(function (t) {
+          return '<i class="cmp-sw" style="background:' + shade(VICTORY_COLORS[t] || "#888888", s.tag) + '"></i>';
+        })
+        .join("");
+      return "<span>" + swatches + " " + esc(s.label) + (s.tag === "A" ? " (lighter, left)" : " (darker, right)") + "</span>";
+    });
+    if (!withPoints) {
+      parts.push(
+        "<span>solid line: median, dotted: quartiles (per-game points hidden above " +
+          VIOLIN_POINTS_MAX_GAMES.toLocaleString() + " games combined)</span>"
+      );
+    }
+    host.innerHTML = parts.join("");
   }
 
   // -------------------------------------------------------------------------
@@ -806,6 +923,7 @@
       return setNote("This build has only one dataset, so there is nothing to compare it with.");
     }
     var waiting = [state.a, state.b].filter(function (id) {
+      sliceFromPayload(id);
       return !hasOwn(SLICES, id) && !FAILED[id];
     });
     if (waiting.length) {

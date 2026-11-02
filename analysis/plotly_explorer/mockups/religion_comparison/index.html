@@ -1,0 +1,640 @@
+<meta charset="utf-8">
+<title>Religion Comparison Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Same dark system as the explorer (styles.css tokens) and the Overview
+   comparison mockups: one column of sections, each a stack of variant cards. */
+:root {
+  --bg: #0e1117; --panel: #161c27; --panel-2: #1d2533; --border: #2a3445;
+  --text: #d7dde7; --text-dim: #8b97a8; --accent: #5aa9e6;
+  --up: #2ea043; --down: #c93c3c; --chip: #232c3c; --chip-on: #2f5d8c; --chip-on-border: #5aa9e6;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif; font-size: 14px; line-height: 1.45;
+  padding-block: 28px 60px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1240px; margin: 0 auto; }
+h1 { font-size: 24px; font-weight: 700; margin: 0 0 6px; text-wrap: balance; }
+h1 .crumb { color: var(--text-dim); font-weight: 500; }
+.lede { color: var(--text-dim); max-width: 72ch; margin: 0 0 8px; }
+.ab-key { display: flex; gap: 18px; flex-wrap: wrap; margin: 14px 0 34px; font-size: 13px; }
+.ab-key span { display: inline-flex; align-items: center; gap: 8px; }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .6px; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); }
+.tag.a { border-color: #6a7a90; } .tag.b { border-color: var(--accent); color: #bfe0fb; }
+section.block { margin: 0 0 46px; }
+section.block > h2 { font-size: 19px; font-weight: 700; margin: 0 0 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+section.block > .why { color: var(--text-dim); max-width: 78ch; margin: 0 0 16px; }
+.variants { display: grid; gap: 18px; }
+.variant { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; min-width: 0; }
+.vhead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.vhead .vnum { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--accent); }
+.vhead h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.vhead .rec { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #9ad7a5; border: 1px solid #2f6b3a; background: rgba(46,160,67,.12); border-radius: 999px; padding: 2px 9px; }
+.plot { width: 100%; height: 400px; }
+.plot.short { height: 300px; } .plot.tall { height: 520px; }
+.quad { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quad .plot { height: 270px; }
+@media (max-width: 820px) { .quad { grid-template-columns: 1fr; } }
+.vnote { color: var(--text-dim); font-size: 13px; margin: 8px 0 0; max-width: 90ch; }
+.vnote b { color: var(--text); font-weight: 600; }
+.legend-ab { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; font-size: 12.5px; color: var(--text-dim); margin: 2px 0 6px; }
+.legend-ab span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,.12); }
+.sw.dot { border-radius: 50%; width: 12px; height: 12px; }
+.sw.strip { height: 8px; border-radius: 4px; width: 22px; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 4px 0 2px; }
+.swatch-row { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
+.swatch-row .nm { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.swatch-row .bars { display: flex; gap: 4px; }
+.swatch-row .bars div { flex: 1; height: 22px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #0e1117; }
+
+/* ---- page wireframe + faux sidebar ---- */
+.wire { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+@media (max-width: 820px) { .wire { grid-template-columns: 1fr; } }
+.sb { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.sb .sb-head { display: flex; justify-content: space-between; color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; padding: 2px 2px 4px; border-bottom: 1px solid var(--border); }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; }
+.panel h2 { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--text-dim); }
+.panel h3 { margin: 10px 0 6px; font-size: 11px; font-weight: 600; color: var(--text-dim); }
+.panel select { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 13px; }
+.panel select.hl { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(90,169,230,.18); }
+.ds-row { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: center; }
+.swap { width: 100%; background: var(--chip); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 7px; font: inherit; font-size: 13px; cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 4px 9px; border-radius: 999px; background: var(--chip); border: 1px solid var(--border); color: var(--text); cursor: pointer; user-select: none; }
+.chip.on { background: var(--chip-on); border-color: var(--chip-on-border); }
+.frame { display: flex; flex-direction: column; gap: 10px; }
+.fbox { border: 1px dashed #3b4860; border-radius: 10px; padding: 10px 12px; color: var(--text-dim); font-size: 13px; background: rgba(255,255,255,.015); }
+.fbox b { color: var(--text); display: block; font-size: 13.5px; }
+.fbox .fr { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.fbox .fr div { border: 1px dashed #3b4860; border-radius: 8px; padding: 8px 10px; min-height: 54px; }
+.fbox.kpi .fr { grid-template-columns: repeat(6, 1fr); } .fbox.kpi .fr div { min-height: 40px; font-size: 12px; }
+@media (max-width: 820px) { .fbox.kpi .fr { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---- KPI pair tiles ---- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.kpi { background: var(--panel-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+.kpi .kt { font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--text-dim); font-weight: 600; text-align: center; }
+.kpi .kv { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; line-height: 1.15; }
+.kpi .kv.one { font-size: 24px; justify-items: center; grid-template-columns: 1fr; text-align: center; }
+.kpi .kv.one small { font-size: 11px; color: var(--text-dim); font-weight: 600; letter-spacing: .5px; text-transform: uppercase; }
+.kpi .kd { text-align: center; font-size: 12px; font-weight: 600; }
+.kpi .kd.up { color: #6fd38a; } .kpi .kd.down { color: #f07878; } .kpi .kd.flat { color: var(--text-dim); }
+
+/* ---- section chips shared by every belief variant ---- */
+.sec-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 0 0 16px; font-size: 13px; color: var(--text-dim); }
+
+/* ---- comparison tables ---- */
+.tbl-wrap { overflow-x: auto; }
+table.cmp { border-collapse: collapse; width: 100%; font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.cmp th, table.cmp td { padding: 5px 10px; text-align: center; border-bottom: 1px solid var(--border); }
+table.cmp th { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; font-weight: 600; position: sticky; top: 0; background: var(--panel); cursor: pointer; user-select: none; }
+table.cmp th.on { color: var(--text); }
+table.cmp th .si { font-size: 9px; margin-left: 3px; }
+table.cmp thead tr.grp th { border-bottom: 1px solid var(--accent); color: var(--text); font-size: 11.5px; cursor: default; }
+table.cmp th:first-child, table.cmp td:first-child { text-align: left; font-weight: 600; position: sticky; left: 0; background: var(--panel); }
+table.cmp .gl { border-left: 2px solid #3a4658; }
+table.cmp td.d { font-weight: 600; }
+table.cmp td.d .arr { font-size: 9px; margin-left: 4px; letter-spacing: -1px; }
+table.cmp tbody tr:hover td { background: var(--panel-2); }
+table.cmp td .ab { display: block; font-size: 10.5px; color: var(--text-dim); font-weight: 500; }
+table.cmp td.up { background: rgba(46,160,67,var(--i)); } table.cmp td.down { background: rgba(201,60,60,var(--i)); }
+table.cmp td.dim, table.cmp tr.noisy td { color: var(--text-dim); }
+table.cmp tr.noisy td:first-child::after { content: " ·"; color: #c9a227; }
+</style>
+
+<div class="wrap">
+  <h1><span class="crumb">Comparison ›</span> Religion Performance mockups</h1>
+  <p class="lede">Candidate layouts for comparing two datasets' Religion Performance pages. Every chart is drawn from the two real payloads in the explorer builds, so bar counts, label collisions and small-sample noise are the real ones. The report has two kinds of data: <b>when</b> religion milestones happen (the attainment KDEs) and <b>which beliefs get picked and how they fare</b> (six wins/losses bar charts). Each kind gets its own set of variants.</p>
+  <div class="ab-key" id="ab-key"></div>
+
+  <section class="block">
+    <h2>Page skeleton and control panel</h2>
+    <p class="why">Same shell as the Overview comparison: a second entry in the <i>comparison</i> optgroup, the A / B dataset selects, no right sidebar. The one extra control is a section chooser for the belief comparison table (one table at a time rather than six). Pick shares are compared as a percentage of all picks in that section, never raw counts, because the two datasets have very different game counts.</p>
+    <div class="wire">
+      <aside class="sb">
+        <div class="sb-head"><span>Controls</span><span>«</span></div>
+        <section class="panel">
+          <h2>Report Type</h2>
+          <select>
+            <optgroup label="stats"><option>Overview</option><option>Building Yields</option><option>Instant Yields</option><option>Leaders</option><option>Policies Performance</option><option>Religion Performance</option><option>Religion Yields</option><option>Unit Composition</option><option>Wonders</option></optgroup>
+            <optgroup label="comparison"><option>Overview</option><option selected>Religion Performance</option></optgroup>
+            <optgroup label="dev"><option>Interface Draw List Buffer</option><option>Process Memory</option></optgroup>
+          </select>
+        </section>
+        <section class="panel">
+          <h2>Datasets</h2>
+          <div class="ds-row"><span class="tag a">A</span><select class="hl"><option selected>5.3.3 Warlord</option><option>5.4.8 Emperor</option><option>5.4.8 Emperor Neutral Leader Flavors</option></select></div>
+          <h3>compared against</h3>
+          <div class="ds-row"><span class="tag b">B</span><select class="hl"><option>5.3.3 Warlord</option><option selected>5.4.8 Emperor</option><option>5.4.8 Emperor Neutral Leader Flavors</option></select></div>
+          <h3>&nbsp;</h3>
+          <button class="swap" type="button">⇄ Swap A and B</button>
+        </section>
+        <section class="panel">
+          <h2>Belief Table</h2>
+          <h3>Section</h3>
+          <div class="chips"><span class="chip">Pantheons</span><span class="chip on">Founders</span><span class="chip">Followers @ Found</span><span class="chip">Enhancers</span><span class="chip">Followers @ Enhance</span><span class="chip">Reformation</span></div>
+        </section>
+      </aside>
+      <div class="frame">
+        <div class="fbox kpi"><b>KPI pair row</b><div class="fr"><div># Games</div><div>Pantheons / game</div><div>Religions / game</div><div>Enhanced / game</div><div>Reformed / game</div><div>Median founding turn</div></div></div>
+        <div class="fbox"><b>Religion Attainment Times</b> one of the attainment variants below (small multiples, or overlay, or the median-shift strips)</div>
+        <div class="fbox"><b>Pantheon Pick Frequency and Performance</b> the chosen belief variant, 29 beliefs</div>
+        <div class="fbox"><div class="fr"><div><b>Founders</b> 10 beliefs</div><div><b>Followers at Found</b> 20 beliefs</div></div></div>
+        <div class="fbox"><div class="fr"><div><b>Enhancers</b> 10 beliefs</div><div><b>Followers at Enhance</b> 20 beliefs</div></div></div>
+        <div class="fbox"><b>Reformation Beliefs</b> 10 beliefs</div>
+        <div class="fbox"><b>Belief Comparison Table</b> the section the sidebar chip picks, sortable columns</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>KPI pair row</h2>
+    <p class="why">The current report has no KPI tiles; the comparison adds a row so the headline "how religious was this patch" numbers are visible before the charts. Counts are per game (the KDE sample sizes divided by the game count), so A and B are comparable despite 339 vs 1,152 games. Each tile carries the change under the pair.</p>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section class="block">
+    <h2>Religion attainment times</h2>
+    <p class="why">Four milestones, each a density curve with mean and median. Comparing two datasets doubles that to eight curves plus reference lines. Lighter shades are A, darker are B, derived from the report's milestone palette.</p>
+    <div class="variant" style="margin-bottom:18px">
+      <div class="vhead"><span class="vnum">Shades</span><h3>Lighter = A, darker = B, derived from the milestone palette</h3></div>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="variants">
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 1</span><h3>Everything overlaid, one chart</h3></div>
+        <div id="kde-overlay" class="plot tall"></div>
+        <p class="vnote">Closest to the current report. Eight curves and eight dashed median lines share one axis, so the three late milestones overlap heavily; the legend is needed to tell which shade is which. Works when only the curve shapes matter.</p>
+      </div>
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 2</span><h3>Small multiples, one milestone per panel</h3><span class="rec">Recommended</span></div>
+        <div class="quad">
+          <div id="kde-sm-0" class="plot"></div><div id="kde-sm-1" class="plot"></div>
+          <div id="kde-sm-2" class="plot"></div><div id="kde-sm-3" class="plot"></div>
+        </div>
+        <div class="legend-ab" id="kde-sm-key"></div>
+        <p class="vnote">Each panel holds just two filled curves and two dashed medians, with the median and mean shift written in the corner. Shapes and shifts are readable at a glance. Each panel has its own turn range here; a shared range would make the pantheon spike unreadable.</p>
+      </div>
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 3</span><h3>Median shift strips</h3><span class="rec">Recommended companion</span></div>
+        <div id="kde-strips" class="plot short"></div>
+        <div class="legend-ab" id="kde-strips-key"></div>
+        <p class="vnote">Drops the curve shape for a compact summary: per milestone, A and B each get an interquartile strip, a median dot and a mean diamond; the median shift in turns sits on the right. The quartiles are integrated from the KDE the payload already ships, so no new aggregation is needed. Fits above Variant 2 as the headline, or stands alone.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Belief pick frequency and performance</h2>
+    <p class="why">Six sections share one shape: beliefs on the y axis, how often each was picked and how often the picker won. Each variant below is drawn for the section the chips select; the real report would draw the chosen variant six times (and the table once, with a section chooser). <b>Pantheons</b> is the stress test with 29 beliefs. Rows where either dataset has under 30 picks are faded: their win rates are noise.</p>
+    <div class="sec-bar"><span>Section</span><div class="chips" id="sec-chips"></div><span id="sec-summary"></span></div>
+    <div class="variants">
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 1</span><h3>Paired wins/losses bars, A above B per belief</h3></div>
+        <div id="bl-paired" class="plot"></div>
+        <div class="legend-ab" id="bl-paired-key"></div>
+        <p class="vnote">The current chart with a second bar per belief. Bar length is the share of the section's picks; the label is <b>share (win rate)</b> as today. Keeps the familiar look, but doubles the height: Pantheons becomes 58 bars.</p>
+      </div>
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 2</span><h3>Dumbbells: pick share and win rate, A → B</h3><span class="rec">Recommended</span></div>
+        <div id="bl-dumbbell" class="plot"></div>
+        <div class="legend-ab" id="bl-dumbbell-key"></div>
+        <p class="vnote">Two panels on one belief axis. Left: how popular the belief was in A and B; right: how often it won. The connector is green when B is higher and red when lower, with the change written beside each row. One row per belief, so even Pantheons stays compact, and both the level and the change are visible without hovering.</p>
+      </div>
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 3</span><h3>Diverging change bars</h3></div>
+        <div id="bl-diverging" class="plot"></div>
+        <p class="vnote">The Overview comparison's win-rate chart applied to beliefs: change in pick share on the left, change in win rate on the right, sorted by the win-rate change with the noisy rows last. The clearest picture of what moved, but the A and B levels only appear on hover.</p>
+      </div>
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 4</span><h3>Movement map: popularity vs performance</h3></div>
+        <div id="bl-move" class="plot tall"></div>
+        <p class="vnote">One arrow per belief from its A position to its B position on a pick-share × win-rate plane, so "picked more and won more" is an arrow to the upper right. Compelling for 10-belief sections; crowded for Pantheons and Followers.</p>
+      </div>
+      <div class="variant">
+        <div class="vhead"><span class="vnum">Variant 5</span><h3>Belief comparison table</h3><span class="rec">Recommended companion</span></div>
+        <div class="tbl-wrap" id="bl-table"></div>
+        <p class="vnote">The Overview comparison table's layout: pick share A | B | change and win rate A | B | change, with pick counts under the shares, tinted change cells and sortable headers. One table per page with the sidebar section chooser, so the exact numbers are always one click away whichever chart variant is picked.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="data.js"></script>
+<script>
+(function () {
+  "use strict";
+  var C = window.CMP;
+  // A = the older patch, B = the newer, as in the Overview comparison.
+  function mk(ds, tag) {
+    var short = ds.kpis.patch.split(" + ")[0] + " " + ds.kpis.difficulty;
+    return { tag: tag, k: ds.kpis, rp: ds.rp, short: short, label: tag + " · " + short, games: ds.kpis.games };
+  }
+  var A = mk(C.B, "A"), B = mk(C.A, "B");
+  var DS = [A, B];
+  var EVENTS = A.rp.eventOrder;
+  var EC = { "Pantheon Founded": "#4c9be8", "Religion Founded": "#e2402f", "Religion Enhanced": "#e8912a", "Religion Reformed": "#3fae54" };
+  var WIN = "#2e9e4f", LOSS = "#cc1f1f";
+  var BG = "#0e1117", TEXT = "#d7dde7", DIM = "#8b97a8", GRID = "rgba(255,255,255,0.07)";
+  var UP = "#2ea043", DOWN = "#c93c3c", ACC = "#5aa9e6", A_PT = "#aebbcc";
+  var NOISY = 30;
+  var CFG = { displayModeBar: false, responsive: true };
+
+  // ---- colour helpers -------------------------------------------------------
+  function hexToRgb(h) { h = h.replace("#", ""); var n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function rgbToHex(r, g, b) { return "#" + [r, g, b].map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? "0" : "") + v.toString(16); }).join(""); }
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), h = 0, s = 0, l = (mx + mn) / 2;
+    if (mx !== mn) {
+      var d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      if (mx === r) h = (g - b) / d + (g < b ? 6 : 0); else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+      h /= 6;
+    }
+    return [h, s, l];
+  }
+  function hslToRgb(h, s, l) {
+    function f(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }
+    if (s === 0) return [l * 255, l * 255, l * 255];
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    return [f(p, q, h + 1 / 3) * 255, f(p, q, h) * 255, f(p, q, h - 1 / 3) * 255];
+  }
+  // Lighter tint for A, darker tone for B (the Overview comparison's rule).
+  function shade(hex, tag) {
+    var c = hexToRgb(hex), hsl = rgbToHsl(c[0], c[1], c[2]);
+    var l = tag === "A" ? Math.min(0.86, hsl[2] + 0.2) : Math.max(0.3, hsl[2] - 0.15);
+    var rgb = hslToRgb(hsl[0], hsl[1], l);
+    return rgbToHex(rgb[0], rgb[1], rgb[2]);
+  }
+  function rgba(hex, a) { var c = hexToRgb(hex); return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a + ")"; }
+  function sw(color, cls) { return '<i class="sw' + (cls ? " " + cls : "") + '" style="background:' + color + '"></i>'; }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function signed(d, digits, unit) { return (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(digits) + (unit || ""); }
+  function dirColor(d, eps) { return Math.abs(d) < (eps || 0.05) ? DIM : d > 0 ? "#6fd38a" : "#f07878"; }
+  function fmtN(n) { return n.toLocaleString(); }
+
+  var baseLayout = {
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: { color: DIM, size: 12, family: '"Segoe UI", system-ui, Arial, sans-serif' },
+  };
+  function layout(extra) { var o = {}; Object.keys(baseLayout).forEach(function (k) { o[k] = baseLayout[k]; }); Object.keys(extra).forEach(function (k) { o[k] = extra[k]; }); return o; }
+  function title(t, left, size) { return { text: t, font: { color: TEXT, size: size || 16 }, x: left ? 0 : 0.5, xanchor: left ? "left" : "center" }; }
+  function react(id, traces, lay) { Plotly.react(document.getElementById(id), traces, lay, CFG); }
+
+  // ---- header key -----------------------------------------------------------
+  document.getElementById("ab-key").innerHTML = DS.map(function (d) {
+    return '<span><span class="tag ' + d.tag.toLowerCase() + '">' + d.tag + "</span> " + esc(d.k.patch) + " · " + esc(d.k.difficulty) + " · " + fmtN(d.games) + " games</span>";
+  }).join("");
+
+  // ---- KPI pair row ---------------------------------------------------------
+  (function () {
+    var host = document.getElementById("kpis");
+    function per(ds, ev) { var d = ds.rp.kde[ev]; return d ? d.n / ds.games : 0; }
+    function med(ds, ev) { var d = ds.rp.kde[ev]; return d ? d.median : null; }
+    [
+      { t: "# Games", a: A.games, b: B.games, fmt: fmtN, nodelta: true },
+      { t: "Pantheons per game", a: per(A, "Pantheon Founded"), b: per(B, "Pantheon Founded"), fmt: function (v) { return v.toFixed(2); } },
+      { t: "Religions founded per game", a: per(A, "Religion Founded"), b: per(B, "Religion Founded"), fmt: function (v) { return v.toFixed(2); } },
+      { t: "Enhanced per game", a: per(A, "Religion Enhanced"), b: per(B, "Religion Enhanced"), fmt: function (v) { return v.toFixed(2); } },
+      { t: "Reformed per game", a: per(A, "Religion Reformed"), b: per(B, "Religion Reformed"), fmt: function (v) { return v.toFixed(2); } },
+      { t: "Median founding turn", a: med(A, "Religion Founded"), b: med(B, "Religion Founded"), fmt: function (v) { return "T" + v.toFixed(0); }, unit: " turns", digits: 0 },
+    ].forEach(function (k) {
+      var el = document.createElement("div"); el.className = "kpi";
+      var body = k.a === k.b
+        ? '<div class="kv one">' + k.fmt(k.a) + "<small>both</small></div>"
+        : '<div class="kv"><span class="tag a">A</span><span>' + k.fmt(k.a) + '</span></div><div class="kv"><span class="tag b">B</span><span>' + k.fmt(k.b) + "</span></div>";
+      var d = k.b - k.a;
+      var delta = k.nodelta ? "" : '<div class="kd ' + (Math.abs(d) < 0.005 ? "flat" : d > 0 ? "up" : "down") + '">' + signed(d, k.digits === undefined ? 2 : k.digits, k.unit || "") + " B vs A</div>";
+      el.innerHTML = '<div class="kt">' + k.t + "</div>" + body + delta;
+      host.appendChild(el);
+    });
+  })();
+
+  // ---- shades key -----------------------------------------------------------
+  document.getElementById("swatches").innerHTML = EVENTS.map(function (ev) {
+    return '<div class="swatch-row"><div class="nm">' + esc(ev) + '</div><div class="bars"><div style="background:' + shade(EC[ev], "A") + '">A</div><div style="background:' + EC[ev] + ';color:#fff">base</div><div style="background:' + shade(EC[ev], "B") + ';color:#fff">B</div></div></div>';
+  }).join("") + '<div class="swatch-row"><div class="nm">Wins / losses (belief bars)</div><div class="bars"><div style="background:' + shade(WIN, "A") + '">A</div><div style="background:' + shade(WIN, "B") + ';color:#fff">B</div><div style="background:' + shade(LOSS, "A") + '">A</div><div style="background:' + shade(LOSS, "B") + ';color:#fff">B</div></div></div>';
+
+  function keyAB(id, items) { var el = document.getElementById(id); if (el) el.innerHTML = items.join(""); }
+  keyAB("kde-sm-key", DS.map(function (d) {
+    return "<span>" + EVENTS.map(function (ev) { return sw(shade(EC[ev], d.tag)); }).join("") + " " + esc(d.label) + (d.tag === "A" ? " (lighter, filled)" : " (darker)") + "</span>";
+  }).concat(["<span>dashed line = median</span>"]));
+
+  // ---- attainment: shared bits --------------------------------------------
+  function kde(ds, ev) { return ds.rp.kde[ev]; }
+  var xMax = 0;
+  EVENTS.forEach(function (ev) { DS.forEach(function (d) { var k = kde(d, ev); if (k) xMax = Math.max(xMax, k.x[k.x.length - 1]); }); });
+
+  // Quantile of a KDE by integrating its density (trapezoids).
+  function quant(d, q) {
+    var w = [], tot = 0, i;
+    for (i = 1; i < d.x.length; i++) { var a = (d.density[i - 1] + d.density[i]) / 2 * (d.x[i] - d.x[i - 1]); w.push(a); tot += a; }
+    var cum = 0;
+    for (i = 0; i < w.length; i++) { cum += w[i]; if (cum >= q * tot) return d.x[i + 1]; }
+    return d.x[d.x.length - 1];
+  }
+  function medianLine(x, color, dash) { return { type: "line", x0: x, x1: x, y0: 0, y1: 1, yref: "paper", line: { color: color, width: 1.5, dash: dash || "dash" } }; }
+
+  // Variant 1: overlay.
+  (function overlay() {
+    var traces = [], shapes = [];
+    EVENTS.forEach(function (ev) {
+      DS.forEach(function (d) {
+        var k = kde(d, ev); if (!k) return;
+        var col = shade(EC[ev], d.tag);
+        traces.push({ type: "scatter", mode: "lines", name: ev + " · " + d.tag, legendgroup: ev, x: k.x, y: k.density,
+          line: { color: col, width: d.tag === "A" ? 2 : 2.5 },
+          hovertemplate: d.label + "<br>" + ev + "<br>Turn %{x:.0f}<br>density %{y:.4f}<extra></extra>" });
+        shapes.push(medianLine(k.median, col));
+      });
+    });
+    react("kde-overlay", traces, layout({
+      title: title("Religion Attainment Times", true, 18), hovermode: "closest", shapes: shapes,
+      margin: { l: 60, r: 20, t: 50, b: 90 },
+      legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.16, font: { color: TEXT, size: 11 }, bgcolor: "rgba(0,0,0,0)" },
+      xaxis: { title: { text: "Turn" }, gridcolor: GRID, zerolinecolor: GRID, rangemode: "tozero" },
+      yaxis: { title: { text: "Density" }, gridcolor: GRID, zerolinecolor: GRID, rangemode: "tozero" },
+    }));
+  })();
+
+  // Variant 2: small multiples.
+  (function smallMultiples() {
+    EVENTS.forEach(function (ev, i) {
+      var traces = [], shapes = [], ann = [];
+      var ka = kde(A, ev), kb = kde(B, ev);
+      DS.forEach(function (d) {
+        var k = kde(d, ev); if (!k) return;
+        var col = shade(EC[ev], d.tag);
+        traces.push({ type: "scatter", mode: "lines", name: d.label, x: k.x, y: k.density, fill: "tozeroy",
+          fillcolor: rgba(col, d.tag === "A" ? 0.3 : 0.22), line: { color: col, width: d.tag === "A" ? 2 : 2.5 },
+          hovertemplate: d.label + "<br>Turn %{x:.0f}<br>density %{y:.4f}<extra></extra>" });
+        shapes.push(medianLine(k.median, col));
+      });
+      if (ka && kb) {
+        ann.push({ xref: "paper", yref: "paper", x: 0.98, y: 0.96, xanchor: "right", yanchor: "top", showarrow: false, align: "right",
+          font: { color: TEXT, size: 12 },
+          text: "median T" + ka.median.toFixed(0) + " → T" + kb.median.toFixed(0) + "  <b>" + signed(kb.median - ka.median, 0) + "</b>" +
+            "<br><span style=\"color:" + DIM + "\">mean " + ka.mean.toFixed(1) + " → " + kb.mean.toFixed(1) + "  " + signed(kb.mean - ka.mean, 1) + "</span>" +
+            "<br><span style=\"color:" + DIM + "\">n " + fmtN(ka.n) + " vs " + fmtN(kb.n) + "</span>" });
+      }
+      react("kde-sm-" + i, traces, layout({
+        title: { text: ev, font: { color: EC[ev], size: 14 }, x: 0, xanchor: "left" }, showlegend: false, hovermode: "x", shapes: shapes, annotations: ann,
+        margin: { l: 44, r: 12, t: 36, b: 36 },
+        xaxis: { title: { text: "Turn", standoff: 4 }, gridcolor: GRID, zerolinecolor: GRID, rangemode: "tozero" },
+        yaxis: { gridcolor: GRID, zerolinecolor: GRID, rangemode: "tozero", showticklabels: false },
+      }));
+    });
+  })();
+
+  // Variant 3: median shift strips.
+  (function strips() {
+    var traces = [], ann = [], q3Max = 0;
+    var n = EVENTS.length;
+    EVENTS.forEach(function (ev, i) {
+      var y0 = n - 1 - i;
+      var meds = {};
+      DS.forEach(function (d) {
+        var k = kde(d, ev); if (!k) return;
+        var y = y0 + (d.tag === "A" ? 0.19 : -0.19);
+        var col = shade(EC[ev], d.tag), q1 = quant(k, 0.25), q3 = quant(k, 0.75);
+        meds[d.tag] = k.median; q3Max = Math.max(q3Max, q3);
+        traces.push({ type: "scatter", mode: "lines", x: [q1, q3], y: [y, y], line: { color: rgba(col, 0.45), width: 14 }, showlegend: false,
+          hovertemplate: d.label + "<br>" + ev + "<br>IQR T" + q1.toFixed(0) + " – T" + q3.toFixed(0) + "<extra></extra>" });
+        traces.push({ type: "scatter", mode: "markers", x: [k.median], y: [y], marker: { color: col, size: 13, line: { color: BG, width: 1.5 } }, showlegend: false,
+          hovertemplate: d.label + "<br>" + ev + "<br>median T" + k.median.toFixed(0) + "<extra></extra>" });
+        traces.push({ type: "scatter", mode: "markers", x: [k.mean], y: [y], marker: { color: col, size: 9, symbol: "diamond-open", line: { width: 2 } }, showlegend: false,
+          hovertemplate: d.label + "<br>" + ev + "<br>mean T" + k.mean.toFixed(1) + "<extra></extra>" });
+      });
+      if (meds.A !== undefined && meds.B !== undefined) {
+        traces.push({ type: "scatter", mode: "lines", x: [meds.A, meds.B], y: [y0 + 0.19, y0 - 0.19], line: { color: DIM, width: 1, dash: "dot" }, showlegend: false, hoverinfo: "skip" });
+        ann.push({ xref: "paper", x: 1, y: y0, xanchor: "right", showarrow: false, text: "median <b>" + signed(meds.B - meds.A, 0) + " turns</b>", font: { color: TEXT, size: 12 } });
+      }
+    });
+    react("kde-strips", traces, layout({
+      title: title("Religion Attainment Times — median shift", true, 18), hovermode: "closest", annotations: ann,
+      margin: { l: 130, r: 16, t: 46, b: 40 },
+      xaxis: { title: { text: "Turn" }, gridcolor: GRID, zerolinecolor: GRID, range: [0, q3Max * 1.45] },
+      yaxis: { tickvals: EVENTS.map(function (e, i) { return n - 1 - i; }), ticktext: EVENTS, tickfont: { color: TEXT, size: 12 }, gridcolor: GRID, zeroline: false, range: [-0.6, n - 0.4] },
+    }));
+    keyAB("kde-strips-key", DS.map(function (d) { return "<span>" + sw(shade(EC["Religion Founded"], d.tag), "strip") + " " + esc(d.label) + (d.tag === "A" ? " (lighter, top)" : " (darker, bottom)") + "</span>"; })
+      .concat(["<span>strip = interquartile range</span>", "<span>" + sw(TEXT, "dot") + " median</span>", "<span>◇ mean</span>"]));
+  })();
+
+  // ---- beliefs ---------------------------------------------------------------
+  var SECTIONS = [
+    { k: "pantheon", n: "Pantheons" }, { k: "founder", n: "Founders" }, { k: "follower_found", n: "Followers @ Found" },
+    { k: "enhancer", n: "Enhancers" }, { k: "follower_enhance", n: "Followers @ Enhance" }, { k: "reformation", n: "Reformation" },
+  ];
+  function secMap(ds, k) {
+    var rows = ds.rp.picks[k] || [], tot = 0, m = {};
+    rows.forEach(function (r) { tot += r.chosen; });
+    rows.forEach(function (r) { m[r.belief] = { chosen: r.chosen, wins: r.wins, losses: r.losses, share: tot ? 100 * r.chosen / tot : 0, wr: r.chosen ? 100 * r.wins / r.chosen : null }; });
+    return { m: m, tot: tot };
+  }
+  function beliefRows(k) {
+    var SA = secMap(A, k), SB = secMap(B, k), names = Object.keys(SA.m);
+    Object.keys(SB.m).forEach(function (n) { if (!SA.m[n]) names.push(n); });
+    var rows = names.map(function (n) { return { belief: n, a: SA.m[n] || null, b: SB.m[n] || null }; });
+    rows.forEach(function (r) { r.noisy = !r.a || !r.b || r.a.chosen < NOISY || r.b.chosen < NOISY; });
+    rows.sort(function (x, y) { return (y.b ? y.b.share : -1) - (x.b ? x.b.share : -1) || (y.a ? y.a.share : -1) - (x.a ? x.a.share : -1); });
+    return { rows: rows, totA: SA.tot, totB: SB.tot };
+  }
+  // Plotly.react keeps the previous size on a re-render, so dynamic-height plots
+  // also get the height in their layout.
+  function setH(id, h) { document.getElementById(id).style.height = h + "px"; return h; }
+  function shareTxt(v) { return v.toFixed(1) + "%"; }
+
+  // Two panels on one belief axis (shared category order), used by V2 and V3.
+  function twoPanelLayout(names, extra) {
+    var yax = { type: "category", categoryorder: "array", categoryarray: names, autorange: "reversed", automargin: true, tickfont: { color: TEXT, size: 12 }, gridcolor: GRID, ticklen: 8, tickcolor: "rgba(0,0,0,0)" };
+    var y2 = {}; Object.keys(yax).forEach(function (k) { y2[k] = yax[k]; }); y2.showticklabels = false; y2.anchor = "x2";
+    yax.anchor = "x";
+    return layout(Object.assign({
+      yaxis: yax, yaxis2: y2, showlegend: false, hovermode: "closest",
+      margin: { l: 10, r: 16, t: 56, b: 44 },
+    }, extra));
+  }
+
+  function renderPaired(R) {
+    var rows = R.rows, names = rows.map(function (r) { return r.belief; });
+    var h = setH("bl-paired", rows.length * 30 + 130);
+    var traces = [], maxShare = 0;
+    rows.forEach(function (r) { DS.forEach(function (d) { var s = r[d.tag.toLowerCase()]; if (s) maxShare = Math.max(maxShare, s.share); }); });
+    DS.forEach(function (d) {
+      var key = d.tag.toLowerCase();
+      var lossX = rows.map(function (r) { var s = r[key]; return s ? s.share * (1 - s.wr / 100) : 0; });
+      ["losses", "wins"].forEach(function (part) {
+        // Explicit bases: with barmode "stack" Plotly stacks across offsetgroups too.
+        traces.push({ type: "bar", orientation: "h", name: part + " · " + d.tag, offsetgroup: d.tag, y: names,
+          base: part === "wins" ? lossX : 0,
+          x: rows.map(function (r) { var s = r[key]; if (!s) return 0; return part === "wins" ? s.share * s.wr / 100 : s.share * (1 - s.wr / 100); }),
+          marker: { color: shade(part === "wins" ? WIN : LOSS, d.tag), line: { color: BG, width: 0.5 }, opacity: 1 },
+          customdata: rows.map(function (r) { var s = r[key]; return s ? [s[part], s.chosen, s.share, s.wr] : [0, 0, 0, 0]; }),
+          hovertemplate: d.label + "<br>%{y}<br>" + part + ": %{customdata[0]} of %{customdata[1]} picks<br>share %{customdata[2]:.1f}% · win rate %{customdata[3]:.0f}%<extra></extra>",
+          text: part === "wins" ? rows.map(function (r) { var s = r[key]; return s ? shareTxt(s.share) + " (" + s.wr.toFixed(0) + "%)" : ""; }) : null,
+          textposition: "outside", textfont: { color: d.tag === "A" ? DIM : TEXT, size: 11 }, cliponaxis: false, showlegend: false });
+      });
+    });
+    react("bl-paired", traces, layout({
+      title: title("Pick Frequency and Performance", true, 18), barmode: "group", bargap: 0.28, bargroupgap: 0.05, height: h,
+      margin: { l: 10, r: 20, t: 50, b: 44 },
+      xaxis: { title: { text: "Share of this section's picks" }, ticksuffix: "%", range: [0, maxShare * 1.3], gridcolor: GRID, zerolinecolor: GRID },
+      yaxis: { type: "category", categoryorder: "array", categoryarray: names, autorange: "reversed", automargin: true, tickfont: { color: TEXT, size: 12 }, ticklen: 10, tickcolor: "rgba(0,0,0,0)" },
+    }));
+    keyAB("bl-paired-key", DS.map(function (d) { return "<span>" + sw(shade(LOSS, d.tag)) + sw(shade(WIN, d.tag)) + " " + esc(d.label) + (d.tag === "A" ? " (lighter, upper bar)" : " (darker, lower bar)") + "</span>"; })
+      .concat(["<span>red = losses, green = wins; label = share (win rate)</span>"]));
+  }
+
+  function renderDumbbell(R) {
+    var rows = R.rows, names = rows.map(function (r) { return r.belief; });
+    var h = setH("bl-dumbbell", rows.length * 26 + 130);
+    var traces = [], ann = [];
+    var maxShare = 0, maxWr = 0;
+    rows.forEach(function (r) { ["a", "b"].forEach(function (k) { if (r[k]) { maxShare = Math.max(maxShare, r[k].share); maxWr = Math.max(maxWr, r[k].wr); } }); });
+    [{ f: "share", xa: "x", unit: "%", paperX: 0.46, digits: 1 }, { f: "wr", xa: "x2", unit: "%", paperX: 1, digits: 1 }].forEach(function (p) {
+      var ya = p.xa === "x" ? "y" : "y2";
+      var ups = { x: [], y: [] }, downs = { x: [], y: [] };
+      rows.forEach(function (r) {
+        if (!r.a || !r.b) return;
+        var d = r.b[p.f] - r.a[p.f], t = d >= 0 ? ups : downs;
+        t.x.push(r.a[p.f], r.b[p.f], null); t.y.push(r.belief, r.belief, null);
+        ann.push({ xref: "paper", yref: ya, x: p.paperX, y: r.belief, xanchor: "right", showarrow: false, text: signed(d, p.digits, " pp"), font: { color: r.noisy ? DIM : dirColor(d, 0.05), size: 11 } });
+      });
+      [[ups, UP], [downs, DOWN]].forEach(function (s) {
+        traces.push({ type: "scatter", mode: "lines", x: s[0].x, y: s[0].y, xaxis: p.xa, yaxis: ya, line: { color: rgba(s[1], 0.7), width: 3 }, hoverinfo: "skip", showlegend: false });
+      });
+      DS.forEach(function (d) {
+        var key = d.tag.toLowerCase();
+        traces.push({ type: "scatter", mode: "markers", xaxis: p.xa, yaxis: ya,
+          x: rows.map(function (r) { return r[key] ? r[key][p.f] : null; }), y: names,
+          marker: { color: d.tag === "A" ? A_PT : ACC, size: 10, line: { color: BG, width: 1.5 }, opacity: rows.map(function (r) { return r.noisy ? 0.45 : 1; }) },
+          customdata: rows.map(function (r) { return r[key] ? [r[key].chosen, r[key].wins] : [0, 0]; }),
+          hovertemplate: d.label + "<br>%{y}<br>" + (p.f === "share" ? "pick share %{x:.1f}% (%{customdata[0]} picks)" : "win rate %{x:.1f}% (%{customdata[1]} of %{customdata[0]})") + "<extra></extra>",
+          showlegend: false });
+      });
+    });
+    react("bl-dumbbell", traces, twoPanelLayout(names, {
+      title: title("Pick Frequency and Performance", true, 18), annotations: ann, height: h,
+      xaxis: { domain: [0, 0.46], anchor: "y", title: { text: "Share of this section's picks" }, ticksuffix: "%", range: [0, maxShare * 1.42], gridcolor: GRID, zerolinecolor: GRID },
+      xaxis2: { domain: [0.54, 1], anchor: "y2", title: { text: "Win rate of the picking civ" }, ticksuffix: "%", range: [0, Math.min(100, maxWr * 1.42)], gridcolor: GRID, zerolinecolor: GRID },
+    }));
+    keyAB("bl-dumbbell-key", ["<span>" + sw(A_PT, "dot") + " " + esc(A.label) + "</span>", "<span>" + sw(ACC, "dot") + " " + esc(B.label) + "</span>",
+      "<span>" + sw(UP) + " B higher</span>", "<span>" + sw(DOWN) + " B lower</span>", "<span>faded = under " + NOISY + " picks on one side</span>"]);
+  }
+
+  function renderDiverging(R) {
+    var rows = R.rows.filter(function (r) { return r.a && r.b; }).map(function (r) { return { belief: r.belief, ds: r.b.share - r.a.share, dw: r.b.wr - r.a.wr, a: r.a, b: r.b, noisy: r.noisy }; });
+    // Noisy rows (few picks on one side) sink to the bottom: their swings are sampling noise.
+    rows.sort(function (x, y) { return (x.noisy - y.noisy) || (y.dw - x.dw); });
+    var names = rows.map(function (r) { return r.belief; });
+    var h = setH("bl-diverging", rows.length * 24 + 130);
+    var traces = [];
+    [{ f: "ds", xa: "x", ya: "y", lab: "pick share" }, { f: "dw", xa: "x2", ya: "y2", lab: "win rate" }].forEach(function (p) {
+      traces.push({ type: "bar", orientation: "h", xaxis: p.xa, yaxis: p.ya, y: names, x: rows.map(function (r) { return r[p.f]; }),
+        marker: { color: rows.map(function (r) { return r[p.f] >= 0 ? UP : DOWN; }), opacity: rows.map(function (r) { return r.noisy ? 0.45 : 1; }), line: { color: BG, width: 0.5 } },
+        text: rows.map(function (r) { return signed(r[p.f], 1); }), textposition: "outside", textfont: { color: TEXT, size: 11 }, cliponaxis: false,
+        customdata: rows.map(function (r) { var k = p.f === "ds" ? "share" : "wr"; return [r.a[k], r.b[k], r.a.chosen, r.b.chosen]; }),
+        hovertemplate: "%{y}<br>" + p.lab + " A %{customdata[0]:.1f}% → B %{customdata[1]:.1f}%<br>picks A %{customdata[2]} · B %{customdata[3]}<extra></extra>", showlegend: false });
+    });
+    function rng(f) { var m = 0; rows.forEach(function (r) { m = Math.max(m, Math.abs(r[f])); }); return [-m * 1.5, m * 1.5]; }
+    react("bl-diverging", traces, twoPanelLayout(names, {
+      title: title("Change from A to B, sorted by win-rate change", true, 18), bargap: 0.3, height: h,
+      xaxis: { domain: [0, 0.46], anchor: "y", title: { text: "Pick share change (pp)" }, range: rng("ds"), gridcolor: GRID, zeroline: true, zerolinecolor: "rgba(255,255,255,0.35)", zerolinewidth: 1.5 },
+      xaxis2: { domain: [0.54, 1], anchor: "y2", title: { text: "Win rate change (pp)" }, range: rng("dw"), gridcolor: GRID, zeroline: true, zerolinecolor: "rgba(255,255,255,0.35)", zerolinewidth: 1.5 },
+    }));
+  }
+
+  function renderMove(R) {
+    var rows = R.rows.filter(function (r) { return r.a && r.b; });
+    var ann = rows.map(function (r) {
+      return { x: r.b.share, y: r.b.wr, ax: r.a.share, ay: r.a.wr, axref: "x", ayref: "y", xref: "x", yref: "y", showarrow: true, arrowhead: 3, arrowsize: 1.1, arrowwidth: 1.6,
+        arrowcolor: rgba(r.b.wr - r.a.wr >= 0 ? UP : DOWN, r.noisy ? 0.4 : 0.85), text: "", standoff: 5, startstandoff: 4 };
+    });
+    var traces = DS.map(function (d) {
+      var key = d.tag.toLowerCase();
+      return { type: "scatter", mode: d.tag === "B" ? "markers+text" : "markers", name: d.label,
+        x: rows.map(function (r) { return r[key].share; }), y: rows.map(function (r) { return r[key].wr; }),
+        text: rows.map(function (r) { return r.belief; }), textposition: "top center", textfont: { color: rows.map(function (r) { return r.noisy ? DIM : TEXT; }), size: 10 },
+        marker: { color: d.tag === "A" ? A_PT : ACC, size: d.tag === "A" ? 7 : 10, line: { color: BG, width: 1 }, opacity: rows.map(function (r) { return r.noisy ? 0.45 : 1; }) },
+        customdata: rows.map(function (r) { return [r.belief, r[key].chosen]; }),
+        hovertemplate: d.label + "<br>%{customdata[0]}<br>pick share %{x:.1f}% · win rate %{y:.1f}% (%{customdata[1]} picks)<extra></extra>" };
+    });
+    var shareMax = 0; rows.forEach(function (r) { shareMax = Math.max(shareMax, r.a.share, r.b.share); });
+    react("bl-move", traces, layout({
+      title: title("Popularity vs performance, A → B", true, 18), annotations: ann, hovermode: "closest",
+      margin: { l: 56, r: 20, t: 50, b: 50 },
+      legend: { orientation: "h", x: 0.5, xanchor: "center", y: 1.06, font: { color: TEXT } },
+      xaxis: { title: { text: "Share of this section's picks" }, ticksuffix: "%", gridcolor: GRID, zerolinecolor: GRID, range: [-shareMax * 0.08, shareMax * 1.12] },
+      yaxis: { title: { text: "Win rate of the picking civ" }, ticksuffix: "%", gridcolor: GRID, zerolinecolor: GRID, rangemode: "tozero" },
+    }));
+  }
+
+  // Variant 5: sortable table.
+  var tsort = { col: "sb", dir: "desc" };
+  function renderTable(R) {
+    var rows = R.rows.slice();
+    var COLS = [
+      { k: "belief", t: "Belief" },
+      { k: "sa", t: "A", v: function (r) { return r.a ? r.a.share : null; } }, { k: "sb", t: "B", v: function (r) { return r.b ? r.b.share : null; } }, { k: "sd", t: "change", v: function (r) { return r.a && r.b ? r.b.share - r.a.share : null; } },
+      { k: "wa", t: "A", v: function (r) { return r.a ? r.a.wr : null; } }, { k: "wb", t: "B", v: function (r) { return r.b ? r.b.wr : null; } }, { k: "wd", t: "change", v: function (r) { return r.a && r.b ? r.b.wr - r.a.wr : null; } },
+    ];
+    var byKey = {}; COLS.forEach(function (c) { byKey[c.k] = c; });
+    var sc = byKey[tsort.col];
+    rows.sort(function (x, y) {
+      if (sc.k === "belief") return tsort.dir === "asc" ? x.belief.localeCompare(y.belief) : y.belief.localeCompare(x.belief);
+      var a = sc.v(x), b = sc.v(y);
+      if (a === null || b === null) return (a === null) - (b === null);
+      return tsort.dir === "asc" ? a - b : b - a;
+    });
+    var maxSd = 0, maxWd = 0;
+    rows.forEach(function (r) { if (r.a && r.b) { maxSd = Math.max(maxSd, Math.abs(r.b.share - r.a.share)); maxWd = Math.max(maxWd, Math.abs(r.b.wr - r.a.wr)); } });
+    function deltaCell(d, mx) {
+      if (d === null) return '<td class="dim">–</td>';
+      var f = mx ? Math.abs(d) / mx : 0, arrows = f >= 0.4 ? 2 : f >= 0.05 ? 1 : 0;
+      var cls = arrows ? (d > 0 ? "up" : "down") : "", arr = arrows ? (d > 0 ? "▲" : "▼").repeat(arrows) : "";
+      return '<td class="d ' + cls + '" style="--i:' + (0.1 + 0.45 * f).toFixed(2) + '">' + signed(d, 1) + (arr ? '<span class="arr">' + arr + "</span>" : "") + "</td>";
+    }
+    function th(c, cls) { var on = c.k === tsort.col; return '<th data-k="' + c.k + '" class="' + (cls || "") + (on ? " on" : "") + '">' + c.t + (on ? '<span class="si">' + (tsort.dir === "asc" ? "▲" : "▼") + "</span>" : "") + "</th>"; }
+    var html = '<table class="cmp"><thead><tr class="grp"><th></th><th colspan="3" class="gl">Pick share</th><th colspan="3" class="gl">Win rate</th></tr><tr>' +
+      th(COLS[0]) + th(COLS[1], "gl") + th(COLS[2]) + th(COLS[3]) + th(COLS[4], "gl") + th(COLS[5]) + th(COLS[6]) + "</tr></thead><tbody>";
+    rows.forEach(function (r) {
+      function sCell(s, cls) { return s ? '<td class="' + (cls || "") + '">' + shareTxt(s.share) + '<span class="ab">' + fmtN(s.chosen) + " picks</span></td>" : '<td class="dim ' + (cls || "") + '">–</td>'; }
+      function wCell(s, cls) { return s ? '<td class="' + (cls || "") + '">' + s.wr.toFixed(1) + '%<span class="ab">' + fmtN(s.wins) + " wins</span></td>" : '<td class="dim ' + (cls || "") + '">–</td>'; }
+      html += '<tr class="' + (r.noisy ? "noisy" : "") + '"><td>' + esc(r.belief) + "</td>" + sCell(r.a, "gl") + sCell(r.b) + deltaCell(r.a && r.b ? r.b.share - r.a.share : null, maxSd) +
+        wCell(r.a, "gl") + wCell(r.b) + deltaCell(r.a && r.b ? r.b.wr - r.a.wr : null, maxWd) + "</tr>";
+    });
+    html += "</tbody></table>";
+    var host = document.getElementById("bl-table"); host.innerHTML = html;
+    host.querySelectorAll("th[data-k]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var k = el.getAttribute("data-k");
+        if (tsort.col === k) tsort.dir = tsort.dir === "desc" ? "asc" : "desc"; else { tsort.col = k; tsort.dir = k === "belief" ? "asc" : "desc"; }
+        renderTable(R);
+      });
+    });
+  }
+
+  var current = "founder";
+  function renderBeliefs(k) {
+    current = k;
+    var R = beliefRows(k);
+    document.getElementById("sec-summary").textContent = R.rows.length + " beliefs · " + fmtN(R.totA) + " picks in A, " + fmtN(R.totB) + " in B";
+    renderPaired(R); renderDumbbell(R); renderDiverging(R); renderMove(R); renderTable(R);
+  }
+  var chips = document.getElementById("sec-chips");
+  SECTIONS.forEach(function (s) {
+    var el = document.createElement("span"); el.className = "chip" + (s.k === current ? " on" : ""); el.textContent = s.n;
+    el.addEventListener("click", function () {
+      chips.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("on"); }); el.classList.add("on");
+      renderBeliefs(s.k);
+    });
+    chips.appendChild(el);
+  });
+  renderBeliefs(current);
+})();
+</script>
