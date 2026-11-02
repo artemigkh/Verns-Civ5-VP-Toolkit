@@ -909,10 +909,10 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
     #                      be registered. (Before the router existed the switcher
     #                      sat at the tail of religion.js and silently skipped
     #                      the render for the six modules not yet defined.)
-    # chrome.js (the sidebars) and the thirteen report modules in between are
-    # order-independent: each only wires its own DOM and registers itself. Keep
-    # this list explicit -- a glob would hide both constraints, and alphabetical
-    # order violates both.
+    # chrome.js (the sidebars), snapshot.js (the camera buttons) and the
+    # thirteen report modules in between are order-independent: each only wires
+    # its own DOM and registers itself. Keep this list explicit -- a glob would
+    # hide both constraints, and alphabetical order violates both.
     #
     # The whole bundle runs inside window.__explorerMain, which boot.js calls
     # once window.PAYLOAD holds the dataset the URL names: every module reads
@@ -922,6 +922,7 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
     js_bundle = (
         "router.js",
         "chrome.js",
+        "snapshot.js",
         "app.js",
         "civs.js",
         "comparison.js",

@@ -6,7 +6,8 @@
      2. Victory Type Share donut for A and for B, same slice order and colours.
      3. Victory Time Spread split violins: A fills the lighter left half of each
         victory type's violin, B the darker right half.
-     4. Win rate change per civilization (B - A) as diverging bars.
+     4. Win rate change per civilization as diverging bars, each side taken
+        relative to its own average civ win rate (see renderDelta).
      5. Civilization comparison table: rank in A, rank in B, rank change, then
         the sidebar-chosen metric in A, in B and its change. Sortable like the
         Overview stats table.
@@ -581,30 +582,44 @@
       return "<span>" + swatches + " " + esc(s.label) + (s.tag === "A" ? " (lighter, left)" : " (darker, right)") + "</span>";
     });
     if (!withPoints) {
-      parts.push(
-        "<span>solid line: median, dotted: quartiles (per-game points hidden above " +
-          VIOLIN_POINTS_MAX_GAMES.toLocaleString() + " games combined)</span>"
-      );
+      parts.push("<span>solid line: median, dotted: quartiles</span>");
     }
     host.innerHTML = parts.join("");
   }
 
   // -------------------------------------------------------------------------
-  // Row 4 — win rate change per civ (B - A), diverging bars
+  // Row 4 — win rate change per civ, relative to each side's average, diverging
+  // bars
   // -------------------------------------------------------------------------
+
+  // The average civ's win rate: total wins over total civ-games, i.e. what one
+  // seat wins by chance. It falls with the player count (12-civ Huge maps sit
+  // near 1/12, 8-civ Standard near 1/8), so a raw B - A would push nearly every
+  // civ negative when B seats more players.
+  function avgWinrate(s) {
+    var wins = 0, games = 0;
+    s.p.table.rows.forEach(function (r) {
+      var n = r.count_games || 0;
+      wins += (r.winrate || 0) * n;
+      games += n;
+    });
+    return games ? wins / games : 0;
+  }
+
   function renderDelta(A, B) {
     var ra = rowsByCiv(A), rb = rowsByCiv(B);
+    var avgA = avgWinrate(A) * 100, avgB = avgWinrate(B) * 100;
     var rows = [];
     Object.keys(ra).forEach(function (civ) {
       if (!rb[civ]) return;
-      var a = ra[civ].winrate || 0, b = rb[civ].winrate || 0;
-      rows.push({ civ: civ, a: a * 100, b: b * 100, d: (b - a) * 100 });
+      var a = (ra[civ].winrate || 0) * 100, b = (rb[civ].winrate || 0) * 100;
+      rows.push({ civ: civ, a: a, b: b, d: b - avgB - (a - avgA) });
     });
     rows.sort(function (x, y) {
       return y.d - x.d;
     });
     var host = document.getElementById("cmp-delta");
-    host.style.height = Math.max(360, rows.length * 20 + 110) + "px";
+    host.style.height = Math.max(360, rows.length * 20 + 130) + "px";
     var trace = {
       type: "bar",
       orientation: "h",
@@ -627,25 +642,29 @@
       textfont: { color: TEXT, size: 11 },
       cliponaxis: false,
       customdata: rows.map(function (r) {
-        return [r.a.toFixed(1), r.b.toFixed(1)];
+        return [r.a.toFixed(1), r.b.toFixed(1), sign(r.a - avgA) + (r.a - avgA).toFixed(1), sign(r.b - avgB) + (r.b - avgB).toFixed(1)];
       }),
       hovertemplate:
-        "%{y}<br>" + A.label + ": %{customdata[0]}%<br>" + B.label + ": %{customdata[1]}%<br>change %{x:+.1f} pp<extra></extra>",
+        "%{y}<br>" + A.label + ": %{customdata[0]}% (%{customdata[2]} pp vs average)<br>" +
+        B.label + ": %{customdata[1]}% (%{customdata[3]} pp vs average)<br>change %{x:+.1f} pp<extra></extra>",
     };
     var layout = {
       title: {
-        text: "Win Rate Change By Civilization, " + A.short + " → " + B.short,
+        text:
+          "Win Rate Change vs Average By Civilization, " + A.short + " → " + B.short +
+          '<br><span style="font-size:12px">Each side measured from its own average civ win rate: ' +
+          avgA.toFixed(1) + "% in A, " + avgB.toFixed(1) + "% in B</span>",
         font: { color: TEXT, size: 17 },
         x: 0,
         xanchor: "left",
       },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      margin: { l: 110, r: 50, t: 60, b: 40 },
+      margin: { l: 110, r: 50, t: 80, b: 40 },
       font: { color: TEXT_DIM, size: 11 },
       bargap: 0.3,
       xaxis: {
-        title: { text: "Change in win rate (percentage points)", font: { color: TEXT_DIM } },
+        title: { text: "Change in win rate above or below average (percentage points)", font: { color: TEXT_DIM } },
         gridcolor: GRID,
         zerolinecolor: "rgba(255,255,255,0.25)",
       },

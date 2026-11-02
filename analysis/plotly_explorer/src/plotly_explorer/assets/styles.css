@@ -199,6 +199,30 @@ html, body {
   display: flex;
 }
 
+/* Camera (save as PNG): left of the collapse button in the sidebar head, and
+   floating under the expand button while the sidebar is collapsed. */
+.head-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.snapshot-btn:disabled {
+  cursor: progress;
+  opacity: .5;
+}
+
+#snapshot-btn-float {
+  position: absolute;
+  top: 44px;
+  left: 10px;
+  z-index: 50;
+  display: none;
+}
+
+#app.collapsed #snapshot-btn-float {
+  display: flex;
+}
+
 /* ---- Right sidebar (buildings) ---- */
 #sidebar-right {
   width: 200px;

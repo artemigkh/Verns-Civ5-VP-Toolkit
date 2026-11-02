@@ -11,10 +11,15 @@
 <body>
 <div id="app" class="show-civs">
   <button id="expand-btn" class="icon-btn" title="Show controls">&#187;</button>
+  <!-- Stands in for the sidebar's camera button while the sidebar is collapsed. -->
+  <button id="snapshot-btn-float" class="icon-btn snapshot-btn" type="button" title="Save as PNG: downloads a lossless image of the whole report area, everything except the control panels, including any part scrolled out of view" aria-label="Save as PNG"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg></button>
   <aside id="sidebar">
     <div id="sidebar-head">
       <span>Controls</span>
-      <button id="collapse-btn" class="icon-btn" title="Hide controls">&#171;</button>
+      <div class="head-btns">
+        <button id="snapshot-btn" class="icon-btn snapshot-btn" type="button" title="Save as PNG: downloads a lossless image of the whole report area, everything except the control panels, including any part scrolled out of view" aria-label="Save as PNG"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg></button>
+        <button id="collapse-btn" class="icon-btn" title="Hide controls">&#171;</button>
+      </div>
     </div>
 
     <section class="panel">
