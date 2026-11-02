@@ -80,6 +80,30 @@
         "docs"
       ],
       "port": 8815
+    },
+    {
+      "name": "comparison-mockups",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8829",
+        "--directory",
+        "analysis/plotly_explorer/mockups/comparison"
+      ],
+      "port": 8829
+    },
+    {
+      "name": "religion-comparison-mockups",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8831",
+        "--directory",
+        "analysis/plotly_explorer/mockups/religion_comparison"
+      ],
+      "port": 8831
     }
   ]
 }

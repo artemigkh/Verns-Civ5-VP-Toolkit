@@ -37,9 +37,14 @@
  * `ds`, the dataset the page shows, written first and only when it is not the
  * default (#Wonders?ds=5_4_7&c=Rome). Modules never see it in decode() and
  * must not use the name. boot.js reads it to pick the PAYLOAD before any
- * module loads; since every module reads PAYLOAD as it loads, a hash naming a
+ * module loads. Every module reads PAYLOAD as it loads, so a hash naming a
  * different dataset than the loaded one -- a dropdown pick, Back/Forward, an
- * edited URL -- is honoured by reloading the page.
+ * edited URL -- is honoured by handing over to Explorer.Datasets.activate
+ * (boot.js), which keeps every payload it has ever loaded, swaps the page body
+ * for a fresh copy of the template and runs the bundle again against the
+ * named dataset's payload. The router that run creates applies the hash as it
+ * stands then, so the switch behaves exactly like the page reload it replaces,
+ * without the network or the parse.
  *
  * A module whose report the dataset cannot show registers through
  * registerUnavailable() instead, which shows "data not available" in its
@@ -307,13 +312,46 @@
     }
     expected.length = 0;
     var route = parseHash(h);
-    // Every module captured this dataset's PAYLOAD as it loaded, so another
-    // dataset means another page load; boot.js reads the new hash.
     if (route.ds !== DATASET) {
-      location.reload();
+      switchDataset(route);
       return;
     }
     applyHash(route);
+  }
+
+  // Every module captured this dataset's PAYLOAD as it loaded, so another
+  // dataset means another bundle run (see boot.js). This router is torn down
+  // with the rest of the page once the payload is here; until then it stays
+  // live, showing the old dataset under a "Loading" note. Only a sidecar that
+  // fails to load comes back here: the page then stays on its dataset and the
+  // canonicalizing write drops the ds it could not honour, as boot.js does at
+  // first load.
+  function switchDataset(route) {
+    var DS = window.Explorer.Datasets;
+    if (!DS) {
+      location.reload(); // a build whose boot.js predates the cache
+      return;
+    }
+    // A write queued before this navigation described the old dataset's
+    // state; firing it now would overwrite the hash we are switching to.
+    if (writeTimer) {
+      clearTimeout(writeTimer);
+      writeTimer = null;
+    }
+    var label = datasetLabel(route.ds) || route.ds;
+    if (!DS.loaded(route.ds)) showDatasetNote("Loading the " + label + " dataset…");
+    DS.activate(route.ds, function (ok) {
+      if (ok) return;
+      showDatasetNote('Could not load the "' + label + '" dataset, showing ' + (datasetLabel(DATASET) || DATASET) + ".");
+      applyHash(route);
+    });
+  }
+
+  function showDatasetNote(text) {
+    var note = document.getElementById("dataset-note");
+    if (!note) return;
+    note.textContent = text || "";
+    note.hidden = !text;
   }
 
   // --- unavailable reports -------------------------------------------------
@@ -383,9 +421,9 @@
     },
 
     // Dataset switch. Pushes the current report and filters under the new ds;
-    // the hashchange comes back through onHashChange, which reloads. The
-    // filters carry over, and each module's whitelisting decode() drops any
-    // value the new dataset lacks.
+    // the hashchange comes back through onHashChange, which hands over to
+    // boot.js (see switchDataset). The filters carry over, and each module's
+    // whitelisting decode() drops any value the new dataset lacks.
     setDataset: function (id) {
       if (datasetLabel(id) === null || id === DATASET) return;
       flushPending();

@@ -7,7 +7,7 @@ are bundled into the one file; a Report Type dropdown switches between them in-p
 
 That file carries the default dataset. Each other dataset (see :mod:`.datasets`)
 is a ``datasets/<id>.js`` sidecar the page loads only when the Dataset dropdown or
-the URL picks it.
+the URL picks it, and then keeps for the life of the tab (``assets/boot.js``).
 """
 
 from __future__ import annotations
@@ -859,6 +859,10 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
     only when it is the one shown. Every other dataset is written to
     ``datasets/<id>.js`` as ``window.PAYLOAD = {...};`` and loaded by a
     ``<script src>`` -- which, unlike fetch(), also works over file://.
+
+    Every dataset, the default included, also gets ``datasets/<id>.civs.js``:
+    just its Overview slice, for the Comparison report to put beside the page's
+    own dataset without reloading (see comparison.js).
     """
     default = next(d for d in datasets if d.is_default)
     manifest = {
@@ -873,6 +877,13 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
     default_payload = None
     for ds in datasets:
         payload = build_payload(ds)
+        slice_path = sidecar_dir / f"{ds.id}.civs.js"
+        slice_path.write_text(
+            "window.EXPLORER_CIVS_SLICES = window.EXPLORER_CIVS_SLICES || {};\n"
+            f"window.EXPLORER_CIVS_SLICES[{_to_json(ds.id)}] = {_to_json(payload['civs'])};\n",
+            encoding="utf-8",
+        )
+        written.add(slice_path.name)
         if ds.is_default:
             default_payload = payload
             continue
@@ -894,11 +905,11 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
     #                      calls Explorer.Router.register() at its IIFE tail.
     #                      app.js's renderActive() also defers to it.
     #   switcher.js LAST - Router.start() reads location.hash and renders the
-    #                      report it names, which requires all twelve modules to
+    #                      report it names, which requires all thirteen modules to
     #                      be registered. (Before the router existed the switcher
     #                      sat at the tail of religion.js and silently skipped
     #                      the render for the six modules not yet defined.)
-    # chrome.js (the sidebars) and the twelve report modules in between are
+    # chrome.js (the sidebars) and the thirteen report modules in between are
     # order-independent: each only wires its own DOM and registers itself. Keep
     # this list explicit -- a glob would hide both constraints, and alphabetical
     # order violates both.
@@ -906,12 +917,15 @@ def render(cfg: Config, datasets: list[Dataset]) -> Path:
     # The whole bundle runs inside window.__explorerMain, which boot.js calls
     # once window.PAYLOAD holds the dataset the URL names: every module reads
     # PAYLOAD as it loads, and a non-default dataset arrives asynchronously.
+    # boot.js calls it again, against a fresh copy of the template's body, on
+    # every dataset switch -- so nothing in the bundle may assume it runs once.
     js_bundle = (
         "router.js",
         "chrome.js",
         "app.js",
         "building_grouped.js",
         "civs.js",
+        "comparison.js",
         "religion.js",
         "units.js",
         "religion_performance.js",

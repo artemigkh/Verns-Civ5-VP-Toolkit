@@ -18,7 +18,7 @@
 
 [[dataset]]
 id = "5_4_8_headless"
-label = "5.4.8 Emperor + 5.5.X Tourism"
+label = "5.4.8 Emperor"
 db_path = "data/MP_AUTOPLAY_VP_5_4_8_headless/stats.duckdb"
 patch = "5.4.8 + 5.5.X Tourism"
 difficulty = "Emperor"
@@ -26,8 +26,26 @@ mapscript = "Communitu 3.2.0"
 size = "Standard"
 
 [[dataset]]
+id = "5_4_8_pangaea_headless"
+label = "5.4.8 Emperor Pangaea"
+db_path = "data/MP_AUTOPLAY_VP_5_4_8_PANGAEA_headless/stats.duckdb"
+patch = "5.4.8 + 5.5.X Tourism"
+difficulty = "Emperor"
+mapscript = "Pangaea"
+size = "Standard"
+
+[[dataset]]
+id = "5_4_8_cdrift_huge_headless"
+label = "5.4.8 Emperor Continental Drift Huge"
+db_path = "data/MP_AUTOPLAY_VP_5_4_8_CDRIFT_HUGE_headless/stats.duckdb"
+patch = "5.4.8 + 5.5.X Tourism"
+difficulty = "Emperor"
+mapscript = "Continental Drift 3.1"
+size = "Huge"
+
+[[dataset]]
 id = "5_4_8_neutrals_headless"
-label = "5.4.8 Neutrals Emperor + 5.5.X Tourism"
+label = "5.4.8 Emperor Neutral Leader Flavors"
 db_path = "data/MP_AUTOPLAY_VP_5_4_8_NEUTRALS_headless/stats.duckdb"
 patch = "5.4.8 + 5.5.X Tourism + Globally Neutral Leader Flavors"
 difficulty = "Emperor"

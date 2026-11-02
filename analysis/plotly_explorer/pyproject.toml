@@ -16,6 +16,7 @@ plotly-explorer = "plotly_explorer.__main__:main"
 [dependency-groups]
 dev = [
     "ruff>=0.7",
+    "pytest>=8.3",
 ]
 
 [build-system]
@@ -24,6 +25,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plotly_explorer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 110

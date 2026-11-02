@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import shutil
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -210,7 +211,7 @@ def _quarantine(modpack_dir: Path, sqlite_path: Path, game_id: str) -> Path:
     while dest.exists():
         dest = quarantine_dir / f"{game_id}-{suffix}.db"
         suffix += 1
-    sqlite_path.replace(dest)
+    shutil.move(sqlite_path, dest)  # a modpack dir may be on another drive than incoming/
     return dest
 
 
@@ -324,7 +325,7 @@ def ingest_stats_db(
     complete_dir = modpack_dir / "complete"
     complete_dir.mkdir(parents=True, exist_ok=True)
     archived = _unique_archive_path(complete_dir, game_id)
-    sqlite_path.replace(archived)
+    shutil.move(sqlite_path, archived)  # a modpack dir may be on another drive than incoming/
     logger.info(
         "Ingested %s: modpack=%s game=%s tables=%d rows=%d -> %s",
         archived.name,

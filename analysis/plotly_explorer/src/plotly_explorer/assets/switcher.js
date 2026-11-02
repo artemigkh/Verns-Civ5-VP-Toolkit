@@ -20,8 +20,9 @@
     });
   }
 
-  // Dataset dropdown. Picking one reloads the page under the new ds (see
-  // Router.setDataset), so the <select> is built once, from the loaded state.
+  // Dataset dropdown. Picking one re-runs the bundle under the new ds (see
+  // Router.setDataset and boot.js), so the <select> is built once per run,
+  // from the loaded state.
   var dsSel = document.getElementById("dataset-select");
   if (dsSel) {
     var ds = Router.datasets();

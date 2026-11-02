@@ -32,6 +32,9 @@
           <option value="units">Unit Composition</option>
           <option value="wonders">Wonders</option>
         </optgroup>
+        <optgroup label="comparison">
+          <option value="comparison">Overview</option>
+        </optgroup>
         <optgroup label="dev">
           <option value="draw_list_buffer">Interface Draw List Buffer</option>
           <option value="process_memory">Process Memory</option>
@@ -39,12 +42,30 @@
       </select>
     </section>
 
-    <section class="panel">
+    <!-- Hidden on the Comparison report, which has its own A / B selects. -->
+    <section class="panel" id="dataset-panel">
       <h2>Dataset</h2>
       <!-- Filled from EXPLORER_DATASETS by switcher.js. -->
       <select id="dataset-select" class="select-control"></select>
       <p id="dataset-note" class="dataset-note" hidden></p>
     </section>
+
+    <!-- ===================== Comparison Overview controls ===================== -->
+    <div class="report-comparison">
+      <section class="panel">
+        <h2>Datasets</h2>
+        <!-- comparison.js fills both selects from EXPLORER_DATASETS. -->
+        <div class="cmp-ds-row"><span class="cmp-tag a">A</span><select id="cmp-ds-a" class="select-control"></select></div>
+        <h3>compared against</h3>
+        <div class="cmp-ds-row"><span class="cmp-tag b">B</span><select id="cmp-ds-b" class="select-control"></select></div>
+        <button id="cmp-swap" class="cmp-swap" type="button">&#8646; Swap A and B</button>
+      </section>
+      <section class="panel">
+        <h2>Comparison Table</h2>
+        <h3>Metric</h3>
+        <div id="cmp-metric-controls" class="chip-grid"></div>
+      </section>
+    </div>
 
     <!-- ===================== Building report controls ===================== -->
     <div class="report-building">
@@ -216,7 +237,30 @@
         <div class="civs-card"><div id="civs-winrate" class="civs-plot tall"></div></div>
         <div class="civs-card">
           <h2 class="civs-table-title">Civilization Stats</h2>
-          <div id="civs-table"></div>
+          <div id="civs-table" class="civs-tbl"></div>
+        </div>
+      </div>
+      <div class="report-comparison">
+        <h1 id="cmp-title">Overview Comparison</h1>
+        <!-- Loading / cannot-compare message; comparison.js hides #cmp-body behind it. -->
+        <p id="cmp-note" class="chart-subtitle" hidden></p>
+        <div id="cmp-body">
+          <div id="cmp-kpi-row"></div>
+          <div id="cmp-mid-row">
+            <div class="civs-card"><div id="cmp-donut-a" class="civs-plot"></div></div>
+            <div class="civs-card"><div id="cmp-donut-b" class="civs-plot"></div></div>
+          </div>
+          <div class="civs-card">
+            <div id="cmp-violin" class="civs-plot tall"></div>
+            <div id="cmp-violin-key" class="cmp-key"></div>
+          </div>
+          <!-- comparison.js sets this plot's height from the number of civs. -->
+          <div class="civs-card"><div id="cmp-delta" class="civs-plot"></div></div>
+          <div class="civs-card">
+            <h2 class="civs-table-title">Civilization Comparison</h2>
+            <p id="cmp-table-sub" class="cmp-table-sub"></p>
+            <div id="cmp-table" class="civs-tbl"></div>
+          </div>
         </div>
       </div>
       <div class="report-building">
