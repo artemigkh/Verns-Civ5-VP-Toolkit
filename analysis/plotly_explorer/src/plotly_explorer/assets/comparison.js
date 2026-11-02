@@ -266,13 +266,14 @@
   // -------------------------------------------------------------------------
   // The two sides
   // -------------------------------------------------------------------------
-  // A side is a dataset id plus its loaded slice; `short` names it in chart
-  // titles ("5.4.8 Emperor"), falling back to the dropdown label.
+  // A side is a dataset id plus its loaded slice; `short` names it everywhere
+  // the report shows it ("5.4.8 Emperor"), falling back to the dropdown label.
+  // A and B stay internal: forum readers took "better in B" for a riddle.
   function side(tag, id) {
     var p = hasOwn(SLICES, id) ? SLICES[id] : null;
     var short = manifestLabel(id);
     if (p && p.kpis) short = String(p.kpis.patch).split(" + ")[0] + " " + p.kpis.difficulty;
-    return { tag: tag, id: id, p: p, short: short, label: tag + " · " + short };
+    return { tag: tag, id: id, p: p, short: short };
   }
 
   // Both sides. Two datasets with the same patch and difficulty (5.4.8 and
@@ -283,7 +284,6 @@
     if (A.short === B.short) {
       [A, B].forEach(function (s) {
         s.short = manifestLabel(s.id);
-        s.label = s.tag + " · " + s.short;
       });
     }
     return [A, B];
@@ -329,8 +329,8 @@
         body = '<div class="cmp-kv one">' + kpiValue(k.a, k.suffix) + '<small>both</small></div>';
       } else {
         body =
-          '<div class="cmp-kv"><span class="cmp-tag a">A</span><span>' + kpiValue(k.a, k.suffix) + "</span></div>" +
-          '<div class="cmp-kv"><span class="cmp-tag b">B</span><span>' + kpiValue(k.b, k.suffix) + "</span></div>";
+          '<div class="cmp-kv"><small>' + esc(A.short) + "</small><span>" + kpiValue(k.a, k.suffix) + "</span></div>" +
+          '<div class="cmp-kv"><small>' + esc(B.short) + "</small><span>" + kpiValue(k.b, k.suffix) + "</span></div>";
       }
       card.innerHTML = '<div class="kpi-title">' + esc(k.title) + "</div>" + body;
       host.appendChild(card);
@@ -379,10 +379,10 @@
       texttemplate: "<b>%{label}</b><br>%{value}  (%{percent})",
       textposition: "outside",
       outsidetextfont: { color: TEXT, size: 12 },
-      hovertemplate: s.label + "<br>%{label}: %{value} (%{percent})<extra></extra>",
+      hovertemplate: s.short + "<br>%{label}: %{value} (%{percent})<extra></extra>",
     };
     var layout = {
-      title: { text: s.label, font: { color: TEXT, size: 16 }, x: 0.5, xanchor: "center" },
+      title: { text: s.short, font: { color: TEXT, size: 16 }, x: 0.5, xanchor: "center" },
       showlegend: false,
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
@@ -420,7 +420,7 @@
     var victors = (s.p.victory.victors && s.p.victory.victors[t]) || [];
     var trace = {
       type: "violin",
-      name: s.label,
+      name: s.short,
       side: negative ? "negative" : "positive",
       x: turns.map(function () {
         return t;
@@ -442,7 +442,7 @@
       trace.jitter = 0.3;
       trace.marker = { color: color, size: 4, opacity: 0.9, line: { color: "#000000", width: 0.6 } };
       trace.hoveron = "points";
-      trace.hovertemplate = "%{customdata}<br>" + s.label + "<br>" + t + " victory, turn %{y}<extra></extra>";
+      trace.hovertemplate = "%{customdata}<br>" + s.short + "<br>" + t + " victory, turn %{y}<extra></extra>";
     } else {
       trace.points = false;
       trace.hoverinfo = "skip"; // the median marker (quartileHover) answers instead
@@ -504,7 +504,7 @@
       y: [q.med],
       marker: { size: 28, opacity: 0, color: shade(VICTORY_COLORS[t] || "#888888", s.tag) },
       hovertemplate:
-        s.label + "<br>" + t + " victory, " + q.n.toLocaleString() + " games" +
+        s.short + "<br>" + t + " victory, " + q.n.toLocaleString() + " games" +
         "<br>Q3: turn " + Math.round(q.q3) +
         "<br>median: turn " + Math.round(q.med) +
         "<br>Q1: turn " + Math.round(q.q1) +
@@ -579,7 +579,7 @@
           return '<i class="cmp-sw" style="background:' + shade(VICTORY_COLORS[t] || "#888888", s.tag) + '"></i>';
         })
         .join("");
-      return "<span>" + swatches + " " + esc(s.label) + (s.tag === "A" ? " (lighter, left)" : " (darker, right)") + "</span>";
+      return "<span>" + swatches + " " + esc(s.short) + (s.tag === "A" ? " (lighter, left)" : " (darker, right)") + "</span>";
     });
     if (!withPoints) {
       parts.push("<span>solid line: median, dotted: quartiles</span>");
@@ -606,6 +606,10 @@
     return games ? wins / games : 0;
   }
 
+  function pp2(d) {
+    return sign(d) + d.toFixed(2);
+  }
+
   function renderDelta(A, B) {
     var ra = rowsByCiv(A), rb = rowsByCiv(B);
     var avgA = avgWinrate(A) * 100, avgB = avgWinrate(B) * 100;
@@ -619,7 +623,7 @@
       return y.d - x.d;
     });
     var host = document.getElementById("cmp-delta");
-    host.style.height = Math.max(360, rows.length * 20 + 130) + "px";
+    host.style.height = Math.max(360, rows.length * 20 + 192) + "px";
     var trace = {
       type: "bar",
       orientation: "h",
@@ -642,27 +646,59 @@
       textfont: { color: TEXT, size: 11 },
       cliponaxis: false,
       customdata: rows.map(function (r) {
-        return [r.a.toFixed(1), r.b.toFixed(1), sign(r.a - avgA) + (r.a - avgA).toFixed(1), sign(r.b - avgB) + (r.b - avgB).toFixed(1)];
+        // Pre-formatted: Plotly ignored a %{x:+.2f} format here and printed
+        // the raw float.
+        return [r.a.toFixed(1), r.b.toFixed(1), pp2(r.a - avgA), pp2(r.b - avgB), pp2(r.d)];
       }),
       hovertemplate:
-        "%{y}<br>" + A.label + ": %{customdata[0]}% (%{customdata[2]} pp vs average)<br>" +
-        B.label + ": %{customdata[1]}% (%{customdata[3]} pp vs average)<br>change %{x:+.1f} pp<extra></extra>",
+        "%{y}<br>" + A.short + ": %{customdata[0]}% (%{customdata[2]} pp vs average)<br>" +
+        B.short + ": %{customdata[1]}% (%{customdata[3]} pp vs average)<br>change %{customdata[4]} pp<extra></extra>",
     };
     var layout = {
       title: {
         text:
           "Win Rate Change vs Average By Civilization, " + A.short + " → " + B.short +
-          '<br><span style="font-size:12px">Each side measured from its own average civ win rate: ' +
-          avgA.toFixed(1) + "% in A, " + avgB.toFixed(1) + "% in B</span>",
+          '<br><span style="font-size:12px"><span style="color:' + UP + '">■ Green</span>: the civ does better in ' +
+          esc(B.short) + " than in " + esc(A.short) + ".</span>" +
+          '<br><span style="font-size:12px"><span style="color:' + DOWN + '">■ Red</span>: it does worse in ' +
+          esc(B.short) + " than in " + esc(A.short) + ".</span>" +
+          '<br><span style="font-size:12px">Each measured from its own average civ win rate: ' +
+          avgA.toFixed(1) + "% in " + esc(A.short) + ", " + avgB.toFixed(1) + "% in " + esc(B.short) + "</span>",
         font: { color: TEXT, size: 17 },
         x: 0,
         xanchor: "left",
+        // Pinned to the top: Plotly centres a multi-line title in the margin,
+        // which would push its last line into the direction labels.
+        y: 1,
+        yref: "container",
+        yanchor: "top",
+        pad: { t: 20 },
       },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      margin: { l: 110, r: 50, t: 80, b: 40 },
+      margin: { l: 110, r: 50, t: 138, b: 40 },
       font: { color: TEXT_DIM, size: 11 },
       bargap: 0.3,
+      // Direction labels either side of the zero line, so the sign reads
+      // without the subtitle.
+      annotations: [
+        { text: "◀ worse in " + esc(B.short), color: DOWN, xanchor: "right", xshift: -6 },
+        { text: "better in " + esc(B.short) + " ▶", color: UP, xanchor: "left", xshift: 6 },
+      ].map(function (d) {
+        return {
+          text: "<b>" + d.text + "</b>",
+          x: 0,
+          xref: "x",
+          xanchor: d.xanchor,
+          xshift: d.xshift,
+          y: 1,
+          yref: "paper",
+          yanchor: "bottom",
+          yshift: 4,
+          showarrow: false,
+          font: { color: d.color, size: 12 },
+        };
+      }),
       xaxis: {
         title: { text: "Change in win rate above or below average (percentage points)", font: { color: TEXT_DIM } },
         gridcolor: GRID,
@@ -838,7 +874,7 @@
     document.getElementById("cmp-table-sub").textContent =
       "Rank change is places gained from " + A.short + " to " + B.short +
       "; every other change is " + B.short + " minus " + A.short +
-      ". Green means the civ did better in B.";
+      ". Green means the civ did better in " + B.short + " than in " + A.short + ".";
   }
 
   // -------------------------------------------------------------------------

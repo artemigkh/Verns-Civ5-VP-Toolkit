@@ -1814,30 +1814,7 @@ html, body {
 
 #cmp-note { margin: 0 0 16px; }
 
-/* Sidebar: an A / B tag beside each dataset select, and the swap button. */
-.cmp-ds-row {
-  display: grid;
-  grid-template-columns: 26px 1fr;
-  gap: 8px;
-  align-items: center;
-}
-
-.cmp-tag {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .6px;
-  padding: 2px 7px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--text);
-  text-align: center;
-}
-
-.cmp-tag.a { border-color: #6a7a90; }
-.cmp-tag.b { border-color: var(--accent); color: #bfe0fb; }
-
+/* Sidebar: the swap button under the two dataset selects. */
 .cmp-swap {
   width: 100%;
   margin-top: 10px;
@@ -1862,17 +1839,25 @@ html, body {
 
 .cmp-kpi .kpi-title { order: -1; margin-bottom: 4px; }
 
+/* One side's value under that dataset's name. */
 .cmp-kv {
   display: grid;
-  grid-template-columns: 26px 1fr;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: 1fr;
+  gap: 1px;
   font-size: 19px;
   font-weight: 700;
   line-height: 1.15;
   color: var(--text);
   word-break: break-word;
 }
+
+.cmp-kv small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.cmp-kv + .cmp-kv { margin-top: 4px; }
 
 .cmp-kv.one {
   grid-template-columns: 1fr;
